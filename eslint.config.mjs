@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated Prisma client — not our code, regenerated via `prisma generate`.
+    "src/generated/**",
+    // Local Vercel CLI build output (gitignored, never deployed from here).
+    ".vercel/**",
   ]),
 ]);
 
