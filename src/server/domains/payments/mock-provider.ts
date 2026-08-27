@@ -13,7 +13,10 @@ export class MockPaymentProvider implements PaymentProvider {
   readonly signatureHeaderName = "x-mock-signature";
 
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent {
-    const expected = process.env.PAYMENT_MOCK_WEBHOOK_SECRET ?? "mock-secret";
+    // `||`, not `??` — an unset env var can arrive as "" rather than
+    // undefined depending on the environment (see logger.ts for the bug
+    // this caused elsewhere); `??` would silently accept that empty value.
+    const expected = process.env.PAYMENT_MOCK_WEBHOOK_SECRET || "mock-secret";
     if (signatureHeader !== expected) {
       throw new ValidationError("Invalid mock webhook signature");
     }

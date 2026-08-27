@@ -8,7 +8,7 @@ let cached: PaymentProvider | undefined;
  * runs before Stripe Connect keys exist. */
 export function getPaymentProvider(): PaymentProvider {
   if (cached) return cached;
-  const kind = process.env.PAYMENT_PROVIDER ?? "mock";
+  const kind = process.env.PAYMENT_PROVIDER || "mock";
   cached = kind === "stripe" ? new StripePaymentProvider() : new MockPaymentProvider();
   return cached;
 }

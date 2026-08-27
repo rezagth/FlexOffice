@@ -7,7 +7,11 @@ import pino from "pino";
  * card data) in any field.
  */
 export const logger = pino({
-  level: process.env.LOG_LEVEL ?? "info",
+  // `||`, not `??`: an unset env var can arrive as "" rather than
+  // undefined depending on the build/runtime environment, and pino
+  // rejects an empty level ("default level: must be included in custom
+  // levels") — `??` would let that empty string through.
+  level: process.env.LOG_LEVEL || "info",
   redact: ["password", "token", "accessToken", "refreshToken", "authorization"],
 });
 
