@@ -1,4 +1,11 @@
 import { prisma } from "@/server/db/prisma";
+import { MOCK_SPACES } from "./mock-data";
+
+// No DATABASE_URL configured yet (e.g. a demo deploy without Supabase
+// wired up): fall back to static demo data instead of erroring, so the
+// public pages stay browsable. Once DATABASE_URL is set this branch never
+// runs — see mock-data.ts.
+const useMockData = !process.env.DATABASE_URL;
 
 /**
  * Public space search — deliberately simple for this iteration (city
@@ -8,6 +15,13 @@ import { prisma } from "@/server/db/prisma";
  * ignored — the search page below says so.
  */
 export async function listPublishedSpaces(params: { city?: string } = {}) {
+  if (useMockData) {
+    const city = params.city?.toLowerCase();
+    return MOCK_SPACES.filter(
+      (space) => !city || space.city.toLowerCase().includes(city)
+    );
+  }
+
   return prisma.space.findMany({
     where: {
       status: "PUBLISHED",
@@ -22,6 +36,10 @@ export async function listPublishedSpaces(params: { city?: string } = {}) {
 }
 
 export async function getPublishedSpaceBySlug(slug: string) {
+  if (useMockData) {
+    return MOCK_SPACES.find((space) => space.slug === slug) ?? null;
+  }
+
   return prisma.space.findFirst({
     where: { slug, status: "PUBLISHED" },
     include: {

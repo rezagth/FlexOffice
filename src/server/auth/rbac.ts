@@ -19,28 +19,37 @@ export type AuthContext = {
  * out" (public pages).
  */
 export async function getAuthContext(): Promise<AuthContext | null> {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      return null;
+    }
+
+    const profile = await prisma.profile.findUnique({
+      where: { id: data.user.id },
+    });
+    // Defensive: the `handle_new_user` trigger always creates a profile
+    // alongside the auth user, so this should never happen in practice.
+    if (!profile) {
+      return null;
+    }
+
+    return {
+      userId: profile.id,
+      email: profile.email,
+      name: profile.name,
+      role: profile.role,
+      organizationId: profile.organizationId,
+    };
+  } catch {
+    // Supabase/DB not configured (e.g. a demo deploy with no env vars) —
+    // treat as "signed out" rather than crashing every page that checks
+    // auth state. Real credential/DB errors on a fully configured
+    // deployment still surface via Route Handlers, which validate their
+    // own DB access separately.
     return null;
   }
-
-  const profile = await prisma.profile.findUnique({
-    where: { id: data.user.id },
-  });
-  // Defensive: the `handle_new_user` trigger always creates a profile
-  // alongside the auth user, so this should never happen in practice.
-  if (!profile) {
-    return null;
-  }
-
-  return {
-    userId: profile.id,
-    email: profile.email,
-    name: profile.name,
-    role: profile.role,
-    organizationId: profile.organizationId,
-  };
 }
 
 export async function requireAuth(): Promise<AuthContext> {
