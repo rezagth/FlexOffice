@@ -1,9 +1,11 @@
 import { getAuthContext } from "@/server/auth/rbac";
 import { listOrgSpaces } from "@/server/domains/spaces/list-org-spaces";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/states";
-import { SPACE_TYPE_LABELS, formatCents } from "@/lib/format";
+import { SPACE_STATUS_LABELS, SPACE_TYPE_LABELS, formatCents } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
 
 export default async function PartnerSpacesPage() {
   const ctx = await getAuthContext();
@@ -14,30 +16,32 @@ export default async function PartnerSpacesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-foreground">Mes espaces</h1>
-        <Button disabled>Publier un espace</Button>
+        <ButtonLink href="/partner/spaces/new">Publier un espace</ButtonLink>
       </div>
-      <p className="max-w-lg text-sm text-muted-foreground">
-        La création et l&apos;édition d&apos;espaces arrivent dans une prochaine
-        itération — ce qui suit reflète les données déjà en base.
-      </p>
 
       {spaces.length === 0 ? (
         <EmptyState
           title="Aucun espace pour l'instant"
-          description="Vos espaces publiés, en attente de validation ou en brouillon apparaîtront ici."
+          description="Publiez votre premier espace : il sera visible publiquement une fois validé."
+          action={<ButtonLink href="/partner/spaces/new">Publier un espace</ButtonLink>}
         />
       ) : (
         <div className="flex flex-col gap-3">
           {spaces.map((space) => (
-            <Card key={space.id} className="flex items-center justify-between p-4">
+            <Card key={space.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
                 <p className="font-medium">{space.name}</p>
                 <p className="text-sm text-muted-foreground">
                   {SPACE_TYPE_LABELS[space.type] ?? space.type} · {space.city} ·{" "}
-                  {space.status}
+                  {SPACE_STATUS_LABELS[space.status] ?? space.status}
                 </p>
               </div>
-              <p className="text-sm font-medium">{formatCents(space.dayPriceCents)} / jour</p>
+              <div className="flex items-center gap-4">
+                <p className="text-sm font-medium">{formatCents(space.dayPriceCents)} / jour</p>
+                <ButtonLink href={`/partner/spaces/${space.id}/edit`} variant="outline" size="sm">
+                  Modifier
+                </ButtonLink>
+              </div>
             </Card>
           ))}
         </div>

@@ -1,6 +1,11 @@
 import Stripe from "stripe";
 import { ValidationError } from "@/server/lib/errors";
-import type { PaymentProvider, VerifiedWebhookEvent } from "./provider";
+import type {
+  CapturePaymentOutcome,
+  CreatePaymentIntentParams,
+  PaymentProvider,
+  VerifiedWebhookEvent,
+} from "./provider";
 
 export class StripePaymentProvider implements PaymentProvider {
   readonly name = "stripe";
@@ -16,6 +21,39 @@ export class StripePaymentProvider implements PaymentProvider {
     }
     this.stripe = new Stripe(secretKey);
     this.webhookSecret = webhookSecret;
+  }
+
+  async createPaymentIntent(
+    params: CreatePaymentIntentParams
+  ): Promise<{ providerPaymentIntentId: string }> {
+    // capture_method: "manual" — authorize now, capture only once the
+    // partner accepts the request (see accept-reject.ts). Connect payout:
+    // when the organization has completed onboarding, the commission stays
+    // on the platform account and the rest transfers to the connected
+    // account directly on capture.
+    const intent = await this.stripe.paymentIntents.create({
+      amount: params.amountCents,
+      currency: "eur",
+      capture_method: "manual",
+      metadata: { bookingId: params.bookingId },
+      ...(params.connectedAccountId
+        ? { transfer_data: { destination: params.connectedAccountId } }
+        : {}),
+    });
+    return { providerPaymentIntentId: intent.id };
+  }
+
+  async capturePaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
+    await this.stripe.paymentIntents.capture(providerPaymentIntentId);
+    // Never trust the synchronous response as final — see provider.ts.
+    // The Payment/Booking transition only happens when
+    // payment_intent.succeeded arrives through the verified webhook.
+    return { outcome: "processing" };
+  }
+
+  async cancelPaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
+    await this.stripe.paymentIntents.cancel(providerPaymentIntentId);
+    return { outcome: "processing" };
   }
 
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent {

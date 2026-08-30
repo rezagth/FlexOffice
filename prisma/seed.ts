@@ -174,6 +174,25 @@ async function main() {
     await prisma.space.createMany({
       data: [
         {
+          organizationId: lyonProfile.organizationId!,
+          slug: "salle-part-dieu-lyon",
+          name: "Salle Part-Dieu",
+          type: "MEETING_ROOM",
+          description:
+            "Salle de réunion à deux pas de la gare — soumise pour validation, sert à tester la modération admin.",
+          address: "18 rue de la Villette",
+          city: "Lyon",
+          postalCode: "69003",
+          capacity: 6,
+          amenities: ["Wifi", "Écran"],
+          photos: [],
+          halfDayPriceCents: 8000,
+          dayPriceCents: 14000,
+          // Left awaiting review on purpose: this is the row an ADMIN
+          // approves or rejects from /admin/listings.
+          status: "PENDING_REVIEW",
+        },
+        {
           organizationId: parisProfile.organizationId!,
           slug: "salle-rivoli-paris",
           name: "Salle Rivoli",
@@ -224,6 +243,37 @@ async function main() {
         },
       ],
     });
+
+    // Opening hours are what make a space bookable at all: computeDaySlots()
+    // returns "closed" for any weekday with no row here, so without this the
+    // booking funnel would offer nothing on every date.
+    const seededSpaces = await prisma.space.findMany({ select: { id: true, slug: true } });
+    for (const space of seededSpaces) {
+      await prisma.spaceOpeningHours.createMany({
+        data: [1, 2, 3, 4, 5].map((weekday) => ({
+          spaceId: space.id,
+          weekday,
+          opensAt: "09:00",
+          // Friday closes at midday on the Rivoli room, so the half-day
+          // clamping (morning ends at closing time, no afternoon slot) is
+          // exercised by the demo data rather than only by tests.
+          closesAt: weekday === 5 && space.slug === "salle-rivoli-paris" ? "12:00" : "18:00",
+        })),
+      });
+    }
+
+    // One closed period, so the calendar shows a blocked day out of the box.
+    const rivoli = seededSpaces.find((s) => s.slug === "salle-rivoli-paris");
+    if (rivoli) {
+      const start = new Date();
+      start.setDate(start.getDate() + 7);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      await prisma.spaceClosure.create({
+        data: { spaceId: rivoli.id, startsAt: start, endsAt: end, reason: "Séminaire interne" },
+      });
+    }
   } else {
     console.log("  (spaces already seeded)");
   }

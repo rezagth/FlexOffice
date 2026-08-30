@@ -1,5 +1,10 @@
 import { ValidationError } from "@/server/lib/errors";
-import type { PaymentProvider, VerifiedWebhookEvent } from "./provider";
+import type {
+  CapturePaymentOutcome,
+  CreatePaymentIntentParams,
+  PaymentProvider,
+  VerifiedWebhookEvent,
+} from "./provider";
 
 /**
  * Local/dev stand-in for Stripe. Signature check is a simple shared-secret
@@ -7,10 +12,31 @@ import type { PaymentProvider, VerifiedWebhookEvent } from "./provider";
  * enough for exercising the idempotency/webhook plumbing before Stripe
  * Connect keys exist, not a substitute for signature verification once
  * real payments are wired up.
+ *
+ * Unlike Stripe, this provider has no external system to wait on: capture
+ * and cancel are its own final word, so they resolve "succeeded"
+ * synchronously instead of waiting for a webhook that will never arrive.
  */
 export class MockPaymentProvider implements PaymentProvider {
   readonly name = "mock";
   readonly signatureHeaderName = "x-mock-signature";
+
+  async createPaymentIntent(
+    params: CreatePaymentIntentParams
+  ): Promise<{ providerPaymentIntentId: string }> {
+    void params;
+    return { providerPaymentIntentId: `mock_pi_${crypto.randomUUID()}` };
+  }
+
+  async capturePaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
+    void providerPaymentIntentId;
+    return { outcome: "succeeded" };
+  }
+
+  async cancelPaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
+    void providerPaymentIntentId;
+    return { outcome: "succeeded" };
+  }
 
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent {
     // `||`, not `??` — an unset env var can arrive as "" rather than

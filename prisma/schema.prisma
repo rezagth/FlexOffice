@@ -30,6 +30,10 @@ model Profile {
   role           Role
   organizationId String?       @map("organization_id") @db.Uuid
   organization   Organization? @relation(fields: [organizationId], references: [id])
+  // Set on GDPR account deletion for a profile that has bookings (and
+  // therefore cannot be hard-deleted, see bookings_client_user_id_fkey
+  // ON DELETE RESTRICT). name/email/phone are anonymized at the same time.
+  deletedAt      DateTime?     @map("deleted_at")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
@@ -52,16 +56,20 @@ enum OrganizationStatus {
 }
 
 model Organization {
-  id         String             @id @default(uuid()) @db.Uuid
-  name       String
-  siret      String             @unique
-  status     OrganizationStatus @default(PENDING_VERIFICATION)
-  email      String
-  address    String
-  city       String
-  postalCode String             @map("postal_code")
-  createdAt  DateTime           @default(now()) @map("created_at")
-  updatedAt  DateTime           @updatedAt @map("updated_at")
+  id              String             @id @default(uuid()) @db.Uuid
+  name            String
+  siret           String             @unique
+  status          OrganizationStatus @default(PENDING_VERIFICATION)
+  email           String
+  address         String
+  city            String
+  postalCode      String             @map("postal_code")
+  // Stripe Connect account id (Express/Standard). Null until the
+  // organization completes onboarding — payouts stay on the mock provider
+  // until this is set and PAYMENT_PROVIDER=stripe.
+  stripeAccountId String?            @map("stripe_account_id")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
 
   members   Profile[]
   spaces    Space[]
@@ -103,6 +111,11 @@ model Space {
   photos            String[]
   halfDayPriceCents Int          @map("half_day_price_cents")
   dayPriceCents     Int          @map("day_price_cents")
+  // Shown to the client only after a booking is confirmed (door code,
+  // reception instructions, floor). Optional: partners may not need one.
+  accessInstructions String?     @map("access_instructions")
+  // IANA zone the opening hours are expressed in — see domains/bookings/timezone.ts.
+  timezone          String       @default("Europe/Paris")
   status            SpaceStatus  @default(DRAFT)
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt @map("updated_at")

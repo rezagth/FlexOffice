@@ -2,7 +2,10 @@ import { getAuthContext } from "@/server/auth/rbac";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
-import { formatDateTime } from "@/lib/format";
+import { BookingRequestActions } from "@/components/dashboard/booking-request-actions";
+import { formatCents, formatDateTime } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
 
 export default async function PartnerRequestsPage() {
   const ctx = await getAuthContext();
@@ -25,18 +28,18 @@ export default async function PartnerRequestsPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {requests.map((booking) => (
-            <Card key={booking.id} className="flex items-center justify-between p-4">
+            <Card key={booking.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
                 <p className="font-medium">
                   {booking.clientUser.name} — {booking.space.name}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {formatDateTime(booking.startsAt)} · {booking.participantsCount} pers.
+                  {formatDateTime(booking.startsAt)} → {formatDateTime(booking.endsAt)} ·{" "}
+                  {booking.participantsCount} pers. · {formatCents(booking.priceAmountCents)}
                 </p>
+                <p className="mt-1 text-sm text-muted-foreground">{booking.purpose}</p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Accepter / refuser à venir
-              </p>
+              <BookingRequestActions bookingId={booking.id} />
             </Card>
           ))}
         </div>

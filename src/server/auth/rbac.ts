@@ -35,6 +35,13 @@ export async function getAuthContext(): Promise<AuthContext | null> {
       return null;
     }
 
+    // A GDPR-deleted account is anonymized in place rather than removed
+    // (see domains/users/gdpr.ts). The Supabase ban should already stop
+    // the session, but don't depend on that timing alone.
+    if (profile.deletedAt) {
+      return null;
+    }
+
     return {
       userId: profile.id,
       email: profile.email,

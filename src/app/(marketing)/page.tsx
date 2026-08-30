@@ -5,6 +5,7 @@ import { ProblemSection } from "@/components/marketing/problem-section";
 import { HowItWorks } from "@/components/marketing/how-it-works";
 import { TrustBadges } from "@/components/marketing/trust-badges";
 import { SpaceCard } from "@/components/marketing/space-card";
+import { SiteFooter } from "@/components/marketing/site-footer";
 import { EmptyState } from "@/components/dashboard/states";
 
 // Reflects live listings — must not be statically cached at build time.
@@ -45,11 +46,7 @@ export default async function HomePage() {
       <HowItWorks />
       <TrustBadges />
 
-      <footer className="border-t border-border">
-        <div className="mx-auto max-w-6xl px-6 py-10 text-sm text-muted-foreground">
-          © {new Date().getFullYear()} OfficeFlex.
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

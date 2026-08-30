@@ -63,10 +63,15 @@ describe.skipIf(!hasRealBackend)("bookings_no_overlap_excl (DB-level, concurrent
   });
 
   afterAll(async () => {
-    await prisma.booking.deleteMany({ where: { spaceId } });
-    await prisma.space.deleteMany({ where: { id: spaceId } });
-    await prisma.organization.deleteMany({ where: { id: orgId } });
-    await admin.auth.admin.deleteUser(clientUserId);
+    // Guard every id: if beforeAll failed partway, these are undefined,
+    // and Prisma reads `where: { id: undefined }` as "no filter" — which
+    // would delete every row in the table instead of the test's own.
+    if (spaceId) {
+      await prisma.booking.deleteMany({ where: { spaceId } });
+      await prisma.space.deleteMany({ where: { id: spaceId } });
+    }
+    if (orgId) await prisma.organization.deleteMany({ where: { id: orgId } });
+    if (clientUserId) await admin.auth.admin.deleteUser(clientUserId);
     await prisma.$disconnect();
   });
 

@@ -1,5 +1,6 @@
 import { getAuthContext } from "@/server/auth/rbac";
 import { Card } from "@/components/ui/card";
+import { GdprActions } from "@/components/dashboard/gdpr-actions";
 
 export default async function ClientProfilePage() {
   const ctx = await getAuthContext();
@@ -26,9 +27,14 @@ export default async function ClientProfilePage() {
         </dl>
       </Card>
 
+      <Card className="max-w-lg p-5">
+        <h2 className="mb-4 text-lg font-medium">Mes données personnelles</h2>
+        <GdprActions />
+      </Card>
+
       <p className="max-w-lg text-sm text-muted-foreground">
-        La modification du profil et la gestion RGPD (export, suppression) arrivent
-        dans une prochaine itération.
+        La modification des informations de profil arrive dans une prochaine
+        itération.
       </p>
     </div>
   );

@@ -17,3 +17,19 @@ export const SPACE_TYPE_LABELS: Record<string, string> = {
   DESK: "Bureau",
   TRAINING_ROOM: "Espace de formation",
 };
+
+export const SPACE_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Brouillon",
+  PENDING_REVIEW: "En attente de validation",
+  PUBLISHED: "Publié",
+  REJECTED: "Rejeté",
+  ARCHIVED: "Archivé",
+};
+
+export const BOOKING_STATUS_LABELS: Record<string, string> = {
+  PENDING: "En attente",
+  CONFIRMED: "Confirmée",
+  CANCELLED: "Annulée",
+  REJECTED: "Refusée",
+  COMPLETED: "Terminée",
+};

@@ -10,6 +10,7 @@ export type SpaceCardData = {
   capacity: number;
   amenities: string[];
   dayPriceCents: number;
+  photos?: string[];
   organization: { name: string };
 };
 
@@ -23,9 +24,14 @@ export function SpaceCard({
   return (
     <Link href={href} className="group block">
       <Card className="overflow-hidden transition-shadow group-hover:shadow-md">
-        <div className="flex h-40 items-center justify-center bg-muted text-sm text-muted-foreground">
-          Photo à venir
-        </div>
+        {space.photos && space.photos.length > 0 ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={space.photos[0]} alt="" className="h-40 w-full object-cover" />
+        ) : (
+          <div className="flex h-40 items-center justify-center bg-muted text-sm text-muted-foreground">
+            Photo à venir
+          </div>
+        )}
         <div className="flex flex-col gap-1 p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
             {SPACE_TYPE_LABELS[space.type] ?? space.type} · {space.city}
