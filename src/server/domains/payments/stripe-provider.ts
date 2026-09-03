@@ -25,7 +25,7 @@ export class StripePaymentProvider implements PaymentProvider {
 
   async createPaymentIntent(
     params: CreatePaymentIntentParams
-  ): Promise<{ providerPaymentIntentId: string }> {
+  ): Promise<{ providerPaymentIntentId: string; clientSecret?: string }> {
     // capture_method: "manual" — authorize now, capture only once the
     // partner accepts the request (see accept-reject.ts). Connect payout:
     // when the organization has completed onboarding, the commission stays
@@ -36,11 +36,16 @@ export class StripePaymentProvider implements PaymentProvider {
       currency: "eur",
       capture_method: "manual",
       metadata: { bookingId: params.bookingId },
+      automatic_payment_methods: { enabled: true },
       ...(params.connectedAccountId
         ? { transfer_data: { destination: params.connectedAccountId } }
         : {}),
     });
-    return { providerPaymentIntentId: intent.id };
+    // client_secret is only absent if Stripe created the intent without
+    // confirmation being possible at all, which does not happen for a
+    // freshly created intent — the `?? undefined` is type hygiene, not a
+    // real branch.
+    return { providerPaymentIntentId: intent.id, clientSecret: intent.client_secret ?? undefined };
   }
 
   async capturePaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {

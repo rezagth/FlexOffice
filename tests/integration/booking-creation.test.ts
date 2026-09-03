@@ -113,7 +113,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
   });
 
   it("ignores a price sent by the caller and uses the space's own price", async () => {
-    const booking = await createBooking(clientUserId, {
+    const { booking } = await createBooking(clientUserId, {
       spaceId,
       date,
       slot: "MORNING",
@@ -148,7 +148,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
   });
 
   it("allows a non-overlapping slot on the same day", async () => {
-    const booking = await createBooking(clientUserId, {
+    const { booking } = await createBooking(clientUserId, {
       spaceId,
       date,
       slot: "AFTERNOON",

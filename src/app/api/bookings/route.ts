@@ -25,6 +25,10 @@ export const GET = withErrorHandling(async () => {
 export const POST = withErrorHandling(async (request: Request) => {
   const ctx = await requireAuth();
   const input = createBookingSchema.parse(await request.json());
-  const booking = await createBooking(ctx.userId, input);
-  return NextResponse.json({ booking }, { status: 201 });
+  const { booking, clientSecret } = await createBooking(ctx.userId, input);
+  // clientSecret is only present for the real Stripe provider — the caller
+  // uses it to mount a card step and authorize the payment. The mock
+  // provider has none, and the booking is already fully "requested"
+  // without one (see booking-funnel.tsx).
+  return NextResponse.json({ booking, clientSecret }, { status: 201 });
 });

@@ -7,6 +7,8 @@ import {
 } from "@/server/domains/verification/requirements";
 import { Card } from "@/components/ui/card";
 import { VerificationDossier } from "@/components/dashboard/verification-dossier";
+import { StripeConnectButton } from "@/components/dashboard/stripe-connect-button";
+import { getAccountStatus } from "@/server/domains/payments/stripe-connect";
 import {
   HOLDER_TYPE_LABELS,
   LANDLORD_ACTIVITY_TYPE_LABELS,
@@ -52,6 +54,16 @@ export default async function VerificationPage() {
   const requiredLabels = Object.fromEntries(
     required.map((type) => [type, VERIFICATION_DOCUMENT_TYPE_LABELS[type]])
   ) as Record<string, string>;
+
+  // Only shown once the platform actually runs on real Stripe — a "Connecter
+  // Stripe" button while PAYMENT_PROVIDER=mock would promise something no
+  // booking on the platform currently honours (the provider is chosen
+  // globally, not per organization).
+  const showStripeConnect =
+    process.env.PAYMENT_PROVIDER === "stripe" &&
+    ctx.capabilities.has("landlord:manage_organization") &&
+    ctx.activeOrgId;
+  const connectStatus = showStripeConnect ? await getAccountStatus(ctx.activeOrgId!) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -128,6 +140,28 @@ export default async function VerificationPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Contactez le support pour ouvrir un nouveau dossier de vérification.
           </p>
+        </Card>
+      )}
+
+      {connectStatus && (
+        <Card className="flex flex-col gap-2 p-5">
+          <h2 className="text-lg font-medium">Paiement</h2>
+          {connectStatus.connected && connectStatus.chargesEnabled && connectStatus.payoutsEnabled ? (
+            <p className="text-sm text-primary">
+              Compte Stripe connecté — vous recevez vos reversements normalement.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {connectStatus.connected
+                  ? "Compte Stripe créé, mais l'inscription n'est pas terminée : vos réservations ne peuvent pas encore être reversées."
+                  : "Connectez un compte Stripe pour recevoir le reversement de vos réservations."}
+              </p>
+              <StripeConnectButton
+                label={connectStatus.connected ? "Terminer l'inscription Stripe" : "Connecter Stripe"}
+              />
+            </>
+          )}
         </Card>
       )}
     </div>

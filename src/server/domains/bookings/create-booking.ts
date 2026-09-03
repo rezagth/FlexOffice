@@ -102,6 +102,7 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
 
   const provider = getPaymentProvider();
   let providerPaymentIntentId: string;
+  let clientSecret: string | undefined;
   try {
     const result = await provider.createPaymentIntent({
       bookingId: booking.id,
@@ -109,6 +110,7 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
       connectedAccountId: organization.stripeAccountId,
     });
     providerPaymentIntentId = result.providerPaymentIntentId;
+    clientSecret = result.clientSecret;
   } catch (error) {
     await compensate(booking.id, error, "booking.payment_intent_failed");
     throw error;
@@ -157,7 +159,7 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   await sendBookingRequested(emailContext);
   await sendBookingRequestReceived(emailContext);
 
-  return booking;
+  return { booking, clientSecret };
 }
 
 /** Deletes an orphaned Booking (created but the payment step failed) so a

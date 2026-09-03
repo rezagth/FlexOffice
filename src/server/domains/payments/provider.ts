@@ -41,10 +41,13 @@ export interface PaymentProvider {
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent;
 
   /** Authorizes (but does not capture) a payment for a booking request.
-   * Returns the provider's payment intent id, stored on Payment. */
+   * Returns the provider's payment intent id, stored on Payment.
+   * `clientSecret` is only meaningful for a provider that needs the
+   * browser to actually collect and confirm a card (real Stripe) — the
+   * mock provider has no card step, so it returns none. */
   createPaymentIntent(
     params: CreatePaymentIntentParams
-  ): Promise<{ providerPaymentIntentId: string }>;
+  ): Promise<{ providerPaymentIntentId: string; clientSecret?: string }>;
 
   /** Captures a previously-authorized payment intent — called when a
    * partner accepts a booking request. */

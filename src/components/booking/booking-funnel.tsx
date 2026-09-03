@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { StripeCardStep } from "./stripe-card-step";
 import { formatCents } from "@/lib/format";
 
 export type SlotKind = "MORNING" | "AFTERNOON" | "FULL_DAY";
@@ -20,10 +21,12 @@ const SLOT_LABELS: Record<SlotKind, string> = {
 
 /**
  * Second half of the booking funnel: the day and its slots are computed
- * server-side (see the page), so this only owns the choice itself and the
- * request. There is no card step — the platform is on the mock payment
- * provider until Stripe Connect is live, and the client is only charged
- * once the partner accepts.
+ * server-side (see the page), so this only owns the choice itself, the
+ * request, and — when the real Stripe provider is active — the card step
+ * that follows it. The mock provider returns no `clientSecret`, so that
+ * step is skipped entirely and the funnel behaves exactly as before: the
+ * client is only ever charged once the partner accepts the request,
+ * whichever provider is active.
  */
 export function BookingFunnel({
   spaceId,
@@ -44,8 +47,17 @@ export function BookingFunnel({
   const [purpose, setPurpose] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Set only when the real Stripe provider returns one — the mock
+  // provider's response never has it, so this stays null and the funnel
+  // finishes on the same request as before.
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   const selectedSlot = slots.find((slot) => slot.kind === selected) ?? null;
+
+  function finish() {
+    router.push("/app/bookings");
+    router.refresh();
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -69,13 +81,28 @@ export function BookingFunnel({
         setError(body?.error?.message ?? "La demande n'a pas pu être envoyée.");
         return;
       }
-      router.push("/client/bookings");
-      router.refresh();
+      if (body.clientSecret) {
+        // Real Stripe: the request already exists (PENDING), but the card
+        // still needs to be authorized before this is a genuine hold.
+        setClientSecret(body.clientSecret);
+        return;
+      }
+      finish();
     } catch {
       setError("Une erreur réseau est survenue.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (clientSecret) {
+    return (
+      <StripeCardStep
+        clientSecret={clientSecret}
+        returnUrl={typeof window !== "undefined" ? `${window.location.origin}/app/bookings` : "/app/bookings"}
+        onSuccess={finish}
+      />
+    );
   }
 
   return (

@@ -2,9 +2,15 @@ import Link from "next/link";
 import { requirePageLandlordOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
-import { ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatCents, formatDateTime, invoiceNumber } from "@/lib/format";
+
+function isoDateDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +34,20 @@ export default async function PartnerRevenuePage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-foreground">Revenus</h1>
         {ctx.capabilities.has("landlord:manage_accounting") && (
-          <ButtonLink href="/api/landlord/accounting/export" variant="outline" size="sm">
-            Exporter en CSV
-          </ButtonLink>
+          <form
+            action="/api/landlord/accounting/export"
+            className="flex flex-wrap items-end gap-2"
+          >
+            <Field label="Du" htmlFor="export-from">
+              <Input id="export-from" type="date" name="from" defaultValue={isoDateDaysAgo(365)} />
+            </Field>
+            <Field label="Au" htmlFor="export-to">
+              <Input id="export-to" type="date" name="to" defaultValue={isoDateDaysAgo(0)} />
+            </Field>
+            <Button type="submit" variant="outline" size="sm">
+              Exporter en CSV
+            </Button>
+          </form>
         )}
       </div>
 

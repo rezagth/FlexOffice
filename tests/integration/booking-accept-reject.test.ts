@@ -128,7 +128,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
   });
 
   it("returns 404-shaped NotFoundError when another organization tries to accept", async () => {
-    const booking = await createBooking(clientUserId, {
+    const { booking } = await createBooking(clientUserId, {
       spaceId,
       date,
       slot: "MORNING",
@@ -160,7 +160,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
   });
 
   it("frees the slot on reject, letting the same slot be booked again", async () => {
-    const booking = await createBooking(clientUserId, {
+    const { booking } = await createBooking(clientUserId, {
       spaceId,
       date,
       slot: "AFTERNOON",
@@ -177,7 +177,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
 
     // The exclusion constraint only covers PENDING/CONFIRMED, so the slot
     // is bookable again — this is what makes reject non-destructive.
-    const rebooked = await createBooking(clientUserId, {
+    const { booking: rebooked } = await createBooking(clientUserId, {
       spaceId,
       date,
       slot: "AFTERNOON",
