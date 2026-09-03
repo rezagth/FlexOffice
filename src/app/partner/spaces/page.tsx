@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageOrg } from "@/server/auth/page-guards";
 import { listOrgSpaces } from "@/server/domains/spaces/list-org-spaces";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
@@ -8,8 +8,7 @@ import { SPACE_STATUS_LABELS, SPACE_TYPE_LABELS, formatCents } from "@/lib/forma
 export const dynamic = "force-dynamic";
 
 export default async function PartnerSpacesPage() {
-  const ctx = await getAuthContext();
-  if (!ctx?.organizationId) return null; // layout already redirects non-PARTNER; this guards the brief render race before that redirect completes
+  const ctx = await requirePageOrg();
   const spaces = await listOrgSpaces(ctx.organizationId);
 
   return (

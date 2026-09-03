@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageRole } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
@@ -8,8 +8,7 @@ import { BOOKING_STATUS_LABELS, formatCents, formatDateTime } from "@/lib/format
 export const dynamic = "force-dynamic";
 
 export default async function ClientBookingsPage() {
-  const ctx = await getAuthContext();
-  if (!ctx) return null; // layout already redirects unauthenticated users; this guards the brief render race before that redirect completes
+  const ctx = await requirePageRole("CLIENT");
   const bookings = await prisma.booking.findMany({
     where: { clientUserId: ctx.userId },
     include: { space: true },

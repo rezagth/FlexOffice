@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { loginSchema } from "@/lib/validation/auth";
-import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { safeRedirectPath } from "@/lib/validation/redirect";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,16 +26,31 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
     }
 
     setPending(true);
-    const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    // Goes through POST /api/auth/login rather than calling Supabase from the
+    // browser, so the attempt is rate-limited and logged server-side. The
+    // session cookies come back on that response and createBrowserClient
+    // reads them, so client-side Supabase usage is unaffected.
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(parsed.data),
+    });
     setPending(false);
 
-    if (error) {
-      setFormError("Email ou mot de passe incorrect.");
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      // 429 and 503 carry a message worth showing as-is; anything else gets
+      // the deliberately uniform credentials message, which never reveals
+      // whether the address exists.
+      const message =
+        response.status === 429 || response.status === 503
+          ? (body?.error?.message ?? "Service momentanément indisponible.")
+          : "Email ou mot de passe incorrect.";
+      setFormError(message);
       return;
     }
 
-    router.push(redirectTo || "/post-login");
+    router.push(safeRedirectPath(redirectTo));
     router.refresh();
   }
 

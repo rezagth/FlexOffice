@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
@@ -8,8 +8,7 @@ import { formatCents, formatDateTime } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function PartnerRequestsPage() {
-  const ctx = await getAuthContext();
-  if (!ctx?.organizationId) return null; // layout already redirects non-PARTNER; this guards the brief render race before that redirect completes
+  const ctx = await requirePageOrg();
   const requests = await prisma.booking.findMany({
     where: { organizationId: ctx.organizationId, status: "PENDING" },
     include: { space: true, clientUser: { select: { name: true } } },

@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db/prisma";
 import { ConflictError, NotFoundError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
+import { assertOrganizationCanPublish } from "./publication-guard";
 
 /**
  * Admin moderation of a submitted listing. Without this step a submitted
@@ -25,6 +26,15 @@ async function transition(
 ) {
   const space = await prisma.space.findUnique({ where: { id: spaceId } });
   if (!space) throw new NotFoundError("Space not found");
+
+  // Organization.status existed and was read by no business rule at all, so
+  // a suspended partner's listing could still be approved and go live — and,
+  // now that the tunnel works, be booked and paid for. Checked only on the
+  // way to PUBLISHED: rejecting a suspended organization's space must stay
+  // possible, and is in fact the useful thing to be able to do.
+  if (status === "PUBLISHED") {
+    await assertOrganizationCanPublish(space.organizationId);
+  }
 
   const updated = await prisma.space.updateMany({
     where: { id: spaceId, status: "PENDING_REVIEW" },

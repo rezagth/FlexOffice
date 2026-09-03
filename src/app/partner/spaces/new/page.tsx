@@ -1,9 +1,11 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageOrg } from "@/server/auth/page-guards";
 import { SpaceForm } from "@/components/dashboard/space-form";
 
 export default async function NewSpacePage() {
-  const ctx = await getAuthContext();
-  if (!ctx?.organizationId) return null; // layout already redirects non-PARTNER; this guards the brief render race before that redirect completes
+  // Guard only: the form posts to /api/partner/spaces, which resolves the
+  // organization from the session itself. Nothing on this page needs the
+  // context, but the page still has to assert who may see it.
+  await requirePageOrg();
 
   return (
     <div className="flex flex-col gap-6">

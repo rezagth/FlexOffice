@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/login-form";
+import { safeRedirectPath } from "@/lib/validation/redirect";
 
 export const metadata = { title: "Connexion — OfficeFlex" };
 
@@ -7,7 +8,10 @@ export default async function LoginPage({
   searchParams,
 }: PageProps<"/login">) {
   const { redirectTo } = await searchParams;
-  const redirect = typeof redirectTo === "string" ? redirectTo : undefined;
+  // Validated here as well as in the form: `redirectTo` is attacker-supplied,
+  // and a link like /login?redirectTo=https://evil.example would otherwise
+  // hand a freshly authenticated user to another origin.
+  const redirect = safeRedirectPath(redirectTo);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center px-6 py-16">

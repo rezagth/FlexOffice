@@ -1,11 +1,10 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { formatCents } from "@/lib/format";
 
 export default async function PartnerRevenuePage() {
-  const ctx = await getAuthContext();
-  if (!ctx?.organizationId) return null; // layout already redirects non-PARTNER; this guards the brief render race before that redirect completes
+  const ctx = await requirePageOrg();
   const totals = await prisma.payment.aggregate({
     where: { organizationId: ctx.organizationId, status: "SUCCEEDED" },
     _sum: { amountCents: true, commissionAmountCents: true, netAmountCents: true },

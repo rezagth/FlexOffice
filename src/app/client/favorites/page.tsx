@@ -1,12 +1,11 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageRole } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { EmptyState } from "@/components/dashboard/states";
 import { SpaceCard } from "@/components/marketing/space-card";
 import { ButtonLink } from "@/components/ui/button";
 
 export default async function ClientFavoritesPage() {
-  const ctx = await getAuthContext();
-  if (!ctx) return null; // layout already redirects unauthenticated users; this guards the brief render race before that redirect completes
+  const ctx = await requirePageRole("CLIENT");
   const favorites = await prisma.favorite.findMany({
     where: { userId: ctx.userId },
     include: { space: { include: { organization: { select: { name: true } } } } },

@@ -1,11 +1,11 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageRole } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatCents, formatDateTime } from "@/lib/format";
 
 export default async function AdminPaymentsPage() {
-  if (!(await getAuthContext())) return null; // layout already enforces the role; this guards the brief render race before that redirect completes
+  await requirePageRole("ADMIN");
   const payments = await prisma.payment.findMany({
     include: { organization: { select: { name: true } } },
     orderBy: { createdAt: "desc" },

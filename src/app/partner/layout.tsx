@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
-import { getAuthContext } from "@/server/auth/rbac";
-import { dashboardPathForRole } from "@/server/auth/redirect-for-role";
+import { requirePageOrg } from "@/server/auth/page-guards";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 const NAV_ITEMS = [
@@ -14,13 +12,7 @@ const NAV_ITEMS = [
 export default async function PartnerLayout({
   children,
 }: LayoutProps<"/partner">) {
-  const ctx = await getAuthContext();
-  if (!ctx) {
-    redirect("/login?redirectTo=/partner/dashboard");
-  }
-  if (ctx.role !== "PARTNER") {
-    redirect(dashboardPathForRole(ctx.role));
-  }
+  const ctx = await requirePageOrg();
 
   return (
     <DashboardShell navItems={NAV_ITEMS} roleLabel="Espace entreprise" userName={ctx.name}>

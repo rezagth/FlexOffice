@@ -1,6 +1,4 @@
-import { redirect } from "next/navigation";
-import { getAuthContext } from "@/server/auth/rbac";
-import { dashboardPathForRole } from "@/server/auth/redirect-for-role";
+import { requirePageRole } from "@/server/auth/page-guards";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 const NAV_ITEMS = [
@@ -12,13 +10,7 @@ const NAV_ITEMS = [
 ];
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  const ctx = await getAuthContext();
-  if (!ctx) {
-    redirect("/login?redirectTo=/admin/dashboard");
-  }
-  if (ctx.role !== "ADMIN") {
-    redirect(dashboardPathForRole(ctx.role));
-  }
+  const ctx = await requirePageRole("ADMIN");
 
   return (
     <DashboardShell navItems={NAV_ITEMS} roleLabel="Back-office admin" userName={ctx.name}>

@@ -1,10 +1,10 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageRole } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { formatCents } from "@/lib/format";
 
 export default async function AdminDashboardPage() {
-  if (!(await getAuthContext())) return null; // layout already enforces the role; this guards the brief render race before that redirect completes
+  await requirePageRole("ADMIN");
 
   const [organizationsCount, activeSpacesCount, bookingsCount, revenue] =
     await Promise.all([

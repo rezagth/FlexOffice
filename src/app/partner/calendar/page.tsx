@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { clsx } from "clsx";
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { summarizeMonth } from "@/server/domains/bookings/availability";
 import { Card } from "@/components/ui/card";
@@ -23,8 +23,7 @@ export default async function PartnerCalendarPage({
 }: {
   searchParams: Promise<{ space?: string; month?: string }>;
 }) {
-  const ctx = await getAuthContext();
-  if (!ctx?.organizationId) return null; // layout already redirects non-PARTNER; this guards the brief render race before that redirect completes
+  const ctx = await requirePageOrg();
 
   const { space: spaceParam, month: monthParam } = await searchParams;
   const spaces = await prisma.space.findMany({

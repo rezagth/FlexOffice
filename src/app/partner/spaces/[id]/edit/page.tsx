@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { SpaceForm, type OpeningHourRow } from "@/components/dashboard/space-form";
 import { SubmitSpaceButton } from "@/components/dashboard/submit-space-button";
@@ -10,8 +10,7 @@ export const dynamic = "force-dynamic";
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 
 export default async function EditSpacePage({ params }: { params: Promise<{ id: string }> }) {
-  const ctx = await getAuthContext();
-  if (!ctx?.organizationId) return null; // layout already redirects non-PARTNER; this guards the brief render race before that redirect completes
+  const ctx = await requirePageOrg();
 
   const { id } = await params;
   const space = await prisma.space.findFirst({

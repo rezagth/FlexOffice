@@ -1,12 +1,11 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageRole } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatCents, formatDateTime } from "@/lib/format";
 
 export default async function ClientInvoicesPage() {
-  const ctx = await getAuthContext();
-  if (!ctx) return null; // layout already redirects unauthenticated users; this guards the brief render race before that redirect completes
+  const ctx = await requirePageRole("CLIENT");
   const payments = await prisma.payment.findMany({
     where: { booking: { clientUserId: ctx.userId } },
     include: { booking: { include: { space: true } } },

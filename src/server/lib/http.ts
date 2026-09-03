@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { AppError } from "./errors";
+import { AppError, RateLimitedError } from "./errors";
 import { logError } from "./logger";
 
 /**
@@ -17,9 +17,15 @@ export function withErrorHandling<Args extends unknown[]>(
       return await handler(request, ...args);
     } catch (error) {
       if (error instanceof AppError) {
+        // Retry-After lets a client back off correctly instead of hammering.
+        // Only set for 429: on any other status it would be a guess.
+        const headers =
+          error instanceof RateLimitedError && error.retryAfterSeconds
+            ? { "Retry-After": String(error.retryAfterSeconds) }
+            : undefined;
         return NextResponse.json(
           { error: { code: error.code, message: error.message } },
-          { status: error.status }
+          { status: error.status, headers }
         );
       }
       if (error instanceof ZodError) {

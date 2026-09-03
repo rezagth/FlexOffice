@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageRole } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/states";
 
 export default async function ClientDashboardPage() {
-  const ctx = await getAuthContext();
-  if (!ctx) return null; // layout already redirects unauthenticated users; this guards the brief render race before that redirect completes
+  const ctx = await requirePageRole("CLIENT");
 
   const [nextBooking, totalBookings, spend, favoritesCount] = await Promise.all([
     prisma.booking.findFirst({

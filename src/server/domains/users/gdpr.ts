@@ -70,19 +70,37 @@ export async function deleteOrAnonymizeProfile(userId: string) {
     return { mode: "hard_delete" as const };
   }
 
+  // The tombstone address is also written to auth.users below, so it has to
+  // be computed once. Its shape is pinned by
+  // `profiles_anonymized_has_no_pii_check` (migration
+  // 20260903110100_business_integrity_constraints), which rejects a row
+  // carrying `deleted_at` while still holding an email or a phone number —
+  // so a half-done anonymization cannot be committed. Keep the two in step.
+  const tombstoneEmail = `deleted-${crypto.randomUUID()}@officeflex.invalid`;
+
   await prisma.profile.update({
     where: { id: userId },
     data: {
       name: "Compte supprimé",
-      email: `deleted-${crypto.randomUUID()}@officeflex.invalid`,
+      email: tombstoneEmail,
       phone: null,
       deletedAt: new Date(),
     },
   });
 
-  // ~100 years: Supabase has no permanent-ban flag, and the auth user
-  // cannot be deleted while bookings reference the profile.
-  const { error } = await admin.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
+  // Banning alone left the real address, and any phone number, sitting in
+  // auth.users indefinitely — erasure has to cover both sides, not just the
+  // copy this app owns. user_metadata is emptied too: it holds the name and
+  // phone supplied at signup.
+  //
+  // ~100 years for the ban: Supabase has no permanent-ban flag, and the auth
+  // user cannot be deleted while bookings reference the profile.
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    email: tombstoneEmail,
+    phone: undefined,
+    user_metadata: {},
+    ban_duration: "876000h",
+  });
   if (error) throw error;
 
   await recordAudit({

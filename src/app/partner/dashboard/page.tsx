@@ -1,4 +1,4 @@
-import { getAuthContext } from "@/server/auth/rbac";
+import { requirePageOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
@@ -6,8 +6,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { formatCents } from "@/lib/format";
 
 export default async function PartnerDashboardPage() {
-  const ctx = await getAuthContext();
-  if (!ctx?.organizationId) return null; // layout already redirects non-PARTNER; this guards the brief render race before that redirect completes
+  const ctx = await requirePageOrg();
 
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
