@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import type { Role } from "@/generated/prisma/client";
 import { safeRedirectPath } from "@/lib/validation/redirect";
 import { PATHNAME_HEADER } from "@/proxy";
@@ -40,8 +40,13 @@ async function requestedPath(): Promise<string | undefined> {
     if (!pathname) return undefined;
     const safe = safeRedirectPath(pathname, "/app");
     return safe === "/app" ? undefined : safe;
-  } catch {
-    // Outside a request scope (a static prerender). Fall back to the default.
+  } catch (error) {
+    // headers() throws Next's own dynamic-rendering signal during static
+    // generation — let Next handle that (see the identical reasoning in
+    // rbac.ts's getAuthContext()) rather than treating it as the "outside a
+    // request scope" case below, which is for a genuinely different
+    // situation (this ran, but there was no real request to read from).
+    unstable_rethrow(error);
     return undefined;
   }
 }

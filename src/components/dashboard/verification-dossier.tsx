@@ -12,6 +12,7 @@ type DocumentType =
   | "VAT_PROOF"
   | "LEGAL_REPRESENTATIVE_ID"
   | "SUBLEASE_AUTHORIZATION"
+  | "PROFESSIONAL_CARD"
   | "OTHER";
 
 type UploadedDocument = {

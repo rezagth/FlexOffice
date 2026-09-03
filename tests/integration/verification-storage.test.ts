@@ -90,6 +90,7 @@ describe.skipIf(!hasSupabase)("verification document storage (real Supabase Stor
         legalName: "Storage Test SARL",
         siret: uniqueSiret(),
         legalRepresentativeName: "Test Rep",
+        isRealEstateProfessional: false,
         address: "1 rue de Test",
         city: "Paris",
         postalCode: "75001",

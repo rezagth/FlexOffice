@@ -34,6 +34,9 @@ export type SpaceFormValues = {
   amenities: string[];
   halfDayPrice: string;
   dayPrice: string;
+  /** Empty string means no discount — kept a string like the other price
+   * fields so the input can be blank rather than defaulting to "0". */
+  discountPercent: string;
   accessInstructions: string;
   timezone: string;
 };
@@ -49,6 +52,7 @@ const EMPTY: SpaceFormValues = {
   amenities: [],
   halfDayPrice: "",
   dayPrice: "",
+  discountPercent: "",
   accessInstructions: "",
   timezone: DEFAULT_TIMEZONE,
 };
@@ -143,6 +147,7 @@ export function SpaceForm({
       amenities: values.amenities,
       halfDayPriceCents: toCents(values.halfDayPrice),
       dayPriceCents: toCents(values.dayPrice),
+      discountPercent: values.discountPercent === "" ? null : Number(values.discountPercent),
       ...(values.accessInstructions ? { accessInstructions: values.accessInstructions } : {}),
       ...(values.timezone ? { timezone: values.timezone } : {}),
       // Only sent on creation — see the `properties` prop doc comment.
@@ -350,6 +355,20 @@ export function SpaceForm({
             />
           </Field>
         </div>
+        <Field
+          label="Remise (%)"
+          htmlFor="discountPercent"
+          hint="Optionnel. S'applique à la demi-journée et à la journée. Laisser vide pour aucune remise."
+        >
+          <Input
+            id="discountPercent"
+            type="number"
+            min={0}
+            max={100}
+            value={values.discountPercent}
+            onChange={(e) => set("discountPercent")(e.target.value)}
+          />
+        </Field>
       </Card>
 
       <Card className="flex flex-col gap-4 p-5">

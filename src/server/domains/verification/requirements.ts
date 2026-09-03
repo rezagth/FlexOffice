@@ -23,10 +23,19 @@ import type {
  *   company + owner        Kbis + TVA + CNI du représentant légal
  *   company + operator     Kbis + TVA + CNI du représentant légal
  *                             + autorisation de sous-location
+ *
+ * A FIFTH AXIS — REAL ESTATE PROFESSIONALS
+ * `isRealEstateProfessional` adds the French "carte professionnelle" (carte
+ * T) on top of whatever the company scenario already required. Only
+ * meaningful for a COMPANY (an individual cannot hold that card) — a `true`
+ * value on an INDIVIDUAL dossier is simply ignored here rather than
+ * rejected, since the become-landlord form already only offers the checkbox
+ * on the company step.
  */
 export function requiredDocumentTypes(
   holderType: HolderType,
-  activityType: LandlordActivityType
+  activityType: LandlordActivityType,
+  isRealEstateProfessional = false
 ): readonly VerificationDocumentType[] {
   if (holderType === "INDIVIDUAL") {
     return activityType === "OWNER"
@@ -35,14 +44,17 @@ export function requiredDocumentTypes(
   }
 
   // COMPANY
-  return activityType === "OWNER"
-    ? (["K_BIS", "VAT_PROOF", "LEGAL_REPRESENTATIVE_ID"] as const)
-    : ([
-        "K_BIS",
-        "VAT_PROOF",
-        "LEGAL_REPRESENTATIVE_ID",
-        "SUBLEASE_AUTHORIZATION",
-      ] as const);
+  const base =
+    activityType === "OWNER"
+      ? (["K_BIS", "VAT_PROOF", "LEGAL_REPRESENTATIVE_ID"] as const)
+      : ([
+          "K_BIS",
+          "VAT_PROOF",
+          "LEGAL_REPRESENTATIVE_ID",
+          "SUBLEASE_AUTHORIZATION",
+        ] as const);
+
+  return isRealEstateProfessional ? ([...base, "PROFESSIONAL_CARD"] as const) : base;
 }
 
 /**
@@ -57,9 +69,10 @@ export function requiredDocumentTypes(
 export function hasAllRequiredDocuments(
   holderType: HolderType,
   activityType: LandlordActivityType,
-  uploadedTypes: readonly VerificationDocumentType[]
+  uploadedTypes: readonly VerificationDocumentType[],
+  isRealEstateProfessional = false
 ): boolean {
-  const required = requiredDocumentTypes(holderType, activityType);
+  const required = requiredDocumentTypes(holderType, activityType, isRealEstateProfessional);
   const uploaded = new Set(uploadedTypes);
   return required.every((type) => uploaded.has(type));
 }
@@ -68,9 +81,10 @@ export function hasAllRequiredDocuments(
 export function missingDocumentTypes(
   holderType: HolderType,
   activityType: LandlordActivityType,
-  uploadedTypes: readonly VerificationDocumentType[]
+  uploadedTypes: readonly VerificationDocumentType[],
+  isRealEstateProfessional = false
 ): VerificationDocumentType[] {
-  const required = requiredDocumentTypes(holderType, activityType);
+  const required = requiredDocumentTypes(holderType, activityType, isRealEstateProfessional);
   const uploaded = new Set(uploadedTypes);
   return required.filter((type) => !uploaded.has(type));
 }
@@ -84,5 +98,6 @@ export const VERIFICATION_DOCUMENT_TYPE_LABELS: Record<VerificationDocumentType,
   VAT_PROOF: "Justificatif de TVA intracommunautaire",
   LEGAL_REPRESENTATIVE_ID: "Pièce d'identité du représentant légal",
   SUBLEASE_AUTHORIZATION: "Autorisation de sous-location",
+  PROFESSIONAL_CARD: "Carte professionnelle (carte T)",
   OTHER: "Autre document",
 };

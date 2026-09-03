@@ -4,6 +4,18 @@ import { weekdayOf, zonedTimeToUtc } from "./timezone";
 
 const MIDDAY = "13:00";
 
+/**
+ * Applies `Space.discountPercent` to a price, rounding down to the nearest
+ * cent so a discount never charges more than advertised. The percentage
+ * itself is bounded 0-100 by a DB CHECK (see migration 20260905130000), so
+ * this never has to defend against an out-of-range value — only against it
+ * being absent.
+ */
+function applyDiscount(priceCents: number, discountPercent: number | null): number {
+  if (!discountPercent) return priceCents;
+  return Math.floor((priceCents * (100 - discountPercent)) / 100);
+}
+
 export type SlotKind = "MORNING" | "AFTERNOON" | "FULL_DAY";
 
 export type DaySlot = {
@@ -88,10 +100,13 @@ export async function computeDaySlots(spaceId: string, dateStr: string): Promise
   const morningEnd = middayInstant < dayEnd ? middayInstant : dayEnd;
   const afternoonStart = middayInstant > dayStart ? middayInstant : dayStart;
 
+  const halfDayPriceCents = applyDiscount(space.halfDayPriceCents, space.discountPercent);
+  const dayPriceCents = applyDiscount(space.dayPriceCents, space.discountPercent);
+
   const morning: DaySlot | null = hasMorning
     ? {
         available: !isBlocked(dayStart, morningEnd),
-        priceCents: space.halfDayPriceCents,
+        priceCents: halfDayPriceCents,
         startsAt: dayStart,
         endsAt: morningEnd,
       }
@@ -100,7 +115,7 @@ export async function computeDaySlots(spaceId: string, dateStr: string): Promise
   const afternoon: DaySlot | null = hasAfternoon
     ? {
         available: !isBlocked(afternoonStart, dayEnd),
-        priceCents: space.halfDayPriceCents,
+        priceCents: halfDayPriceCents,
         startsAt: afternoonStart,
         endsAt: dayEnd,
       }
@@ -108,7 +123,7 @@ export async function computeDaySlots(spaceId: string, dateStr: string): Promise
 
   const fullDay: DaySlot = {
     available: !isBlocked(dayStart, dayEnd),
-    priceCents: space.dayPriceCents,
+    priceCents: dayPriceCents,
     startsAt: dayStart,
     endsAt: dayEnd,
   };

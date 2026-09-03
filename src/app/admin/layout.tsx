@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/admin/listings", label: "Annonces" },
   { href: "/admin/payments", label: "Paiements" },
   { href: "/admin/disputes", label: "Litiges" },
+  { href: "/admin/support", label: "Support" },
 ];
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {

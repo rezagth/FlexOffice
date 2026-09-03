@@ -98,6 +98,9 @@ model Profile {
   propertyOperatorOf PropertyOperator[] @relation("PropertyOperatorProfile")
   propertyManagerOf  PropertyManager[]  @relation("PropertyManagerProfile")
 
+  messagesSent   Message[]
+  supportTickets SupportTicket[]
+
   @@index([organizationId])
   @@index([activeOrganizationId])
   @@map("profiles")
@@ -138,6 +141,12 @@ model LandlordVerification {
 
   activityType LandlordActivityType @map("activity_type")
   status       VerificationStatus   @default(DRAFT)
+  /// Only meaningful when the organization's holderType is COMPANY — an
+  /// individual cannot hold a French real-estate professional card. Not
+  /// cross-checked by a CHECK constraint, same reasoning as the rest of
+  /// this dossier (see requirements.ts): the holder/activity combination
+  /// already lives in application code, not in SQL.
+  isRealEstateProfessional Boolean @default(false) @map("is_real_estate_professional")
 
   submittedAt         DateTime? @map("submitted_at") @db.Timestamptz(3)
   reviewStartedAt     DateTime? @map("review_started_at") @db.Timestamptz(3)
@@ -172,6 +181,10 @@ enum VerificationDocumentType {
   VAT_PROOF
   LEGAL_REPRESENTATIVE_ID
   SUBLEASE_AUTHORIZATION
+  /// Carte professionnelle (carte T), required by French law for a real
+  /// estate agency/foncière/conciergerie — only requested when the dossier
+  /// is flagged `isRealEstateProfessional` (see requirements.ts).
+  PROFESSIONAL_CARD
   OTHER
 }
 
@@ -598,6 +611,11 @@ model Space {
   photos             String[]
   halfDayPriceCents  Int            @map("half_day_price_cents")
   dayPriceCents      Int            @map("day_price_cents")
+  /// Percentage off both half-day and day price, applied server-side in
+  /// computeDaySlots() — never sent by the client. Null means no discount.
+  /// Bounded 0-100 by a CHECK, not just Zod: the same reason every other
+  /// money-adjacent column here has one (officeflex-security-guardrails §5).
+  discountPercent    Int?           @map("discount_percent")
   // Shown to the client only after a booking is confirmed (door code,
   // reception instructions, floor). Optional: partners may not need one.
   accessInstructions String?        @map("access_instructions")
@@ -706,8 +724,9 @@ model Booking {
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  payment  Payment?
-  disputes Dispute[]
+  payment      Payment?
+  disputes     Dispute[]
+  conversation Conversation?
 
   // Referenced side of the composite foreign keys that keep the
   // denormalised organizationId in step with the space's and the
@@ -831,6 +850,63 @@ model DisputeEvent {
 }
 
 // ---------------------------------------------------------------------------
+// Messaging — one conversation per booking. Participants are implicit: the
+// booking's client, and any ACTIVE member of the organization that owns the
+// booking's space — never stored as a participant list, so a membership
+// change (someone joining or leaving the organization) is reflected without
+// a migration of its own. See src/server/domains/messaging/.
+// ---------------------------------------------------------------------------
+model Conversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  bookingId String   @unique @map("booking_id") @db.Uuid
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  messages Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUserId   String       @map("sender_user_id") @db.Uuid
+  sender         Profile      @relation(fields: [senderUserId], references: [id])
+  body           String
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ---------------------------------------------------------------------------
+// Support — "Nous contacter". Reachable without an account: a visitor
+// blocked before signing up still needs a way to reach the team, so
+// `userId` is nullable and `email` is collected directly rather than
+// derived from a session that may not exist.
+// ---------------------------------------------------------------------------
+enum SupportTicketStatus {
+  OPEN
+  CLOSED
+}
+
+model SupportTicket {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String?             @map("user_id") @db.Uuid
+  user      Profile?            @relation(fields: [userId], references: [id])
+  email     String
+  subject   String
+  message   String
+  status    SupportTicketStatus @default(OPEN)
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status])
+  @@map("support_tickets")
+}
+
+// ---------------------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------------------
 model Favorite {
@@ -858,4 +934,24 @@ model AuditLog {
   @@index([actorUserId])
   @@index([event])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Analytics — KPI instrumentation (cahier des charges §13). Deliberately
+// anonymous: `/search` requires no account ("recherche rapide, sans
+// inscription requise"), so there is no user to attach this to without
+// inventing a session identity purely to track it. No IP, no user agent —
+// data-minimization (saas-engineering:product-analytics §6): resultsCount
+// and the two filters actually used are the only properties a conversion-
+// rate question needs.
+// ---------------------------------------------------------------------------
+model SearchEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  city         String?
+  hasGeo       Boolean  @default(false) @map("has_geo")
+  resultsCount Int      @map("results_count")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@map("search_events")
 }

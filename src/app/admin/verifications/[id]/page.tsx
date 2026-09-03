@@ -39,6 +39,7 @@ export default async function AdminVerificationDetailPage({
         <p className="mt-1 text-sm text-muted-foreground">
           {HOLDER_TYPE_LABELS[verification.organization.holderType]} ·{" "}
           {LANDLORD_ACTIVITY_TYPE_LABELS[verification.activityType]}
+          {verification.isRealEstateProfessional && " · Professionnel de l'immobilier"}
         </p>
       </div>
 

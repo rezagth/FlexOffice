@@ -12,6 +12,17 @@ export function formatDateTime(date: Date): string {
   });
 }
 
+/**
+ * Deterministic, human-readable invoice number derived from the payment
+ * itself — never a separate counter to keep in step. Not a legally
+ * sequential numbering (French invoicing law expects one); good enough to
+ * identify one payment on a printed page, not a substitute for real
+ * accounting software.
+ */
+export function invoiceNumber(payment: { id: string; createdAt: Date }): string {
+  return `OF-${payment.createdAt.getFullYear()}-${payment.id.slice(0, 8).toUpperCase()}`;
+}
+
 export const SPACE_TYPE_LABELS: Record<string, string> = {
   MEETING_ROOM: "Salle de réunion",
   DESK: "Bureau",

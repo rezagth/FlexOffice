@@ -37,6 +37,6 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const url = new URL(request.url);
   const city = url.searchParams.get("city") ?? undefined;
-  const spaces = await listPublishedSpaces({ city });
+  const spaces = await listPublishedSpaces({ city, track: true });
   return NextResponse.json({ spaces });
 });

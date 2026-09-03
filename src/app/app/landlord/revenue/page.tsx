@@ -1,18 +1,38 @@
+import Link from "next/link";
 import { requirePageLandlordOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
-import { formatCents } from "@/lib/format";
+import { ButtonLink } from "@/components/ui/button";
+import { EmptyState } from "@/components/dashboard/states";
+import { formatCents, formatDateTime, invoiceNumber } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
 
 export default async function PartnerRevenuePage() {
   const ctx = await requirePageLandlordOrg("landlord:view_revenue");
-  const totals = await prisma.payment.aggregate({
-    where: { organizationId: ctx.activeOrgId, status: "SUCCEEDED" },
-    _sum: { amountCents: true, commissionAmountCents: true, netAmountCents: true },
-  });
+  const [totals, payments] = await Promise.all([
+    prisma.payment.aggregate({
+      where: { organizationId: ctx.activeOrgId, status: "SUCCEEDED" },
+      _sum: { amountCents: true, commissionAmountCents: true, netAmountCents: true },
+    }),
+    prisma.payment.findMany({
+      where: { organizationId: ctx.activeOrgId, status: "SUCCEEDED" },
+      include: { booking: { include: { space: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-foreground">Revenus</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-foreground">Revenus</h1>
+        {ctx.capabilities.has("landlord:manage_accounting") && (
+          <ButtonLink href="/api/landlord/accounting/export" variant="outline" size="sm">
+            Exporter en CSV
+          </ButtonLink>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="p-5">
@@ -46,6 +66,32 @@ export default async function PartnerRevenuePage() {
         arrive dans une prochaine itération, une fois le calendrier de disponibilité
         implémenté.
       </p>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-medium">Factures</h2>
+        {payments.length === 0 ? (
+          <EmptyState
+            title="Aucune facture pour l'instant"
+            description="Une facture est générée pour chaque réservation payée."
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {payments.map((payment) => (
+              <Link key={payment.id} href={`/app/landlord/accounting/${payment.id}`} className="block">
+                <Card className="flex flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:bg-muted">
+                  <div>
+                    <p className="font-medium text-foreground">{invoiceNumber(payment)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {payment.booking.space.name} · {formatDateTime(payment.createdAt)}
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium">{formatCents(payment.netAmountCents)}</p>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

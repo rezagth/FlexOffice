@@ -76,6 +76,7 @@ const spaceBaseFields = {
   photos: z.array(z.url()).max(10).optional(),
   halfDayPriceCents: z.number().int().min(0),
   dayPriceCents: z.number().int().min(0),
+  discountPercent: z.number().int().min(0).max(100).nullable().optional(),
   accessInstructions: z.string().trim().max(2000).optional(),
   // The zone the opening hours are written in. Validated against the
   // runtime's own IANA database rather than a hand-kept list, so a typo is

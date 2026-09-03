@@ -327,6 +327,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
           legalName: "Atelier Partners",
           siret,
           legalRepresentativeName: "Julie Martin",
+          isRealEstateProfessional: false,
           address: "12 rue de Rivoli",
           city: "Paris",
           postalCode: "75004",
@@ -356,6 +357,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
             siret: uniqueSiret(),
             siren: "999999999",
             legalRepresentativeName: "Someone",
+            isRealEstateProfessional: false,
             address: "1 rue de Test",
             city: "Paris",
             postalCode: "75001",
@@ -420,6 +422,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
             siret: doomedSiret,
             siren: "111111111", // contradicts the SIRET
             legalRepresentativeName: "Someone",
+            isRealEstateProfessional: false,
             address: "1 rue de Test",
             city: "Paris",
             postalCode: "75001",

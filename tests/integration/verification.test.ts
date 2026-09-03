@@ -113,6 +113,7 @@ describe.skipIf(!hasDatabase)("landlord verification (onboarding dossier)", () =
             legalName: "Test SARL",
             siret: uniqueSiret(),
             legalRepresentativeName: "Test Rep",
+            isRealEstateProfessional: false,
             address: "1 rue de Test",
             city: "Paris",
             postalCode: "75001",

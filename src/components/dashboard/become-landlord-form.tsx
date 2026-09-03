@@ -51,6 +51,7 @@ export function BecomeLandlordForm() {
   const router = useRouter();
   const [activityType, setActivityType] = useState<ActivityType>("OWNER");
   const [holderType, setHolderType] = useState<HolderType>("INDIVIDUAL");
+  const [isRealEstateProfessional, setIsRealEstateProfessional] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +83,7 @@ export function BecomeLandlordForm() {
             siret: form.siret,
             vatNumber: form.vatNumber || undefined,
             legalRepresentativeName: form.legalRepresentativeName,
+            isRealEstateProfessional,
             contactEmail: form.contactEmail || undefined,
             address: form.address,
             city: form.city,
@@ -251,6 +253,21 @@ export function BecomeLandlordForm() {
                 onChange={(e) => update("legalRepresentativeName", e.target.value)}
               />
             </Field>
+            <label className="flex items-start gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={isRealEstateProfessional}
+                onChange={(e) => setIsRealEstateProfessional(e.target.checked)}
+              />
+              <span>
+                Agence immobilière / foncière / conciergerie
+                <span className="block text-xs text-muted-foreground">
+                  Nécessite une carte professionnelle (carte T) en plus des
+                  documents ci-dessus.
+                </span>
+              </span>
+            </label>
           </>
         ) : (
           <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">

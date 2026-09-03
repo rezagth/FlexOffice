@@ -1,5 +1,6 @@
 import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
+import { geocodeAddress } from "./geocode";
 import type { CreatePropertyInput } from "@/lib/validation/properties";
 
 /**
@@ -22,6 +23,18 @@ export async function createProperty(
   createdByProfileId: string,
   input: CreatePropertyInput
 ) {
+  // Computed server-side from the address, never trusted from the caller —
+  // a client-supplied latitude/longitude would let a listing claim to be
+  // somewhere it isn't. Best-effort: geocodeAddress() never throws, so a
+  // property is never blocked from being created over this (see its own
+  // doc comment).
+  const coordinates = await geocodeAddress({
+    addressLine1: input.addressLine1,
+    city: input.city,
+    postalCode: input.postalCode,
+    country: input.country,
+  });
+
   const property = await prisma.$transaction(async (tx) => {
     const created = await tx.property.create({
       data: {
@@ -34,8 +47,8 @@ export async function createProperty(
         city: input.city,
         region: input.region,
         country: input.country ?? "FR",
-        latitude: input.latitude,
-        longitude: input.longitude,
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
         createdByProfileId,
       },
     });

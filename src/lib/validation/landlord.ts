@@ -86,6 +86,13 @@ const companySchema = z.object({
     .regex(/^[A-Z]{2}[0-9A-Z]{2,13}$/, "Numéro de TVA intracommunautaire invalide")
     .optional(),
   legalRepresentativeName: z.string().trim().min(1).max(200),
+  /**
+   * Agence, foncière, conciergerie: French law requires a "carte
+   * professionnelle" (carte T) for this activity, on top of the Kbis/TVA/
+   * CNI every company already provides — see requirements.ts. Defaults to
+   * false so an ordinary company is unaffected.
+   */
+  isRealEstateProfessional: z.boolean().optional().default(false),
   contactEmail: z.email().max(255).optional(),
   ...address,
 });

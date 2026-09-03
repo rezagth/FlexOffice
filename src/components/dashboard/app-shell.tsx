@@ -32,6 +32,7 @@ function tenantNav(): NavItem[] {
     { href: "/app/invoices", label: "Factures" },
     { href: "/app/messages", label: "Messages" },
     { href: "/app/account", label: "Compte" },
+    { href: "/contact", label: "Nous contacter" },
   ];
 }
 
@@ -61,6 +62,7 @@ function landlordNav(capabilities: AuthContext["capabilities"]): NavItem[] {
     items.push({ href: "/app/landlord/revenue", label: "Comptabilité" });
   }
   items.push({ href: "/app/account", label: "Compte" });
+  items.push({ href: "/contact", label: "Nous contacter" });
 
   return items;
 }

@@ -26,7 +26,10 @@ export async function submitVerification({
   holderType,
   actorProfileId,
 }: {
-  verification: Pick<LandlordVerification, "id" | "status" | "activityType">;
+  verification: Pick<
+    LandlordVerification,
+    "id" | "status" | "activityType" | "isRealEstateProfessional"
+  >;
   organizationId: string;
   holderType: HolderType;
   actorProfileId: string;
@@ -44,7 +47,8 @@ export async function submitVerification({
   const missing = missingDocumentTypes(
     holderType,
     verification.activityType,
-    documents.map((d) => d.type)
+    documents.map((d) => d.type),
+    verification.isRealEstateProfessional
   );
   if (missing.length > 0) {
     const labels = missing.map((type) => VERIFICATION_DOCUMENT_TYPE_LABELS[type]);

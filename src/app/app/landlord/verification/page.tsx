@@ -46,7 +46,8 @@ export default async function VerificationPage() {
 
   const required = requiredDocumentTypes(
     verification.organization.holderType,
-    verification.activityType
+    verification.activityType,
+    verification.isRealEstateProfessional
   );
   const requiredLabels = Object.fromEntries(
     required.map((type) => [type, VERIFICATION_DOCUMENT_TYPE_LABELS[type]])
@@ -62,6 +63,7 @@ export default async function VerificationPage() {
           {verification.organization.name} ·{" "}
           {HOLDER_TYPE_LABELS[verification.organization.holderType]} ·{" "}
           {LANDLORD_ACTIVITY_TYPE_LABELS[verification.activityType]}
+          {verification.isRealEstateProfessional && " · Professionnel de l'immobilier"}
         </p>
       </div>
 

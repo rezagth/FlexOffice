@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
@@ -13,9 +14,12 @@ export default async function AdminOrganizationsPage() {
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold text-foreground">Entreprises</h1>
       <p className="max-w-lg text-sm text-muted-foreground">
-        La validation SIRET et le contrôle des pièces justificatives arrivent dans
-        une prochaine itération. Voici les entreprises inscrites à date, avec leur
-        statut de vérification.
+        Le contrôle des pièces justificatives (CNI, Kbis, TVA, carte
+        professionnelle selon le profil) se fait dossier par dossier dans{" "}
+        <Link href="/admin/verifications" className="underline hover:no-underline">
+          Vérifications
+        </Link>
+        . Voici les entreprises inscrites à date, avec leur statut.
       </p>
 
       {organizations.length === 0 ? (

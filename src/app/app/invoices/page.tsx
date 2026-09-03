@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePageAuth } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
@@ -24,18 +25,20 @@ export default async function ClientInvoicesPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {payments.map((payment) => (
-            <Card key={payment.id} className="flex items-center justify-between p-4">
-              <div>
-                <p className="font-medium">{payment.booking.space.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {formatDateTime(payment.createdAt)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium">{formatCents(payment.amountCents)}</p>
-                <p className="text-xs text-muted-foreground">{payment.status}</p>
-              </div>
-            </Card>
+            <Link key={payment.id} href={`/app/invoices/${payment.id}`} className="block">
+              <Card className="flex items-center justify-between p-4 transition-colors hover:bg-muted">
+                <div>
+                  <p className="font-medium">{payment.booking.space.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDateTime(payment.createdAt)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium">{formatCents(payment.amountCents)}</p>
+                  <p className="text-xs text-muted-foreground">{payment.status}</p>
+                </div>
+              </Card>
+            </Link>
           ))}
         </div>
       )}

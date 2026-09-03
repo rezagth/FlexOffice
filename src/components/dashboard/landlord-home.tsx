@@ -27,13 +27,25 @@ export async function LandlordHome({
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const [monthRevenue, bookingsCount, spacesCount] = await Promise.all([
+  const startOfYear = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1));
+
+  const [monthRevenue, yearRevenue, bookingsCount, spacesCount] = await Promise.all([
     canSeeRevenue
       ? prisma.payment.aggregate({
           where: {
             organizationId: ctx.activeOrgId,
             status: "SUCCEEDED",
             createdAt: { gte: startOfMonth },
+          },
+          _sum: { netAmountCents: true },
+        })
+      : Promise.resolve(null),
+    canSeeRevenue
+      ? prisma.payment.aggregate({
+          where: {
+            organizationId: ctx.activeOrgId,
+            status: "SUCCEEDED",
+            createdAt: { gte: startOfYear },
           },
           _sum: { netAmountCents: true },
         })
@@ -55,7 +67,7 @@ export async function LandlordHome({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         {monthRevenue && (
           <Card className="p-5">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -63,6 +75,16 @@ export async function LandlordHome({
             </p>
             <p className="mt-2 text-2xl font-semibold">
               {formatCents(monthRevenue._sum.netAmountCents ?? 0)}
+            </p>
+          </Card>
+        )}
+        {yearRevenue && (
+          <Card className="p-5">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Revenus de l&apos;année
+            </p>
+            <p className="mt-2 text-2xl font-semibold">
+              {formatCents(yearRevenue._sum.netAmountCents ?? 0)}
             </p>
           </Card>
         )}

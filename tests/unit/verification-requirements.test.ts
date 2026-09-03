@@ -45,6 +45,33 @@ describe("requiredDocumentTypes", () => {
     ]);
   });
 
+  it("company + isRealEstateProfessional: adds PROFESSIONAL_CARD on top of the usual company documents", () => {
+    expect(requiredDocumentTypes("COMPANY", "OWNER", true)).toEqual([
+      "K_BIS",
+      "VAT_PROOF",
+      "LEGAL_REPRESENTATIVE_ID",
+      "PROFESSIONAL_CARD",
+    ]);
+    expect(requiredDocumentTypes("COMPANY", "OPERATOR", true)).toEqual([
+      "K_BIS",
+      "VAT_PROOF",
+      "LEGAL_REPRESENTATIVE_ID",
+      "SUBLEASE_AUTHORIZATION",
+      "PROFESSIONAL_CARD",
+    ]);
+  });
+
+  it("isRealEstateProfessional is ignored for an individual — no French professional card for a person here", () => {
+    expect(requiredDocumentTypes("INDIVIDUAL", "OWNER", true)).toEqual([
+      "IDENTITY_DOCUMENT",
+      "OWNERSHIP_PROOF",
+    ]);
+  });
+
+  it("defaults to false when isRealEstateProfessional is omitted", () => {
+    expect(requiredDocumentTypes("COMPANY", "OWNER")).not.toContain("PROFESSIONAL_CARD");
+  });
+
   it("never requires OWNERSHIP_PROOF for an operator", () => {
     // An exploitant does not own the space, so proof of ownership would be
     // the wrong document to ask for.

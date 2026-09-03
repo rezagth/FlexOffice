@@ -12,6 +12,8 @@ export type SpaceCardData = {
   dayPriceCents: number;
   photos?: string[];
   organization: { name: string };
+  /** Only set when the caller searched "around me" — see search-geolocation.tsx. */
+  distanceKm?: number | null;
 };
 
 export function SpaceCard({
@@ -35,6 +37,7 @@ export function SpaceCard({
         <div className="flex flex-col gap-1 p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
             {SPACE_TYPE_LABELS[space.type] ?? space.type} · {space.city}
+            {space.distanceKm != null && ` · à ${space.distanceKm.toFixed(1)} km`}
           </p>
           <p className="font-medium text-foreground">{space.name}</p>
           <p className="text-sm text-muted-foreground">

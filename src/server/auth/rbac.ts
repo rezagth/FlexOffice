@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { prisma } from "@/server/db/prisma";
 import type {
   ActiveMode,
@@ -120,6 +121,16 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     if (!data.user) return null;
     userId = data.user.id;
   } catch (error) {
+    // createSupabaseServerClient() calls cookies() (next/headers), which
+    // throws Next's own internal "needs dynamic rendering" signal when this
+    // runs during static generation (e.g. `next build` prerendering a page
+    // that has no explicit `dynamic = "force-dynamic"`). That signal is not
+    // an infrastructure failure — swallowing it into ServiceUnavailableError
+    // used to fail the entire production build the moment real Supabase
+    // env vars made this branch reachable. unstable_rethrow lets Next
+    // recognize its own signal and correctly defer the route to request
+    // time instead; only a genuine application error falls through below.
+    unstable_rethrow(error);
     if (error instanceof ServiceUnavailableError) throw error;
     // createSupabaseServerClient() throwing, a fetch failure, anything else:
     // this is infrastructure, not a signed-out visitor.

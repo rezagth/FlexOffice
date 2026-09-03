@@ -2,6 +2,8 @@ import { listPublishedSpaces } from "@/server/domains/spaces/list-spaces";
 import { EmptyState } from "@/components/dashboard/states";
 import { SpaceCard } from "@/components/marketing/space-card";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { SearchGeolocation } from "@/components/marketing/search-geolocation";
+import { SearchMapLoader } from "@/components/marketing/search-map-loader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -15,9 +17,25 @@ export const dynamic = "force-dynamic";
 export default async function SearchPage({
   searchParams,
 }: PageProps<"/search">) {
-  const { city } = await searchParams;
+  const { city, lat, lng } = await searchParams;
   const cityFilter = typeof city === "string" ? city : undefined;
-  const spaces = await listPublishedSpaces({ city: cityFilter });
+  const latNum = typeof lat === "string" ? Number(lat) : undefined;
+  const lngNum = typeof lng === "string" ? Number(lng) : undefined;
+  const near =
+    latNum != null && lngNum != null && Number.isFinite(latNum) && Number.isFinite(lngNum)
+      ? { lat: latNum, lng: lngNum }
+      : undefined;
+
+  const spaces = await listPublishedSpaces({ city: cityFilter, near, track: true });
+
+  const mapPoints = spaces
+    .filter(
+      (
+        s
+      ): s is typeof s & { property: { latitude: number; longitude: number } } =>
+        s.property.latitude != null && s.property.longitude != null
+    )
+    .map((s) => ({ slug: s.slug, name: s.name, city: s.city, lat: s.property.latitude, lng: s.property.longitude }));
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -31,18 +49,25 @@ export default async function SearchPage({
           </p>
         </div>
 
-        <form className="flex max-w-md gap-2">
-          <Input
-            type="search"
-            name="city"
-            defaultValue={cityFilter}
-            placeholder="Ville (ex. Paris, Lyon…)"
-            aria-label="Filtrer par ville"
-          />
-          <Button type="submit" size="md">
-            Rechercher
-          </Button>
-        </form>
+        <div className="flex flex-wrap items-center gap-4">
+          <form className="flex max-w-md gap-2">
+            <Input
+              type="search"
+              name="city"
+              defaultValue={cityFilter}
+              placeholder="Ville (ex. Paris, Lyon…)"
+              aria-label="Filtrer par ville"
+            />
+            <Button type="submit" size="md">
+              Rechercher
+            </Button>
+          </form>
+          <SearchGeolocation />
+        </div>
+
+        {mapPoints.length > 0 && (
+          <SearchMapLoader points={mapPoints} center={[mapPoints[0].lat, mapPoints[0].lng]} />
+        )}
 
         {spaces.length === 0 ? (
           <EmptyState

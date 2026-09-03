@@ -20,8 +20,10 @@ export const MOCK_SPACES = [
     photos: [] as string[],
     halfDayPriceCents: 12000,
     dayPriceCents: 20000,
+    discountPercent: null as number | null,
     status: "PUBLISHED" as const,
     organization: { name: "Atelier Partners" },
+    property: { latitude: null as number | null, longitude: null as number | null },
     openingHours: [] as { weekday: number; opensAt: string; closesAt: string }[],
   },
   {
@@ -38,8 +40,10 @@ export const MOCK_SPACES = [
     photos: [] as string[],
     halfDayPriceCents: 4000,
     dayPriceCents: 7000,
+    discountPercent: null as number | null,
     status: "PUBLISHED" as const,
     organization: { name: "Atelier Partners" },
+    property: { latitude: null as number | null, longitude: null as number | null },
     openingHours: [] as { weekday: number; opensAt: string; closesAt: string }[],
   },
   {
@@ -56,8 +60,10 @@ export const MOCK_SPACES = [
     photos: [] as string[],
     halfDayPriceCents: 18000,
     dayPriceCents: 30000,
+    discountPercent: 10 as number | null,
     status: "PUBLISHED" as const,
     organization: { name: "Confluence Bureaux" },
+    property: { latitude: null as number | null, longitude: null as number | null },
     openingHours: [] as { weekday: number; opensAt: string; closesAt: string }[],
   },
 ];

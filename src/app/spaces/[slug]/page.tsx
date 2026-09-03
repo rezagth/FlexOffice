@@ -83,13 +83,18 @@ export default async function SpaceDetailPage({
           </div>
 
           <Card className="h-fit p-5">
+            {space.discountPercent ? (
+              <p className="mb-3 inline-flex w-fit rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                -{space.discountPercent}%
+              </p>
+            ) : null}
             <div className="flex items-baseline justify-between">
               <span className="text-sm text-muted-foreground">Demi-journée</span>
-              <span className="font-medium">{formatCents(space.halfDayPriceCents)}</span>
+              <PriceWithDiscount cents={space.halfDayPriceCents} discountPercent={space.discountPercent} />
             </div>
             <div className="mt-2 flex items-baseline justify-between border-t border-border pt-2">
               <span className="text-sm text-muted-foreground">Journée</span>
-              <span className="font-medium">{formatCents(space.dayPriceCents)}</span>
+              <PriceWithDiscount cents={space.dayPriceCents} discountPercent={space.discountPercent} />
             </div>
 
             {ctx ? (
@@ -111,5 +116,26 @@ export default async function SpaceDetailPage({
         </div>
       </main>
     </div>
+  );
+}
+
+/** Mirrors the rounding in computeDaySlots()'s applyDiscount() — display
+ * only, the actual charge at booking time is always computed server-side. */
+function PriceWithDiscount({
+  cents,
+  discountPercent,
+}: {
+  cents: number;
+  discountPercent: number | null;
+}) {
+  if (!discountPercent) {
+    return <span className="font-medium">{formatCents(cents)}</span>;
+  }
+  const discounted = Math.floor((cents * (100 - discountPercent)) / 100);
+  return (
+    <span className="flex items-baseline gap-2">
+      <span className="text-xs text-muted-foreground line-through">{formatCents(cents)}</span>
+      <span className="font-medium">{formatCents(discounted)}</span>
+    </span>
   );
 }

@@ -60,6 +60,10 @@ export const RATE_LIMITS = {
    * re-uploads without being an effective way to fill Storage.
    */
   verificationDocumentUpload: { limit: 20, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** "Nous contacter" — public and unauthenticated, so it needs a limit like
+   * any other public write; loose enough that a real visitor retrying a
+   * typo'd email never hits it. */
+  supportTicket: { limit: 5, windowSeconds: 3600 } satisfies RateLimitConfig,
 } as const;
 
 type StoreErrorBehaviour = "deny" | "allow";

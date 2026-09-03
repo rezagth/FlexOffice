@@ -18,6 +18,7 @@ export async function createDraftVerification(
     organizationId: string;
     requestedByProfileId: string;
     activityType: LandlordActivityType;
+    isRealEstateProfessional?: boolean;
   }
 ) {
   return client.landlordVerification.create({
@@ -25,6 +26,7 @@ export async function createDraftVerification(
       organizationId: params.organizationId,
       requestedByProfileId: params.requestedByProfileId,
       activityType: params.activityType,
+      isRealEstateProfessional: params.isRealEstateProfessional ?? false,
       status: "DRAFT",
     },
   });
@@ -50,6 +52,7 @@ export async function getOrCreateDraftVerification(params: {
   organizationId: string;
   requestedByProfileId: string;
   activityType: LandlordActivityType;
+  isRealEstateProfessional?: boolean;
 }) {
   const latest = await prisma.landlordVerification.findFirst({
     where: { organizationId: params.organizationId },

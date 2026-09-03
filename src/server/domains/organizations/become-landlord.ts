@@ -130,6 +130,8 @@ export async function becomeLandlord({
       organizationId: created.id,
       requestedByProfileId: actor.userId,
       activityType: input.activityType,
+      isRealEstateProfessional:
+        input.holderType === "COMPANY" ? input.isRealEstateProfessional : false,
     });
 
     return { ...created, verificationId: verification.id };

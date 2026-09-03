@@ -109,6 +109,26 @@ describe("computeDaySlots", () => {
     expect(slots?.morning?.available).toBe(true);
   });
 
+  it("applies Space.discountPercent to both half-day and day prices, rounding down", async () => {
+    spaceFindUnique.mockResolvedValue({ ...SPACE, discountPercent: 10 });
+    const slots = await computeDaySlots(SPACE.id, MONDAY);
+    expect(slots?.morning?.priceCents).toBe(8100); // 9000 * 0.9
+    expect(slots?.fullDay.priceCents).toBe(13500); // 15000 * 0.9
+  });
+
+  it("rounds a discounted price down rather than up", async () => {
+    spaceFindUnique.mockResolvedValue({ ...SPACE, halfDayPriceCents: 999, discountPercent: 33 });
+    const slots = await computeDaySlots(SPACE.id, MONDAY);
+    // 999 * 0.67 = 669.33 — must not become 670.
+    expect(slots?.morning?.priceCents).toBe(669);
+  });
+
+  it("leaves the price untouched when discountPercent is null", async () => {
+    spaceFindUnique.mockResolvedValue({ ...SPACE, discountPercent: null });
+    const slots = await computeDaySlots(SPACE.id, MONDAY);
+    expect(slots?.fullDay.priceCents).toBe(15000);
+  });
+
   it("only queries bookings that block a slot (PENDING or CONFIRMED)", async () => {
     await computeDaySlots(SPACE.id, MONDAY);
     expect(bookingsFindMany).toHaveBeenCalledWith(
