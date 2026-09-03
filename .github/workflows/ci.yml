@@ -1,0 +1,186 @@
+name: CI
+
+# The repository had no CI at all: nothing ran lint, TypeScript or the tests
+# before a merge — including the commit that added the whole booking tunnel.
+# That mattered most for the integration suites, which carry the security
+# invariants (tenant isolation, signup role escalation, double-booking, RLS)
+# and were gated behind a flag nobody sets locally, so in practice they never
+# ran anywhere.
+#
+# Two jobs, deliberately:
+#   quality      no services, no secrets. lint + typecheck + unit tests.
+#   integration  ephemeral PostgreSQL, real migrations, INTEGRATION=1.
+#
+# Neither job needs a production secret. Three suites self-skip because
+# `hasSupabase` / `hasServer` are false here (signup escalation, register
+# end-to-end, GDPR deletion — they use the Supabase admin API). The other
+# eight run for real, including the booking tunnel: they create their test
+# user by inserting into `auth.users`, so a plain PostgreSQL is enough.
+# See tests/integration/helpers/should-run.ts.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  CI: "true"
+
+jobs:
+  quality:
+    name: Lint, types, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm comes from the `packageManager` field via corepack, so the
+      # version is pinned by the repository rather than by this file.
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # `postinstall` runs `prisma generate`, which needs the schema only —
+      # never a live connection. That is why prisma7.config.ts reads
+      # DIRECT_URL straight from process.env instead of the throwing helper.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      # Must come before the standalone typecheck: `PageProps` and
+      # `LayoutProps` are generated into .next/types by Next.js, so `tsc`
+      # cannot resolve them on a fresh checkout. `next build` also runs the
+      # type check itself, so this step covers both.
+      #
+      # No DATABASE_URL and no Supabase variables on purpose: this asserts the
+      # demo-mode contract, that the app builds and boots with zero
+      # configuration. If a change makes the build require a secret, this is
+      # where it fails.
+      #
+      # OFFICEFLEX_DEMO_MODE declares that absence as deliberate. Without it,
+      # `next build` runs with NODE_ENV=production and every prerender logs
+      # `auth.misconfigured_in_production` at error level — correct for a real
+      # deployment, but noise here, and noise on every run is how a genuine
+      # error-level log stops being read.
+      - name: Build (includes type check)
+        run: pnpm build
+        env:
+          OFFICEFLEX_DEMO_MODE: "true"
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+  integration:
+    name: Integration tests (ephemeral PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: officeflex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Same value for both: pgbouncer only exists in front of Supabase, and
+      # `prisma migrate` needs a direct connection anyway.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/officeflex_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/officeflex_test
+      INTEGRATION: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Two migrations cannot apply to a bare PostgreSQL:
+      #   * `..._auth_profiles_sync` adds a foreign key to `auth.users` and a
+      #     trigger on it — that schema belongs to Supabase;
+      #   * `..._enable_rls_revoke_public_grants` revokes privileges from the
+      #     roles `anon` and `authenticated`, and PostgreSQL raises
+      #     `role "anon" does not exist` when they are absent, failing the
+      #     whole deploy.
+      # The shim creates both, with the permissive default grants Supabase
+      # hands out — so the hardening migration has something real to revoke.
+      # See tests/sql/auth-schema-shim.sql.
+      - name: Create the Supabase schema shim
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/sql/auth-schema-shim.sql
+
+      # `migrate deploy`, never `db push`: it applies the committed migrations
+      # in order and fails on any drift, which is the whole point of running
+      # it here — a migration that only works on the author's machine fails
+      # the pull request instead of the deploy.
+      - name: Apply migrations
+        run: pnpm db:deploy
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+      # Asserts the invariant the migration added rather than trusting it.
+      # Duplicated from the test suite on purpose: it is cheap, and it makes
+      # the answer visible in the job log even if the suite is filtered or
+      # skipped.
+      - name: Assert no table is left without RLS
+        run: |
+          unprotected=$(psql "$DATABASE_URL" -tAc "
+            SELECT string_agg(c.relname, ', ')
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public'
+              AND c.relkind = 'r'
+              AND NOT c.relrowsecurity
+              AND c.relname <> '_prisma_migrations';
+          ")
+          if [ -n "$unprotected" ]; then
+            echo "::error::Tables without RLS: $unprotected"
+            exit 1
+          fi
+          echo "All tables in public have RLS enabled."
+
+      # The roles that ship with the publishable key must hold nothing.
+      - name: Assert anon/authenticated hold no privileges
+        run: |
+          grants=$(psql "$DATABASE_URL" -tAc "
+            SELECT string_agg(DISTINCT grantee || ':' || table_name, ', ')
+            FROM information_schema.role_table_grants
+            WHERE table_schema = 'public'
+              AND grantee IN ('anon', 'authenticated');
+          ")
+          if [ -n "$grants" ]; then
+            echo "::error::PostgREST-reachable grants still present: $grants"
+            exit 1
+          fi
+          echo "anon and authenticated hold no table privileges in public."
