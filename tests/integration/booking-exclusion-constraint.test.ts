@@ -1,64 +1,37 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hasRealBackend } from "./helpers/should-run";
+import { hasDatabase } from "./helpers/should-run";
+import {
+  createTestOrganization,
+  createTestSpace,
+  createTestUser,
+  deleteTestUser,
+} from "./helpers/test-fixtures";
 
 // Proves the double-booking protection lives in the database itself
 // (prisma/migrations/..._booking_exclusion_constraint), not just in
 // application code — two concurrent inserts for the same space and an
 // overlapping time range must never both succeed, regardless of how the
 // application-level "check availability then insert" logic behaves.
-describe.skipIf(!hasRealBackend)("bookings_no_overlap_excl (DB-level, concurrent)", () => {
+describe.skipIf(!hasDatabase)("bookings_no_overlap_excl (DB-level, concurrent)", () => {
   let prisma: typeof import("@/server/db/prisma").prisma;
-  let admin: ReturnType<typeof import("@/server/auth/supabase-admin").createSupabaseAdminClient>;
   let orgId: string;
   let spaceId: string;
   let clientUserId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import("@/server/db/prisma"));
-    const { createSupabaseAdminClient } = await import("@/server/auth/supabase-admin");
-    admin = createSupabaseAdminClient();
 
-    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // The test user is created by INSERTing into auth.users, which lets the
+    // real `handle_new_user` trigger create the profile. That removes the
+    // Supabase dependency from a test that is really about a database
+    // constraint — so it now runs in CI against an ephemeral PostgreSQL.
+    const user = await createTestUser({ role: "CLIENT", name: "Booking Test Client" });
+    clientUserId = user.id;
 
-    const { data, error } = await admin.auth.admin.createUser({
-      email: `booking-test-${suffix}@test.officeflex.local`,
-      password: "supersecret",
-      email_confirm: true,
-      user_metadata: { role: "CLIENT", name: "Booking Test Client" },
-    });
-    if (error || !data.user) throw error ?? new Error("failed to create test user");
-    clientUserId = data.user.id;
-
-    const org = await prisma.organization.create({
-      data: {
-        name: `Test Org Booking ${suffix}`,
-        siret: String(Date.now()).padEnd(14, "3").slice(0, 14),
-        email: `org-booking-${suffix}@test.local`,
-        address: "1 rue Test",
-        city: "Paris",
-        postalCode: "75001",
-      },
-    });
+    const org = await createTestOrganization({ name: "Test Org Booking" });
     orgId = org.id;
 
-    const space = await prisma.space.create({
-      data: {
-        organizationId: orgId,
-        slug: `space-booking-${suffix}`,
-        name: "Space Booking Test",
-        type: "MEETING_ROOM",
-        description: "Used to test the exclusion constraint",
-        address: "1 rue Test",
-        city: "Paris",
-        postalCode: "75001",
-        capacity: 4,
-        amenities: [],
-        photos: [],
-        halfDayPriceCents: 1000,
-        dayPriceCents: 2000,
-        status: "PUBLISHED",
-      },
-    });
+    const space = await createTestSpace(orgId, { capacity: 4 });
     spaceId = space.id;
   });
 
@@ -71,7 +44,7 @@ describe.skipIf(!hasRealBackend)("bookings_no_overlap_excl (DB-level, concurrent
       await prisma.space.deleteMany({ where: { id: spaceId } });
     }
     if (orgId) await prisma.organization.deleteMany({ where: { id: orgId } });
-    if (clientUserId) await admin.auth.admin.deleteUser(clientUserId);
+    if (clientUserId) await deleteTestUser(clientUserId);
     await prisma.$disconnect();
   });
 

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hasRealBackend } from "./helpers/should-run";
+import { hasDatabase } from "./helpers/should-run";
 
 /**
  * Security regression tests for the booking funnel, calling the domain
@@ -12,7 +12,7 @@ import { hasRealBackend } from "./helpers/should-run";
  *    and the guarantee is the database EXCLUDE constraint rather than the
  *    application's own availability check.
  */
-describe.skipIf(!hasRealBackend)("createBooking — pricing and slot conflicts", () => {
+describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", () => {
   let prisma: typeof import("@/server/db/prisma").prisma;
   let createBooking: typeof import("@/server/domains/bookings/create-booking").createBooking;
   let ConflictError: typeof import("@/server/lib/errors").ConflictError;

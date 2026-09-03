@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hasRealBackend } from "./helpers/should-run";
+import { hasDatabase } from "./helpers/should-run";
 
 // Unlike auth-register.test.ts, this one calls the domain function
 // directly (no next/headers involved) so it doesn't need a running server
 // — only a real DATABASE_URL. Still gated behind INTEGRATION=1 since it
 // writes real rows.
-describe.skipIf(!hasRealBackend)("tenant isolation — organization A cannot see organization B's spaces", () => {
+describe.skipIf(!hasDatabase)("tenant isolation — organization A cannot see organization B's spaces", () => {
   let prisma: typeof import("@/server/db/prisma").prisma;
   let listOrgSpaces: typeof import("@/server/domains/spaces/list-org-spaces").listOrgSpaces;
   let orgAId: string;

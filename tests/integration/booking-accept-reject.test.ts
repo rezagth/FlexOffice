@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hasRealBackend } from "./helpers/should-run";
+import { hasDatabase } from "./helpers/should-run";
 
 /**
  * Object-level authorization and idempotency for the partner's accept /
@@ -8,7 +8,7 @@ import { hasRealBackend } from "./helpers/should-run";
  *    never 403 (a 403 would confirm the request exists);
  *  - accepting the same request twice is a conflict, not a double capture.
  */
-describe.skipIf(!hasRealBackend)("accept/reject booking requests", () => {
+describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
   let prisma: typeof import("@/server/db/prisma").prisma;
   let acceptBookingRequest: typeof import("@/server/domains/bookings/accept-reject").acceptBookingRequest;
   let rejectBookingRequest: typeof import("@/server/domains/bookings/accept-reject").rejectBookingRequest;

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { baseUrl, hasRealBackend } from "./helpers/should-run";
+import { baseUrl, hasServer } from "./helpers/should-run";
 
-describe.skipIf(!hasRealBackend)("POST /api/auth/register (real server + Supabase)", () => {
+describe.skipIf(!hasServer)("POST /api/auth/register (real server + Supabase)", () => {
   const createdEmails: string[] = [];
 
   afterAll(async () => {

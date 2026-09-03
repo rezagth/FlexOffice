@@ -33,9 +33,9 @@ model Profile {
   // Set on GDPR account deletion for a profile that has bookings (and
   // therefore cannot be hard-deleted, see bookings_client_user_id_fkey
   // ON DELETE RESTRICT). name/email/phone are anonymized at the same time.
-  deletedAt      DateTime?     @map("deleted_at")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   bookings       Booking[]
   favorites      Favorite[]
@@ -68,8 +68,8 @@ model Organization {
   // organization completes onboarding — payouts stay on the mock provider
   // until this is set and PAYMENT_PROVIDER=stripe.
   stripeAccountId String?            @map("stripe_account_id")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   members   Profile[]
   spaces    Space[]
@@ -96,35 +96,36 @@ enum SpaceStatus {
 }
 
 model Space {
-  id                String       @id @default(uuid()) @db.Uuid
-  organizationId    String       @map("organization_id") @db.Uuid
-  organization      Organization @relation(fields: [organizationId], references: [id])
-  slug              String       @unique
-  name              String
-  type              SpaceType
-  description       String
-  address           String
-  city              String
-  postalCode        String       @map("postal_code")
-  capacity          Int
-  amenities         String[]
-  photos            String[]
-  halfDayPriceCents Int          @map("half_day_price_cents")
-  dayPriceCents     Int          @map("day_price_cents")
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  slug               String       @unique
+  name               String
+  type               SpaceType
+  description        String
+  address            String
+  city               String
+  postalCode         String       @map("postal_code")
+  capacity           Int
+  amenities          String[]
+  photos             String[]
+  halfDayPriceCents  Int          @map("half_day_price_cents")
+  dayPriceCents      Int          @map("day_price_cents")
   // Shown to the client only after a booking is confirmed (door code,
   // reception instructions, floor). Optional: partners may not need one.
-  accessInstructions String?     @map("access_instructions")
+  accessInstructions String?      @map("access_instructions")
   // IANA zone the opening hours are expressed in — see domains/bookings/timezone.ts.
-  timezone          String       @default("Europe/Paris")
-  status            SpaceStatus  @default(DRAFT)
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  timezone           String       @default("Europe/Paris")
+  status             SpaceStatus  @default(DRAFT)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   openingHours SpaceOpeningHours[]
   closures     SpaceClosure[]
   bookings     Booking[]
   favorites    Favorite[]
 
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@index([city, status])
   @@map("spaces")
@@ -146,8 +147,8 @@ model SpaceClosure {
   id       String   @id @default(uuid()) @db.Uuid
   spaceId  String   @map("space_id") @db.Uuid
   space    Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-  startsAt DateTime @map("starts_at")
-  endsAt   DateTime @map("ends_at")
+  startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt   DateTime @map("ends_at") @db.Timestamptz(3)
   reason   String
 
   @@index([spaceId])
@@ -177,19 +178,23 @@ model Booking {
   organization          Organization  @relation(fields: [organizationId], references: [id])
   clientUserId          String        @map("client_user_id") @db.Uuid
   clientUser            Profile       @relation(fields: [clientUserId], references: [id])
-  startsAt              DateTime      @map("starts_at")
-  endsAt                DateTime      @map("ends_at")
+  startsAt              DateTime      @map("starts_at") @db.Timestamptz(3)
+  endsAt                DateTime      @map("ends_at") @db.Timestamptz(3)
   status                BookingStatus @default(PENDING)
   participantsCount     Int           @map("participants_count")
   purpose               String
   priceAmountCents      Int           @map("price_amount_cents")
   commissionAmountCents Int           @map("commission_amount_cents")
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   payment  Payment?
   disputes Dispute[]
 
+  // Referenced side of the composite foreign keys that keep the
+  // denormalised organizationId in step with the space's and the
+  // payment's — see migration 20260903110100_business_integrity_constraints.
+  @@unique([id, organizationId])
   @@index([organizationId, status])
   @@index([spaceId, startsAt])
   @@index([clientUserId])
@@ -219,9 +224,9 @@ model Payment {
   commissionAmountCents   Int           @map("commission_amount_cents")
   netAmountCents          Int           @map("net_amount_cents")
   status                  PaymentStatus @default(REQUIRES_CAPTURE)
-  capturedAt              DateTime?     @map("captured_at")
-  createdAt               DateTime      @default(now()) @map("created_at")
-  updatedAt               DateTime      @updatedAt @map("updated_at")
+  capturedAt              DateTime?     @map("captured_at") @db.Timestamptz(3)
+  createdAt               DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   refunds Refund[]
 
@@ -243,8 +248,8 @@ model Refund {
   reason           String
   providerRefundId String       @unique @map("provider_refund_id")
   status           RefundStatus @default(PENDING)
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([paymentId])
   @@map("refunds")
@@ -257,7 +262,7 @@ model WebhookEvent {
   providerEventId String   @unique @map("provider_event_id")
   type            String
   payload         Json
-  processedAt     DateTime @default(now()) @map("processed_at")
+  processedAt     DateTime @default(now()) @map("processed_at") @db.Timestamptz(3)
 
   @@index([provider, type])
   @@map("webhook_events")
@@ -283,8 +288,8 @@ model Dispute {
   status          DisputeStatus @default(OPEN)
   description     String
   resolutionNotes String?       @map("resolution_notes")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   events DisputeEvent[]
 
@@ -301,7 +306,7 @@ model DisputeEvent {
   dispute   Dispute       @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   status    DisputeStatus
   note      String?
-  createdAt DateTime      @default(now()) @map("created_at")
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([disputeId])
   @@map("dispute_events")
@@ -315,7 +320,7 @@ model Favorite {
   user      Profile  @relation(fields: [userId], references: [id])
   spaceId   String   @map("space_id") @db.Uuid
   space     Space    @relation(fields: [spaceId], references: [id])
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@id([userId, spaceId])
   @@map("favorites")
@@ -329,7 +334,7 @@ model AuditLog {
   organization   Organization? @relation(fields: [organizationId], references: [id])
   event          String
   metadata       Json?
-  createdAt      DateTime      @default(now()) @map("created_at")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([organizationId, createdAt])
   @@index([actorUserId])

@@ -11,6 +11,7 @@ import {
 } from "@/server/domains/notifications/send-booking-emails";
 import type { BookingEmailContext } from "@/server/domains/notifications/templates";
 import { computeDaySlots } from "./availability";
+import { assertParticipantsFitCapacity } from "./booking-invariants";
 import type { CreateBookingInput } from "@/lib/validation/bookings";
 
 // Prisma 7 + @prisma/adapter-pg surface an unmapped Postgres error (like an
@@ -47,6 +48,12 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
     where: { id: input.spaceId, status: "PUBLISHED" },
   });
   if (!space) throw new NotFoundError("Space not found");
+
+  // The schema bounds participantsCount to 1..1000 and nothing compared it to
+  // the space, so a two-seat office could be booked and charged for 1000
+  // people. Checked against the capacity read from the database, never a
+  // value supplied by the caller.
+  assertParticipantsFitCapacity(input.participantsCount, space.capacity);
 
   const organization = await prisma.organization.findUniqueOrThrow({
     where: { id: space.organizationId },

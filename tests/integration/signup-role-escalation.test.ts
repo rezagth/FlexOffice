@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { hasRealBackend } from "./helpers/should-run";
+import { hasSupabase } from "./helpers/should-run";
 
 /**
  * Regression test for S-01 (privilege escalation at signup).
@@ -16,7 +16,7 @@ import { hasRealBackend } from "./helpers/should-run";
  * Fails if the whitelist in prisma/migrations/*_harden_signup_role_whitelist
  * is removed or weakened.
  */
-describe.skipIf(!hasRealBackend)("signup cannot self-assign a privileged role", () => {
+describe.skipIf(!hasSupabase)("signup cannot self-assign a privileged role", () => {
   const createdEmails: string[] = [];
 
   function uniqueEmail(prefix: string) {
