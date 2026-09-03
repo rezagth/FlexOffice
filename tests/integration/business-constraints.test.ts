@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { hasDatabase } from "./helpers/should-run";
 import {
   createTestOrganization,
+  createTestProperty,
   createTestSpace,
   createTestUser,
   uniqueSiret,
@@ -25,17 +26,20 @@ import {
 describe.skipIf(!hasDatabase)("business integrity constraints", () => {
   let prisma: typeof import("@/server/db/prisma").prisma;
   let orgId: string;
+  let propertyId: string;
   let spaceId: string;
   let clientUserId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import("@/server/db/prisma"));
-    const org = await createTestOrganization();
-    orgId = org.id;
-    const space = await createTestSpace(orgId, { capacity: 8 });
-    spaceId = space.id;
     const user = await createTestUser();
     clientUserId = user.id;
+    const org = await createTestOrganization();
+    orgId = org.id;
+    const property = await createTestProperty(orgId, clientUserId);
+    propertyId = property.id;
+    const space = await createTestSpace(orgId, propertyId, { capacity: 8 });
+    spaceId = space.id;
   });
 
   function validBooking(overrides: Record<string, unknown> = {}) {
@@ -55,7 +59,7 @@ describe.skipIf(!hasDatabase)("business integrity constraints", () => {
 
   describe("spaces", () => {
     it("rejects a non-positive capacity", async () => {
-      await expect(createTestSpace(orgId, { capacity: 0 })).rejects.toThrow(
+      await expect(createTestSpace(orgId, propertyId, { capacity: 0 })).rejects.toThrow(
         /spaces_capacity_positive_check/
       );
     });
@@ -64,6 +68,7 @@ describe.skipIf(!hasDatabase)("business integrity constraints", () => {
       await expect(
         prisma.space.create({
           data: {
+            propertyId,
             organizationId: orgId,
             slug: `neg-price-${uniqueSuffix()}`,
             name: "Negative price",

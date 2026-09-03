@@ -18,6 +18,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
 
   let orgAId: string;
   let orgBId: string;
+  let propertyAId: string;
   let spaceId: string;
   let clientUserId: string;
   const date = "2031-07-07"; // a Monday
@@ -57,8 +58,31 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
     orgAId = orgA.id;
     orgBId = orgB.id;
 
+    clientUserId = crypto.randomUUID();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
+      clientUserId,
+      `accept-client-${suffix}@test.local`,
+      JSON.stringify({ role: "CLIENT", name: "Accept Client" })
+    );
+
+    const propertyA = await prisma.property.create({
+      data: {
+        label: "Accept Property A",
+        propertyType: "OFFICE",
+        addressLine1: "1 rue A",
+        city: "Paris",
+        postalCode: "75001",
+        createdByProfileId: clientUserId,
+        owners: { create: { organizationId: orgAId, ownershipShareBasisPoints: 10000 } },
+        operators: { create: { organizationId: orgAId } },
+      },
+    });
+    propertyAId = propertyA.id;
+
     const space = await prisma.space.create({
       data: {
+        propertyId: propertyAId,
         organizationId: orgAId,
         slug: `accept-space-${suffix}`,
         name: "Accept Space",
@@ -77,14 +101,6 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
       },
     });
     spaceId = space.id;
-
-    clientUserId = crypto.randomUUID();
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
-      clientUserId,
-      `accept-client-${suffix}@test.local`,
-      JSON.stringify({ role: "CLIENT", name: "Accept Client" })
-    );
   });
 
   afterAll(async () => {
@@ -101,6 +117,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
       await prisma.spaceOpeningHours.deleteMany({ where: { spaceId } });
       await prisma.space.deleteMany({ where: { id: spaceId } });
     }
+    if (propertyAId) await prisma.property.deleteMany({ where: { id: propertyAId } });
     if (orgAId && orgBId) {
       await prisma.organization.deleteMany({ where: { id: { in: [orgAId, orgBId] } } });
     }

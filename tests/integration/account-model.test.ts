@@ -287,6 +287,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor,
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "12 rue de Rivoli",
           city: "Paris",
           postalCode: "75004",
@@ -322,6 +323,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(user.id),
         input: {
           holderType: "COMPANY",
+          activityType: "OWNER",
           legalName: "Atelier Partners",
           siret,
           legalRepresentativeName: "Julie Martin",
@@ -349,6 +351,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
           actor: await actorFor(user.id),
           input: {
             holderType: "COMPANY",
+            activityType: "OWNER",
             legalName: "Mismatch SARL",
             siret: uniqueSiret(),
             siren: "999999999",
@@ -368,6 +371,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(user.id),
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "1 rue de Test",
           city: "Paris",
           postalCode: "75001",
@@ -379,6 +383,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
           actor: await actorFor(user.id),
           input: {
             holderType: "INDIVIDUAL",
+            activityType: "OWNER",
             address: "2 rue de Test",
             city: "Lyon",
             postalCode: "69001",
@@ -396,16 +401,23 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
     it("leaves nothing behind when it fails", async () => {
       // Atomicity is the whole point: an organization with no membership
       // would look correct and grant nothing.
+      //
+      // Scoped to this attempt's own SIRET rather than a global
+      // organization count: this suite runs alongside other integration
+      // files against the same database, all creating organizations
+      // concurrently, so a table-wide count is inherently racy. A SIRET
+      // unique to this one attempt is not.
       const user = await createTestUser();
-      const before = await prisma.organization.count();
+      const doomedSiret = uniqueSiret();
 
       await expect(
         becomeLandlord({
           actor: await actorFor(user.id),
           input: {
             holderType: "COMPANY",
+            activityType: "OWNER",
             legalName: "Doomed SARL",
-            siret: uniqueSiret(),
+            siret: doomedSiret,
             siren: "111111111", // contradicts the SIRET
             legalRepresentativeName: "Someone",
             address: "1 rue de Test",
@@ -415,7 +427,10 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         })
       ).rejects.toThrow();
 
-      expect(await prisma.organization.count()).toBe(before);
+      expect(await prisma.organization.findFirst({ where: { siret: doomedSiret } })).toBeNull();
+      expect(
+        await prisma.organizationMember.count({ where: { profileId: user.id } })
+      ).toBe(0);
       const profile = await prisma.profile.findUniqueOrThrow({ where: { id: user.id } });
       expect(profile.isLandlord).toBe(false);
 
@@ -451,6 +466,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(user.id),
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "12 rue de Rivoli",
           city: "Paris",
           postalCode: "75004",
@@ -485,6 +501,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(theirs.id),
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "1 rue Leur",
           city: "Lyon",
           postalCode: "69001",
@@ -494,6 +511,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(mine.id),
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "1 rue Mienne",
           city: "Paris",
           postalCode: "75001",
@@ -522,6 +540,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(user.id),
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "1 rue de Test",
           city: "Paris",
           postalCode: "75001",
@@ -551,6 +570,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(user.id),
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "1 rue de Test",
           city: "Paris",
           postalCode: "75001",
@@ -589,6 +609,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(user.id),
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "1 rue de Test",
           city: "Paris",
           postalCode: "75001",
@@ -613,6 +634,7 @@ describe.skipIf(!hasDatabase)("account model (single account, two modes)", () =>
         actor: await actorFor(first.id),
         input: {
           holderType: "INDIVIDUAL",
+          activityType: "OWNER",
           address: "1 rue de Test",
           city: "Paris",
           postalCode: "75001",

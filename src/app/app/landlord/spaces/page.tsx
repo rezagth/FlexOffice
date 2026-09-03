@@ -31,8 +31,8 @@ export default async function PartnerSpacesPage() {
               <div>
                 <p className="font-medium">{space.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {SPACE_TYPE_LABELS[space.type] ?? space.type} · {space.city} ·{" "}
-                  {SPACE_STATUS_LABELS[space.status] ?? space.status}
+                  {space.property.label} · {SPACE_TYPE_LABELS[space.type] ?? space.type} ·{" "}
+                  {space.city} · {SPACE_STATUS_LABELS[space.status] ?? space.status}
                 </p>
               </div>
               <div className="flex items-center gap-4">

@@ -13,16 +13,17 @@ export const dynamic = "force-dynamic";
  * single account: there is no separate partner signup to go through and no
  * second password to remember.
  *
- * An account that already has an activity is sent home rather than shown a
- * form that would fail — the service refuses a second activity in Phase 2
- * (joining an existing organization is an invitation flow, and running
- * several is the professional case).
+ * An account that already has an activity is sent to its verification
+ * dossier rather than home — Phase 2 sent it to `/app`, but now that a
+ * dossier always exists once an activity is open (see
+ * domains/organizations/become-landlord.ts), that page is the genuinely
+ * useful next step rather than a dead end.
  */
 export default async function BecomeLandlordPage() {
   const ctx = await requirePageAuth({ redirectTo: "/app/become-landlord" });
 
   if (ctx.isLandlord) {
-    redirect("/app");
+    redirect("/app/landlord/verification");
   }
 
   return (
@@ -40,15 +41,14 @@ export default async function BecomeLandlordPage() {
         <BecomeLandlordForm />
       </Card>
 
-      {/* Said plainly rather than discovered later: the activity opens now,
-          publishing waits for verification. The organization is created
-          PENDING_VERIFICATION and publication is already gated on that
-          status. */}
+      {/* Said plainly rather than discovered later: publication waits for a
+          verified dossier — see /app/landlord/verification, reached right
+          after this form. */}
       <p className="max-w-lg text-sm text-muted-foreground">
-        Vos espaces devront être vérifiés avant publication. La vérification
-        des pièces justificatives (pièce d&apos;identité, Kbis, titre de
-        propriété ou autorisation de sous-location) arrive dans une prochaine
-        itération : elle n&apos;est pas encore demandée ici.
+        La prochaine étape vous demandera les pièces justificatives
+        nécessaires (pièce d&apos;identité, Kbis, titre de propriété ou
+        autorisation de sous-location selon votre situation). Vos espaces ne
+        pourront être publiés qu&apos;une fois votre dossier vérifié.
       </p>
     </div>
   );

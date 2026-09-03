@@ -1,9 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { hasDatabase } from "./helpers/should-run";
-import { createTestOrganization, createTestSpace } from "./helpers/test-fixtures";
+import {
+  createTestOrganization,
+  createTestProperty,
+  createTestSpace,
+  createTestUser,
+} from "./helpers/test-fixtures";
 
 /**
- * A suspended organization must publish nothing.
+ * A suspended or unverified organization must publish nothing.
  *
  * `Organization.status` existed with three values, was displayed in the admin
  * back office, and was read by no business rule at all: `listPublishedSpaces()`
@@ -11,6 +16,10 @@ import { createTestOrganization, createTestSpace } from "./helpers/test-fixtures
  * organization left its listings live and bookable — on a marketplace whose
  * stated core is trust between companies, a suspension that suspends nothing
  * is the worst kind of control, because it looks like one.
+ *
+ * Phase 1/2 temporarily allowed PENDING_VERIFICATION to publish, because
+ * there was no route to VERIFIED yet. Phase 3's LandlordVerification gives
+ * organizations that route, so the threshold is now VERIFIED only.
  */
 describe.skipIf(!hasDatabase)("publication and organization status", () => {
   let listPublishedSpaces: typeof import("@/server/domains/spaces/list-spaces").listPublishedSpaces;
@@ -54,9 +63,22 @@ describe.skipIf(!hasDatabase)("publication and organization status", () => {
     });
     // `pending` keeps the PENDING_VERIFICATION default.
 
-    verifiedSlug = (await createTestSpace(verified.id, { status: "PUBLISHED", city })).slug;
-    pendingSlug = (await createTestSpace(pending.id, { status: "PUBLISHED", city })).slug;
-    suspendedSlug = (await createTestSpace(suspended.id, { status: "PUBLISHED", city })).slug;
+    const creator = await createTestUser();
+    const [verifiedProperty, pendingProperty, suspendedProperty] = await Promise.all([
+      createTestProperty(verified.id, creator.id, { city }),
+      createTestProperty(pending.id, creator.id, { city }),
+      createTestProperty(suspended.id, creator.id, { city }),
+    ]);
+
+    verifiedSlug = (
+      await createTestSpace(verified.id, verifiedProperty.id, { status: "PUBLISHED", city })
+    ).slug;
+    pendingSlug = (
+      await createTestSpace(pending.id, pendingProperty.id, { status: "PUBLISHED", city })
+    ).slug;
+    suspendedSlug = (
+      await createTestSpace(suspended.id, suspendedProperty.id, { status: "PUBLISHED", city })
+    ).slug;
 
     // All three spaces are PUBLISHED, so the only thing that can separate
     // them in the assertions below is the organization's status.
@@ -74,13 +96,11 @@ describe.skipIf(!hasDatabase)("publication and organization status", () => {
       expect(slugs).toContain(verifiedSlug);
     });
 
-    it("shows an organization awaiting verification, per the Phase 1 threshold", async () => {
-      // Deliberate: there is no route to VERIFIED yet other than a manual
-      // database write, so requiring it would hide every genuine signup.
-      // Phase 2 tightens this once the Verification workflow exists, and this
-      // expectation is expected to flip with it.
+    it("hides an organization still awaiting verification", async () => {
+      // Tightened in Phase 3: LandlordVerification is now the real route to
+      // VERIFIED, so an organization mid-review no longer publishes.
       const slugs = (await listPublishedSpaces({ city })).map((s) => s.slug);
-      expect(slugs).toContain(pendingSlug);
+      expect(slugs).not.toContain(pendingSlug);
     });
   });
 
@@ -109,9 +129,9 @@ describe.skipIf(!hasDatabase)("publication and organization status", () => {
       });
     });
 
-    it("allows an organization awaiting verification, for now", async () => {
-      await expect(assertOrganizationCanPublish(pendingOrgId)).resolves.toMatchObject({
-        status: "PENDING_VERIFICATION",
+    it("refuses an organization awaiting verification with 403", async () => {
+      await expect(assertOrganizationCanPublish(pendingOrgId)).rejects.toMatchObject({
+        status: 403,
       });
     });
 
@@ -127,10 +147,10 @@ describe.skipIf(!hasDatabase)("publication and organization status", () => {
       // cached, and no caller-supplied status is trusted.
       await prisma.organization.update({
         where: { id: pendingOrgId },
-        data: { status: "SUSPENDED" },
+        data: { status: "VERIFIED" },
       });
-      await expect(assertOrganizationCanPublish(pendingOrgId)).rejects.toMatchObject({
-        status: 403,
+      await expect(assertOrganizationCanPublish(pendingOrgId)).resolves.toMatchObject({
+        status: "VERIFIED",
       });
       await prisma.organization.update({
         where: { id: pendingOrgId },

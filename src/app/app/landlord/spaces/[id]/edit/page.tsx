@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { requirePageLandlordOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
-import { SpaceForm, type OpeningHourRow } from "@/components/dashboard/space-form";
+import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
+import { SpaceForm, type WeekdayHours } from "@/components/dashboard/space-form";
 import { SubmitSpaceButton } from "@/components/dashboard/submit-space-button";
 import { SPACE_STATUS_LABELS } from "@/lib/format";
 
@@ -15,20 +16,21 @@ export default async function EditSpacePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const space = await prisma.space.findFirst({
     where: { id, organizationId: ctx.activeOrgId },
-    include: { openingHours: true },
+    include: {
+      openingHours: { orderBy: { opensAt: "asc" } },
+      spacePhotos: { orderBy: { position: "asc" } },
+    },
   });
   if (!space) notFound();
 
-  const hoursByWeekday = new Map(space.openingHours.map((h) => [h.weekday, h]));
-  const initialHours: OpeningHourRow[] = WEEKDAYS.map((weekday) => {
-    const existing = hoursByWeekday.get(weekday);
-    return {
-      weekday,
-      enabled: Boolean(existing),
-      opensAt: existing?.opensAt ?? "09:00",
-      closesAt: existing?.closesAt ?? "18:00",
-    };
-  });
+  const initialPhotos = space.spacePhotos.map((p) => ({ ...p, url: getPublicPhotoUrl(p.storagePath) }));
+
+  const initialHours: WeekdayHours[] = WEEKDAYS.map((weekday) => ({
+    weekday,
+    slots: space.openingHours
+      .filter((h) => h.weekday === weekday)
+      .map((h) => ({ opensAt: h.opensAt, closesAt: h.closesAt })),
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,7 +49,8 @@ export default async function EditSpacePage({ params }: { params: Promise<{ id: 
       <SpaceForm
         spaceId={space.id}
         initialHours={initialHours}
-        initialPhotos={space.photos}
+        initialPhotos={initialPhotos}
+        initialPropertyId={space.propertyId}
         initialValues={{
           name: space.name,
           type: space.type,
@@ -56,7 +59,7 @@ export default async function EditSpacePage({ params }: { params: Promise<{ id: 
           city: space.city,
           postalCode: space.postalCode,
           capacity: String(space.capacity),
-          amenities: space.amenities.join("\n"),
+          amenities: space.amenities,
           halfDayPrice: (space.halfDayPriceCents / 100).toString(),
           dayPrice: (space.dayPriceCents / 100).toString(),
           accessInstructions: space.accessInstructions ?? "",

@@ -3,6 +3,21 @@ import { isValidTimeZone } from "@/lib/timezone";
 
 export const spaceTypeEnum = z.enum(["MEETING_ROOM", "DESK", "TRAINING_ROOM"]);
 
+export const spaceAmenityEnum = z.enum([
+  "WIFI",
+  "PARKING",
+  "PROJECTOR",
+  "SCREEN",
+  "PRINTER",
+  "KITCHEN",
+  "AIR_CONDITIONING",
+  "WHEELCHAIR_ACCESS",
+  "COFFEE",
+  "PHONE_BOOTH",
+  "WHITEBOARD",
+  "OTHER",
+]);
+
 const timeString = z
   .string()
   .trim()
@@ -19,12 +34,31 @@ export const openingHourSchema = z
     path: ["closesAt"],
   });
 
-export const openingHoursWeekSchema = z
-  .array(openingHourSchema)
-  .max(7)
-  .refine((hours) => new Set(hours.map((h) => h.weekday)).size === hours.length, {
-    message: "Un seul horaire par jour de semaine",
-  });
+/**
+ * A weekday may now carry several slots (morning/afternoon) — Phase 5.
+ * Only overlap is refused, not repetition: two rows on the same weekday
+ * are exactly the point. `zonedTimeToUtc` is not involved here — these are
+ * wall-clock "HH:mm" strings compared lexicographically within one
+ * weekday, which is chronological order for zero-padded 24h values.
+ */
+export const openingHoursWeekSchema = z.array(openingHourSchema).max(70).refine(
+  (hours) => {
+    const byWeekday = new Map<number, typeof hours>();
+    for (const h of hours) {
+      const list = byWeekday.get(h.weekday) ?? [];
+      list.push(h);
+      byWeekday.set(h.weekday, list);
+    }
+    for (const dayHours of byWeekday.values()) {
+      const sorted = [...dayHours].sort((a, b) => (a.opensAt < b.opensAt ? -1 : 1));
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].opensAt < sorted[i - 1].closesAt) return false;
+      }
+    }
+    return true;
+  },
+  { message: "Deux créneaux du même jour ne peuvent pas se chevaucher" }
+);
 export type OpeningHoursWeekInput = z.infer<typeof openingHoursWeekSchema>;
 
 const spaceBaseFields = {
@@ -35,7 +69,7 @@ const spaceBaseFields = {
   city: z.string().trim().min(1).max(120),
   postalCode: z.string().trim().regex(/^\d{5}$/, "Le code postal doit contenir 5 chiffres"),
   capacity: z.number().int().min(1).max(1000),
-  amenities: z.array(z.string().trim().min(1).max(60)).max(30),
+  amenities: z.array(spaceAmenityEnum).max(spaceAmenityEnum.options.length),
   // Photos are not set through this schema any more: they are uploaded one
   // by one to Storage (see api/partner/spaces/[id]/photos). Kept optional so
   // an existing payload carrying URLs is still accepted.
@@ -53,7 +87,12 @@ const spaceBaseFields = {
     .optional(),
 };
 
-export const createSpaceSchema = z.object(spaceBaseFields);
+export const createSpaceSchema = z.object({
+  ...spaceBaseFields,
+  // The Property this Space is a unit of (Phase 4). Not optional: every new
+  // space is created from a property's page, or with one picked explicitly.
+  propertyId: z.uuid(),
+});
 export type CreateSpaceInput = z.infer<typeof createSpaceSchema>;
 
 export const updateSpaceSchema = z.object(spaceBaseFields).partial();

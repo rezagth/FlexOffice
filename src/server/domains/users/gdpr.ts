@@ -52,17 +52,53 @@ export async function exportProfileData(userId: string) {
  * and proof-of-transaction (art. 17§3(e)). Such accounts are anonymized
  * in place and their auth user is banned instead; accounts with no
  * booking history are deleted outright.
+ *
+ * Phase 3 widened "has history" beyond bookings. A landlord's
+ * OrganizationMember row and any LandlordVerification they requested are
+ * also ON DELETE RESTRICT (an organization or a review decision must not
+ * silently lose who it belongs to, or who asked for it) — so an account
+ * that opened a letting activity but has zero bookings would otherwise
+ * attempt a hard delete, cascade from auth.users into profiles, and then
+ * fail with a raw foreign-key error instead of the clean GDPR flow. Both
+ * are checked here for exactly the same reason bookings are.
+ *
+ * Phase 4 adds the same shape again: `properties.created_by_profile_id`
+ * and the profile-held rows on `property_owners`/`property_operators`/
+ * `property_managers` are all ON DELETE RESTRICT too — a property, or a
+ * legal ownership record, must not silently lose who it names.
  */
 export async function deleteOrAnonymizeProfile(userId: string) {
   const profile = await prisma.profile.findUnique({ where: { id: userId } });
   if (!profile) throw new NotFoundError("Profile not found");
 
-  const bookingCount = await prisma.booking.count({ where: { clientUserId: userId } });
+  const [
+    bookingCount,
+    membershipCount,
+    verificationCount,
+    propertyCreatedCount,
+    propertyHolderCount,
+  ] = await Promise.all([
+    prisma.booking.count({ where: { clientUserId: userId } }),
+    prisma.organizationMember.count({ where: { profileId: userId } }),
+    prisma.landlordVerification.count({ where: { requestedByProfileId: userId } }),
+    prisma.property.count({ where: { createdByProfileId: userId } }),
+    Promise.all([
+      prisma.propertyOwner.count({ where: { profileId: userId } }),
+      prisma.propertyOperator.count({ where: { profileId: userId } }),
+      prisma.propertyManager.count({ where: { profileId: userId } }),
+    ]).then((counts) => counts.reduce((a, b) => a + b, 0)),
+  ]);
+  const hasHistory =
+    bookingCount > 0 ||
+    membershipCount > 0 ||
+    verificationCount > 0 ||
+    propertyCreatedCount > 0 ||
+    propertyHolderCount > 0;
   const admin = createSupabaseAdminClient();
 
   await prisma.favorite.deleteMany({ where: { userId } });
 
-  if (bookingCount === 0) {
+  if (!hasHistory) {
     // Deleting the auth user cascades to profiles via profiles_id_fkey.
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) throw error;
@@ -105,7 +141,15 @@ export async function deleteOrAnonymizeProfile(userId: string) {
 
   await recordAudit({
     event: "gdpr.account_deleted",
-    metadata: { userId, mode: "anonymized", retainedBookings: bookingCount },
+    metadata: {
+      userId,
+      mode: "anonymized",
+      retainedBookings: bookingCount,
+      retainedMemberships: membershipCount,
+      retainedVerifications: verificationCount,
+      retainedPropertiesCreated: propertyCreatedCount,
+      retainedPropertyHolderRows: propertyHolderCount,
+    },
   });
   return { mode: "anonymized" as const };
 }

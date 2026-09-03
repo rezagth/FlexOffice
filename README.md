@@ -218,11 +218,11 @@ Le mode n'est **pas** basculé par cette fonction. Débloquer la capacité et
 choisir de l'utiliser sont deux actes distincts ; la bascule passe ensuite par
 `switchMode()`, le même chemin que toute bascule ultérieure.
 
-La **vérification des pièces** (identité, Kbis, titre de propriété,
-autorisation de sous-location) n'est pas demandée ici : l'organisation naît
-`PENDING_VERIFICATION` et la publication est déjà conditionnée à ce statut
-(`publication-guard.ts`), de sorte que la phase de vérification n'aura qu'à
-resserrer le seuil.
+Un dossier `LandlordVerification` (`DRAFT`) est créé dans la **même
+transaction**, avec l'`activityType` choisi ici (`OWNER` ou `OPERATOR`) — voir
+« Vérification bailleur » ci-dessous pour la suite du parcours : les pièces ne
+sont pas demandées à cet écran, mais la publication est conditionnée au
+dossier une fois qu'il est vérifié.
 
 ### Migration de l'ancien modèle
 
@@ -247,6 +247,265 @@ inscription commence toujours en `TENANT`. Ce n'est pas une incohérence :
 toute l'activité d'un partenaire existant est du travail de bailleur, et le
 faire atterrir dans l'espace locataire serait une régression de son
 expérience, pas une migration.
+
+La migration `20260905100000_landlord_verification` fait le même travail pour
+le dossier de vérification : toute organisation qui a déjà une appartenance
+`OWNER` `ACTIVE` mais aucun dossier en reçoit un — `APPROVED` si
+l'organisation était déjà `VERIFIED`, `DRAFT` sinon.
+
+---
+
+## Vérification bailleur (onboarding)
+
+Ouvrir une activité (« Devenir bailleur ») ne suffit pas à publier : il faut
+un dossier `LandlordVerification` au statut `APPROVED`. C'est le
+**seul** effet du dossier — il ne touche à rien d'autre.
+
+### OWNER vs OPERATOR
+
+`LandlordActivityType` distingue **pourquoi** une organisation a le droit de
+mettre un espace en location :
+
+| Valeur | Signifie |
+|---|---|
+| `OWNER` | L'organisation possède le bien. |
+| `OPERATOR` | L'organisation exploite un bien qu'elle ne possède pas (sous-location, gestion déléguée) — une autorisation de sous-location est alors exigée en plus des pièces habituelles. |
+
+Choisi à l'écran « Devenir bailleur », avant le type de titulaire : c'est ce
+choix, combiné au `holderType` de l'organisation, qui détermine la liste des
+pièces demandées.
+
+### Cycle de vie du dossier
+
+```
+DRAFT ──(documents requis complets)──► PENDING_REVIEW
+PENDING_REVIEW ──(un admin prend en charge)──► IN_REVIEW
+IN_REVIEW ──(approuve)──► APPROVED  →  Organization.status = VERIFIED
+IN_REVIEW ──(refuse, motif obligatoire)──► REJECTED  →  Organization.status inchangé
+REJECTED ──(le bailleur corrige, resoumet)──► PENDING_REVIEW
+```
+
+`EXPIRED` existe dans l'énumération pour un renouvellement futur (hors
+périmètre : aucune tâche ne fait encore expirer un dossier).
+
+### Pièces requises
+
+`requiredDocumentTypes(holderType, activityType)`
+(`src/server/domains/verification/requirements.ts`) est la **seule** source
+de vérité — la page de dossier et `submitVerification()` l'appellent tous les
+deux, ils ne peuvent donc jamais exiger des listes différentes.
+
+| Titulaire | Activité | Pièces requises |
+|---|---|---|
+| `INDIVIDUAL` | `OWNER` | Pièce d'identité, titre de propriété |
+| `INDIVIDUAL` | `OPERATOR` | Pièce d'identité, autorisation de sous-location |
+| `COMPANY` | `OWNER` | Kbis, représentant légal, titre de propriété |
+| `COMPANY` | `OPERATOR` | Kbis, représentant légal, autorisation de sous-location |
+
+Le justificatif de TVA (`VAT_PROOF`) et `OTHER` existent dans l'énumération
+pour un complément à la demande d'un admin, mais ne sont jamais dans la liste
+requise ci-dessus.
+
+### Stockage : deux buckets, deux politiques
+
+Les photos d'espace (`space-photos`) sont **publiques** : n'importe qui peut
+voir un espace publié. Les pièces de vérification sont l'inverse — un bucket
+Supabase Storage privé et distinct, `verification-documents`
+(`src/server/domains/verification/storage.ts`) :
+
+- jamais d'URL publique — uniquement `createSignedDocumentUrl()`, valable
+  120 secondes ;
+- le chemin de stockage est **généré côté serveur**
+  (`org/{orgId}/verification/{verificationId}/{documentId}.{ext}`), jamais
+  dérivé du nom de fichier envoyé par le navigateur ;
+- le type déclaré par le navigateur (`file.type`) n'est **pas** cru : le
+  serveur lit les octets et reconnaît le format à sa signature binaire
+  (`sniffFileType` — en-têtes PDF/JPEG/PNG), et refuse un désaccord entre ce
+  qui est déclaré et ce qui est réellement envoyé ;
+  10 Mo par fichier, 12 documents par dossier.
+
+### Revue admin
+
+`/admin/verifications` liste les dossiers, groupés « à vérifier »
+(`PENDING_REVIEW`/`IN_REVIEW`) puis le reste. Sur un dossier
+(`/admin/verifications/[id]`) : prendre en charge, approuver, refuser (motif
+obligatoire, 1 à 1000 caractères), et consulter chaque pièce via une URL
+signée générée à la demande.
+
+Un administrateur ne peut pas revoir son **propre** dossier — s'il en a un
+comme bailleur, `assertNotSelfReview()` refuse la prise en charge, l'approbation
+et le refus, avec le même message que pour un dossier inexistant : ne pas
+distinguer confirmerait à l'appelant qu'il a visé le bon dossier.
+
+`/api/verifications/*` (le bailleur sur son propre dossier) et
+`/api/admin/verifications/*` (un administrateur sur n'importe quel dossier)
+sont deux espaces de routes strictement séparés : le second n'accorde **pas**
+de dérogation d'administration sur le premier — un administrateur qui est
+aussi bailleur passe par son propre dossier comme n'importe qui.
+
+---
+
+## Biens : Property / Owner / Operator / Manager
+
+Jusqu'à la Phase 4, `Organization` faisait trois métiers à la fois : le
+titulaire légal, l'entité autorisée à mettre en location, et ce qu'un `Space`
+référence directement. Cette confusion rendait irreprésentable le cas d'une
+agence (propriétaire ≠ exploitant ≠ gestionnaire, trois organisations
+distinctes). `Property` — le bien physique — s'insère maintenant entre
+`Organization` et `Space`, avec trois tables de liaison qui répondent chacune
+à une question différente :
+
+```
+Property
+   ├── PropertyOwner      qui possède légalement le bien
+   ├── PropertyOperator   qui est autorisé à le mettre en location sur OfficeFlex
+   ├── PropertyManager    qui le gère au quotidien, sans en devenir propriétaire
+   └── Space, Space, …    les unités réservables qu'il contient
+```
+
+Un même acteur peut cumuler les trois rôles — c'est même le cas par défaut :
+`createProperty()` fait de l'organisation qui crée le bien à la fois son
+`PropertyOwner` (100 %) et son `PropertyOperator`, dans la même transaction.
+Séparer les rôles (le scénario agence) est une modification explicite
+ultérieure, pas un choix demandé à la création.
+
+### Titulaire : profil ou organisation, jamais les deux
+
+`PropertyOwner`, `PropertyOperator` et `PropertyManager` partagent la même
+forme : `profileId` et `organizationId`, l'un des deux non nul, jamais les
+deux, jamais aucun (`..._holder_check` dans la migration). C'est
+l'alternative relationnelle à une colonne polymorphe `(type, id)` — un
+`profileId` couvre le cas d'un copropriétaire enregistré sans être
+nécessairement un bailleur sur la plateforme.
+
+### Quote-part et exploitant unique
+
+`PropertyOwner.ownershipShareBasisPoints` est un entier (10000 = 100 %) —
+jamais un flottant pour une quote-part juridique. La somme des quotes-parts
+**actives** d'un bien ne doit jamais dépasser 100 % : un `CHECK` ne peut pas
+voir les autres lignes, donc c'est vérifié dans
+`src/server/domains/properties/owners.ts`, avec un test — la même
+convention que les invariants réservation/paiement de
+`20260903110100_business_integrity_constraints`.
+
+Un bien n'a jamais plus d'un `PropertyOperator` **courant**
+(`endsAt IS NULL`) — c'est qui reçoit les revenus dans les phases
+financières à venir, donc jamais ambigu. Contrainte posée en base par un
+index UNIQUE partiel (`property_operators_one_current_idx`), écrit à la
+main comme la contrainte `EXCLUDE` des réservations : Prisma n'a pas de
+syntaxe pour un index partiel, elle n'apparaît donc pas dans
+`schema.prisma`.
+
+Un `PropertyManager` ne devient jamais propriétaire ni exploitant — ajouter
+un gestionnaire n'ouvre aucun accès aux revenus. Son champ `scope` est
+réservé pour un futur modèle de permissions par bien ; rien ne le lit
+encore (Phase 4 ne construit pas ce RBAC fin, par choix de périmètre).
+
+### Space rattaché à Property
+
+`spaces.property_id` est désormais **obligatoire**. `spaces.organization_id`
+**reste en place** — inchangé sur les routes héritées
+(`/api/partner/spaces/*`) — mais doit toujours nommer une organisation
+`PropertyOwner` ou `PropertyOperator` **courante** du bien, vérifié dans
+`create-space.ts` (cross-table, donc service-layer + test, pas un `CHECK`).
+Depuis la Phase 5, les nouvelles routes (`/api/properties/[id]/spaces/*`,
+les photos) n'introduisent **aucune** nouvelle dépendance à
+`organizationId` : elles autorisent via `requirePropertyManageAccess()`
+uniquement — voir « Médias et gestion des biens » ci-dessous.
+
+### Migration des biens existants
+
+`20260905110000_property_model` regroupe chaque `Space` existant par
+`(organization_id, address, city, postal_code)` : des espaces qui
+partageaient déjà une adresse exacte deviennent des unités du même
+`Property` recréé ; tout le reste — y compris une adresse mal saisie — reçoit
+son propre bien plutôt que d'être rattaché par approximation. Chaque
+organisation devient propriétaire et exploitante à 100 % du (des) bien(s)
+ainsi recréé(s), exactement le rôle qu'elle jouait déjà avant cette phase.
+Aucune donnée n'est supprimée ; testée sur une base vierge et sur une base
+peuplée (bookings et favoris compris).
+
+---
+
+## Médias et gestion des biens (Phase 5)
+
+Ce que la Phase 4 laissait à faire pour qu'un bailleur puisse réellement
+gérer un bien : photos, équipements contrôlés, horaires à plusieurs
+créneaux, archivage.
+
+### Photos — un vrai modèle relationnel
+
+`PropertyPhoto` et `SpacePhoto` remplacent `spaces.photos text[]` pour tout
+nouvel envoi. Chaque ligne porte `storagePath` (généré côté serveur, jamais
+depuis le nom de fichier), `mimeType`, `sizeBytes`, `position`, `isPrimary`.
+**Au plus une photo principale par bien ou par espace** — un index UNIQUE
+partiel (`property_photos_one_primary_idx` / `space_photos_one_primary_idx`),
+même famille que `property_operators_one_current_idx` (Phase 4) : Prisma n'a
+pas de syntaxe pour un index partiel, il n'apparaît donc pas dans
+`schema.prisma`.
+
+`spaces.photos` **reste en place**, lu par la fiche publique et la carte de
+recherche (`/spaces/[slug]`, `space-card.tsx`) — non encore branchées sur
+`SpacePhoto`, ce qui est explicitement hors périmètre de cette phase (pas de
+`Listing`, pas de publication publique). Plus rien n'écrit dedans ; les URLs
+existantes ont été reprises dans `SpacePhoto` par la migration.
+
+### Stockage : un bucket public, deux préfixes
+
+`src/server/domains/media/photo-storage.ts` — même patron que
+`verification/storage.ts` (Phase 3) : signature binaire réelle (JPEG, PNG,
+**WebP**, dont la signature `RIFF….WEBP` n'est pas un préfixe contigu),
+jamais le `file.type` du navigateur seul ; chemin construit côté serveur ;
+bucket auto-créé s'il manque. `space-photos` reste le seul bucket — les
+photos de bien vivent sous un préfixe `properties/`, celles d'espace sous
+`spaces/` : les deux ont exactement le même niveau de confiance (public,
+envoyées par un bailleur, modérées pareil), donc un second bucket n'aurait
+rien apporté. Toujours strictement séparé de `verification-documents`
+(privé) — aucun chemin ne se recoupe entre les deux modules.
+
+### Équipements — vocabulaire contrôlé
+
+`Space.amenities` est passé de `text[]` libre à `SpaceAmenity[]` (enum,
+ouvert via `OTHER`). Les anciennes valeurs libres sont conservées dans
+`amenities_legacy` (colonne renommée, jamais réécrite) — rien n'est perdu,
+y compris ce qui n'a pas d'équivalent dans le nouvel enum (« Caméra »,
+« Paperboard » dans le jeu de données de démo).
+
+### Horaires — plusieurs créneaux par jour
+
+`space_opening_hours` acceptait au plus une ligne par jour de semaine
+(contrainte UNIQUE `[space_id, weekday]`) ; cette contrainte est
+**supprimée** en Phase 5. Le chevauchement entre deux créneaux du même jour
+— un CHECK ne peut pas le voir (il ne référence qu'une ligne) — est refusé
+dans `openingHoursWeekSchema` et testé.
+
+**Le moteur de disponibilité des réservations (Phase 1) n'a pas été
+reconstruit** — hors périmètre explicite de cette phase. `computeDaySlots()`
+traite toujours un jour comme une seule plage continue ; avec plusieurs
+créneaux, elle prend la plus large enveloppe (première ouverture → dernière
+fermeture), ce qui traite l'éventuel creux entre deux créneaux comme
+réservable. Documenté dans le code comme limitation connue, à corriger avec
+le vrai moteur de disponibilité.
+
+### Archivage
+
+`Property.status` et `Space.status` passent à `ARCHIVED` via
+`archiveProperty()` / `archiveSpace()` — un changement de statut, jamais une
+suppression. Aucun état de publication n'est ajouté à `SpaceStatus` (il
+portait déjà `PENDING_REVIEW`/`PUBLISHED`/`REJECTED` depuis la Phase 1) :
+cette phase ne fait qu'utiliser `ARCHIVED`, qui existait déjà.
+
+### Autorisation dérivée de Property, pas de organizationId
+
+Toutes les routes ajoutées en Phase 5
+(`/api/properties/[id]/spaces/[spaceId]/*`, les photos) passent par
+`requirePropertyManageAccess()` — jamais par `Space.organizationId`. C'est
+pourquoi elles vivent sous `/api/properties/[id]/spaces/[spaceId]/...`
+plutôt qu'un `/api/spaces/[id]/...` à plat : ce chemin plat entrerait en
+conflit avec la route publique déjà existante `/api/spaces/[slug]/...`
+(Next.js refuse deux noms de segment dynamique différents à la même
+profondeur — c'est le patron plus large de la Phase 5 : réduire, pas
+étendre, la dépendance à `organizationId` sur tout nouveau code).
 
 ---
 
@@ -310,8 +569,16 @@ Conséquences concrètes, toutes appliquées dans le dépôt :
   type MIME et taille sont vérifiés, et le chemin de l'objet est construit
   côté serveur sous le préfixe de l'organisation, pour qu'un partenaire ne
   puisse pas écrire chez un autre.
+- **Les pièces de vérification vivent dans un bucket privé distinct des
+  photos**, jamais servies par URL publique — voir « Vérification bailleur »
+  ci-dessus pour le détail (signature binaire, chemin serveur, URL signée à
+  courte durée de vie).
 - **`SUPABASE_SERVICE_ROLE_KEY` est serveur uniquement**, importée seulement
   depuis `src/server/auth/supabase-admin.ts`, jamais préfixée `NEXT_PUBLIC_`.
+- **Un bien répond 404, jamais 403, à une organisation qui n'y a aucun rôle**
+  (`requirePropertyManageAccess()`) — un administrateur passe outre, une
+  organisation sans rôle actif (propriétaire, exploitant, gestionnaire) sur
+  ce bien précis ne le distingue pas d'un bien inexistant.
 
 ### Limitation de débit
 
@@ -476,6 +743,10 @@ src/server/              code strictement serveur
                          runtime-config · rate-limit/ · supabase-*
   db/prisma.ts           client Prisma paresseux
   domains/<domaine>/     bookings · payments · organizations · users · spaces · notifications
+                         verification (dossier bailleur, pièces, revue admin)
+                         properties (Property, owners/operators/managers,
+                           spaces/photos dérivés de Property — Phase 5)
+                         media (photo-storage.ts — bucket public partagé)
   lib/                   http · errors · logger · audit
 src/generated/prisma/    client Prisma généré — NE JAMAIS éditer à la main
 src/proxy.ts             remplace middleware.ts (Next.js 16) — rafraîchit la session

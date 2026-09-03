@@ -5,6 +5,7 @@ import { prisma } from "@/server/db/prisma";
 export async function listOrgSpaces(organizationId: string) {
   return prisma.space.findMany({
     where: { organizationId },
+    include: { property: { select: { id: true, label: true } } },
     orderBy: { createdAt: "desc" },
   });
 }

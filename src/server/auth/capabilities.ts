@@ -29,6 +29,7 @@ export const CAPABILITIES = [
 
   // Landlord side — require an ACTIVE membership, and differ by org role.
   "landlord:view_dashboard",
+  "landlord:manage_properties",
   "landlord:manage_spaces",
   "landlord:publish_listing",
   "landlord:manage_calendar",
@@ -37,6 +38,15 @@ export const CAPABILITIES = [
   "landlord:manage_accounting",
   "landlord:manage_members",
   "landlord:manage_organization",
+  /**
+   * Managing the onboarding/verification dossier: uploading identity and
+   * ownership documents, submitting for review, seeing the rejection reason.
+   * Restricted to OWNER and org ADMIN — MANAGER, ACCOUNTANT and VIEWER never
+   * see or touch it, because the documents involved (a CNI, a Kbis) are
+   * exactly the kind of sensitive material separation of duties exists to
+   * keep away from an operational or read-only role.
+   */
+  "landlord:manage_verification",
 
   // Platform administration. Deliberately unrelated to the modes: an
   // administrator is also an ordinary user who rents and lets spaces.
@@ -68,6 +78,7 @@ const TENANT_CAPABILITIES: readonly Capability[] = [
 const LANDLORD_CAPABILITIES_BY_ORG_ROLE: Record<OrgRole, readonly Capability[]> = {
   OWNER: [
     "landlord:view_dashboard",
+    "landlord:manage_properties",
     "landlord:manage_spaces",
     "landlord:publish_listing",
     "landlord:manage_calendar",
@@ -76,9 +87,11 @@ const LANDLORD_CAPABILITIES_BY_ORG_ROLE: Record<OrgRole, readonly Capability[]> 
     "landlord:manage_accounting",
     "landlord:manage_members",
     "landlord:manage_organization",
+    "landlord:manage_verification",
   ],
   ADMIN: [
     "landlord:view_dashboard",
+    "landlord:manage_properties",
     "landlord:manage_spaces",
     "landlord:publish_listing",
     "landlord:manage_calendar",
@@ -86,9 +99,11 @@ const LANDLORD_CAPABILITIES_BY_ORG_ROLE: Record<OrgRole, readonly Capability[]> 
     "landlord:view_revenue",
     "landlord:manage_accounting",
     "landlord:manage_members",
+    "landlord:manage_verification",
   ],
   MANAGER: [
     "landlord:view_dashboard",
+    "landlord:manage_properties",
     "landlord:manage_spaces",
     "landlord:publish_listing",
     "landlord:manage_calendar",

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hasDatabase } from "./helpers/should-run";
+import { createTestUser, deleteTestUser } from "./helpers/test-fixtures";
 
 // Unlike auth-register.test.ts, this one calls the domain function
 // directly (no next/headers involved) so it doesn't need a running server
@@ -10,10 +11,15 @@ describe.skipIf(!hasDatabase)("tenant isolation — organization A cannot see or
   let listOrgSpaces: typeof import("@/server/domains/spaces/list-org-spaces").listOrgSpaces;
   let orgAId: string;
   let orgBId: string;
+  let propertyAId: string;
+  let ownerUserId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import("@/server/db/prisma"));
     ({ listOrgSpaces } = await import("@/server/domains/spaces/list-org-spaces"));
+
+    const owner = await createTestUser();
+    ownerUserId = owner.id;
 
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const [orgA, orgB] = await Promise.all([
@@ -41,8 +47,23 @@ describe.skipIf(!hasDatabase)("tenant isolation — organization A cannot see or
     orgAId = orgA.id;
     orgBId = orgB.id;
 
+    const propertyA = await prisma.property.create({
+      data: {
+        label: "Test Property A",
+        propertyType: "OFFICE",
+        addressLine1: "1 rue A",
+        city: "Paris",
+        postalCode: "75001",
+        createdByProfileId: ownerUserId,
+        owners: { create: { organizationId: orgAId, ownershipShareBasisPoints: 10000 } },
+        operators: { create: { organizationId: orgAId } },
+      },
+    });
+    propertyAId = propertyA.id;
+
     await prisma.space.create({
       data: {
+        propertyId: propertyAId,
         organizationId: orgAId,
         slug: `space-a-${suffix}`,
         name: "Space A",
@@ -63,7 +84,9 @@ describe.skipIf(!hasDatabase)("tenant isolation — organization A cannot see or
 
   afterAll(async () => {
     await prisma.space.deleteMany({ where: { organizationId: { in: [orgAId, orgBId] } } });
+    if (propertyAId) await prisma.property.delete({ where: { id: propertyAId } });
     await prisma.organization.deleteMany({ where: { id: { in: [orgAId, orgBId] } } });
+    if (ownerUserId) await deleteTestUser(ownerUserId);
     await prisma.$disconnect();
   });
 

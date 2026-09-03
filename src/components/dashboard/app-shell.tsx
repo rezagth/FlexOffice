@@ -38,8 +38,14 @@ function tenantNav(): NavItem[] {
 function landlordNav(capabilities: AuthContext["capabilities"]): NavItem[] {
   const items: NavItem[] = [{ href: "/app", label: "Accueil" }];
 
+  if (capabilities.has("landlord:manage_verification")) {
+    items.push({ href: "/app/landlord/verification", label: "Vérification" });
+  }
+  if (capabilities.has("landlord:manage_properties")) {
+    items.push({ href: "/app/landlord/properties", label: "Mes biens" });
+  }
   if (capabilities.has("landlord:manage_spaces")) {
-    items.push({ href: "/app/landlord/spaces", label: "Mes biens" });
+    items.push({ href: "/app/landlord/spaces", label: "Tous les espaces" });
   }
   if (capabilities.has("landlord:publish_listing")) {
     items.push({ href: "/app/landlord/listings", label: "Publications" });

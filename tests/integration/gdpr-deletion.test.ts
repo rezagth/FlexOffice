@@ -19,6 +19,7 @@ describe.skipIf(!hasRealBackend)("GDPR account deletion", () => {
   let exportProfileData: typeof import("@/server/domains/users/gdpr").exportProfileData;
 
   let orgId: string;
+  let propertyId: string;
   let spaceId: string;
   let withBookingsUserId: string;
   let cleanUserId: string;
@@ -34,6 +35,20 @@ describe.skipIf(!hasRealBackend)("GDPR account deletion", () => {
 
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+    withBookingsUserId = crypto.randomUUID();
+    cleanUserId = crypto.randomUUID();
+    for (const [id, label] of [
+      [withBookingsUserId, "with-bookings"],
+      [cleanUserId, "clean"],
+    ] as const) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
+        id,
+        `gdpr-${label}-${suffix}@test.local`,
+        JSON.stringify({ role: "CLIENT", name: `GDPR ${label}` })
+      );
+    }
+
     const org = await prisma.organization.create({
       data: {
         name: `GDPR Org ${suffix}`,
@@ -46,8 +61,26 @@ describe.skipIf(!hasRealBackend)("GDPR account deletion", () => {
     });
     orgId = org.id;
 
+    const property = await prisma.property.create({
+      data: {
+        label: "GDPR Property",
+        propertyType: "OFFICE",
+        addressLine1: "1 rue Test",
+        city: "Paris",
+        postalCode: "75001",
+        // withBookingsUserId, never cleanUserId: this test's whole point is
+        // that cleanUserId has NO history and takes the hard-delete branch
+        // — giving it a Property to its name would falsify that fixture.
+        createdByProfileId: withBookingsUserId,
+        owners: { create: { organizationId: orgId, ownershipShareBasisPoints: 10000 } },
+        operators: { create: { organizationId: orgId } },
+      },
+    });
+    propertyId = property.id;
+
     const space = await prisma.space.create({
       data: {
+        propertyId,
         organizationId: orgId,
         slug: `gdpr-space-${suffix}`,
         name: "GDPR Space",
@@ -65,20 +98,6 @@ describe.skipIf(!hasRealBackend)("GDPR account deletion", () => {
       },
     });
     spaceId = space.id;
-
-    withBookingsUserId = crypto.randomUUID();
-    cleanUserId = crypto.randomUUID();
-    for (const [id, label] of [
-      [withBookingsUserId, "with-bookings"],
-      [cleanUserId, "clean"],
-    ] as const) {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
-        id,
-        `gdpr-${label}-${suffix}@test.local`,
-        JSON.stringify({ role: "CLIENT", name: `GDPR ${label}` })
-      );
-    }
 
     await prisma.booking.create({
       data: {
@@ -105,6 +124,7 @@ describe.skipIf(!hasRealBackend)("GDPR account deletion", () => {
       await prisma.auditLog.deleteMany({ where: { organizationId: orgId } });
     }
     if (spaceId) await prisma.space.deleteMany({ where: { id: spaceId } });
+    if (propertyId) await prisma.property.deleteMany({ where: { id: propertyId } });
     if (orgId) await prisma.organization.deleteMany({ where: { id: orgId } });
     const authIds = [withBookingsUserId, cleanUserId].filter(Boolean);
     if (authIds.length > 0) {
@@ -149,5 +169,89 @@ describe.skipIf(!hasRealBackend)("GDPR account deletion", () => {
     const result = await deleteOrAnonymizeProfile(cleanUserId);
     expect(result.mode).toBe("hard_delete");
     expect(deleteUser).toHaveBeenCalledWith(cleanUserId);
+  });
+
+  /**
+   * Phase 3 regression test. `landlord_verifications.requested_by_profile_id`
+   * and `organization_members.profile_id` are both ON DELETE RESTRICT (an
+   * organization or a review decision must not silently lose who it belongs
+   * to). Before this fix, an account that had opened a letting activity but
+   * had ZERO bookings would take the hard-delete branch — bookingCount is 0
+   * — cascade from auth.users into profiles, and then fail with a raw
+   * foreign-key error instead of the clean GDPR flow.
+   */
+  it("anonymizes — never hard-deletes — a landlord account with zero bookings", async () => {
+    const { becomeLandlord } = await import(
+      "@/server/domains/organizations/become-landlord"
+    );
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const landlordUserId = crypto.randomUUID();
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
+      landlordUserId,
+      `gdpr-landlord-${suffix}@test.local`,
+      JSON.stringify({ role: "CLIENT", name: "GDPR Landlord" })
+    );
+
+    const profile = await prisma.profile.findUniqueOrThrow({ where: { id: landlordUserId } });
+    const organization = await becomeLandlord({
+      actor: {
+        userId: profile.id,
+        email: profile.email,
+        name: profile.name,
+        platformRole: profile.platformRole,
+        isLandlord: profile.isLandlord,
+        activeMode: profile.activeMode,
+        activeOrgId: null,
+        activeOrgRole: null,
+        capabilities: new Set(),
+        landlordContextUnavailable: false,
+        role: profile.role,
+        organizationId: null,
+      },
+      input: {
+        holderType: "INDIVIDUAL",
+        activityType: "OWNER",
+        address: "1 rue Test",
+        city: "Paris",
+        postalCode: "75001",
+      },
+    });
+
+    deleteUser.mockClear();
+    updateUserById.mockClear();
+
+    // The whole point: this must not throw a raw Postgres FK error.
+    const result = await deleteOrAnonymizeProfile(landlordUserId);
+    expect(result.mode).toBe("anonymized");
+
+    const anonymized = await prisma.profile.findUniqueOrThrow({ where: { id: landlordUserId } });
+    expect(anonymized.deletedAt).not.toBeNull();
+    expect(anonymized.email).toMatch(/@officeflex\.invalid$/);
+
+    // The organization and its dossier survive, still pointing at the now
+    // tombstoned profile.
+    const membership = await prisma.organizationMember.findFirst({
+      where: { organizationId: organization.id, profileId: landlordUserId },
+    });
+    expect(membership).not.toBeNull();
+    const verification = await prisma.landlordVerification.findFirst({
+      where: { organizationId: organization.id },
+    });
+    expect(verification?.requestedByProfileId).toBe(landlordUserId);
+
+    expect(deleteUser).not.toHaveBeenCalled();
+    expect(updateUserById).toHaveBeenCalledWith(
+      landlordUserId,
+      expect.objectContaining({ ban_duration: expect.any(String) })
+    );
+
+    // Cleanup: this user was not created via beforeAll, so afterAll's
+    // guarded cleanup does not know about it.
+    await prisma.landlordVerification.deleteMany({ where: { organizationId: organization.id } });
+    await prisma.organizationMember.deleteMany({ where: { organizationId: organization.id } });
+    await prisma.organization.deleteMany({ where: { id: organization.id } });
+    await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1`, landlordUserId);
   });
 });

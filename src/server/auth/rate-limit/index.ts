@@ -54,6 +54,12 @@ export const RATE_LIMITS = {
    * retries after a validation error must stay comfortable.
    */
   becomeLandlord: { limit: 5, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /**
+   * Verification document uploads. A real dossier needs at most 4 documents
+   * (see requirements.ts); this leaves comfortable room for mistakes and
+   * re-uploads without being an effective way to fill Storage.
+   */
+  verificationDocumentUpload: { limit: 20, windowSeconds: 3600 } satisfies RateLimitConfig,
 } as const;
 
 type StoreErrorBehaviour = "deny" | "allow";

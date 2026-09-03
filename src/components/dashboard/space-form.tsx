@@ -8,13 +8,20 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { SPACE_TYPE_LABELS } from "@/lib/format";
+import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
 import { COMMON_TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezone";
-import { SpacePhotos } from "@/components/dashboard/space-photos";
+import { SpacePhotoManager } from "@/components/dashboard/space-photo-manager";
 
 const WEEKDAY_LABELS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+const AMENITY_VALUES = Object.keys(SPACE_AMENITY_LABELS);
 
-export type OpeningHourRow = { weekday: number; enabled: boolean; opensAt: string; closesAt: string };
+/** One weekday's schedule as several independent slots — "Fermé" is simply
+ * an empty `slots` array, not a separate flag, since Phase 5 stores each
+ * slot as its own row rather than one opensAt/closesAt span per day. */
+export type WeekdayHours = {
+  weekday: number;
+  slots: { opensAt: string; closesAt: string }[];
+};
 
 export type SpaceFormValues = {
   name: string;
@@ -24,7 +31,7 @@ export type SpaceFormValues = {
   city: string;
   postalCode: string;
   capacity: string;
-  amenities: string;
+  amenities: string[];
   halfDayPrice: string;
   dayPrice: string;
   accessInstructions: string;
@@ -39,18 +46,16 @@ const EMPTY: SpaceFormValues = {
   city: "",
   postalCode: "",
   capacity: "4",
-  amenities: "",
+  amenities: [],
   halfDayPrice: "",
   dayPrice: "",
   accessInstructions: "",
   timezone: DEFAULT_TIMEZONE,
 };
 
-const DEFAULT_HOURS: OpeningHourRow[] = WEEKDAY_LABELS.map((_, weekday) => ({
+const DEFAULT_HOURS: WeekdayHours[] = WEEKDAY_LABELS.map((_, weekday) => ({
   weekday,
-  enabled: weekday >= 1 && weekday <= 5,
-  opensAt: "09:00",
-  closesAt: "18:00",
+  slots: weekday >= 1 && weekday <= 5 ? [{ opensAt: "09:00", closesAt: "18:00" }] : [],
 }));
 
 /** Prices are entered in euros and converted to integer cents here —
@@ -59,35 +64,68 @@ function toCents(euros: string): number {
   return Math.round(Number(euros.replace(",", ".")) * 100);
 }
 
-function splitList(value: string): string[] {
-  return value
-    .split(/[\n,]/)
-    .map((v) => v.trim())
-    .filter(Boolean);
-}
-
 export function SpaceForm({
   spaceId,
   initialValues,
   initialHours,
   initialPhotos = [],
+  properties,
+  initialPropertyId,
 }: {
   spaceId?: string;
   initialValues?: SpaceFormValues;
-  initialHours?: OpeningHourRow[];
-  initialPhotos?: string[];
+  initialHours?: WeekdayHours[];
+  initialPhotos?: { id: string; url: string; isPrimary: boolean; position: number }[];
+  /** The property picker — only meaningful (and only rendered) when
+   * creating: which building this space belongs to is not something a
+   * later edit changes in this phase. */
+  properties?: { id: string; label: string }[];
+  initialPropertyId?: string;
 }) {
   const router = useRouter();
   const [values, setValues] = useState<SpaceFormValues>(initialValues ?? EMPTY);
-  const [hours, setHours] = useState<OpeningHourRow[]>(initialHours ?? DEFAULT_HOURS);
+  const [propertyId, setPropertyId] = useState(initialPropertyId ?? properties?.[0]?.id ?? "");
+  const [hours, setHours] = useState<WeekdayHours[]>(initialHours ?? DEFAULT_HOURS);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const set = (key: keyof SpaceFormValues) => (value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
 
-  const setHour = (weekday: number, patch: Partial<OpeningHourRow>) =>
-    setHours((prev) => prev.map((h) => (h.weekday === weekday ? { ...h, ...patch } : h)));
+  function toggleAmenity(value: string) {
+    setValues((prev) => ({
+      ...prev,
+      amenities: prev.amenities.includes(value)
+        ? prev.amenities.filter((a) => a !== value)
+        : [...prev.amenities, value],
+    }));
+  }
+
+  function addSlot(weekday: number) {
+    setHours((prev) =>
+      prev.map((d) =>
+        d.weekday === weekday ? { ...d, slots: [...d.slots, { opensAt: "09:00", closesAt: "18:00" }] } : d
+      )
+    );
+  }
+
+  function removeSlot(weekday: number, index: number) {
+    setHours((prev) =>
+      prev.map((d) =>
+        d.weekday === weekday ? { ...d, slots: d.slots.filter((_, i) => i !== index) } : d
+      )
+    );
+  }
+
+  function updateSlot(weekday: number, index: number, patch: Partial<{ opensAt: string; closesAt: string }>) {
+    setHours((prev) =>
+      prev.map((d) =>
+        d.weekday === weekday
+          ? { ...d, slots: d.slots.map((s, i) => (i === index ? { ...s, ...patch } : s)) }
+          : d
+      )
+    );
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -102,11 +140,13 @@ export function SpaceForm({
       city: values.city,
       postalCode: values.postalCode,
       capacity: Number(values.capacity),
-      amenities: splitList(values.amenities),
+      amenities: values.amenities,
       halfDayPriceCents: toCents(values.halfDayPrice),
       dayPriceCents: toCents(values.dayPrice),
       ...(values.accessInstructions ? { accessInstructions: values.accessInstructions } : {}),
       ...(values.timezone ? { timezone: values.timezone } : {}),
+      // Only sent on creation — see the `properties` prop doc comment.
+      ...(spaceId ? {} : { propertyId }),
     };
 
     try {
@@ -126,9 +166,9 @@ export function SpaceForm({
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(
-          hours
-            .filter((h) => h.enabled)
-            .map((h) => ({ weekday: h.weekday, opensAt: h.opensAt, closesAt: h.closesAt }))
+          hours.flatMap((d) =>
+            d.slots.map((s) => ({ weekday: d.weekday, opensAt: s.opensAt, closesAt: s.closesAt }))
+          )
         ),
       });
       if (!hoursResponse.ok) {
@@ -137,8 +177,12 @@ export function SpaceForm({
         return;
       }
 
-      router.push("/partner/spaces");
-      router.refresh();
+      if (spaceId) {
+        router.refresh();
+      } else {
+        router.push(`/app/landlord/properties/${propertyId}/spaces/${savedId}`);
+        router.refresh();
+      }
     } catch {
       setError("Une erreur réseau est survenue.");
     } finally {
@@ -156,6 +200,27 @@ export function SpaceForm({
 
       <Card className="flex flex-col gap-4 p-5">
         <h2 className="text-lg font-medium">Informations</h2>
+        {!spaceId && (
+          <Field
+            label="Bien"
+            htmlFor="propertyId"
+            hint="L'immeuble ou le local dont cet espace fait partie"
+          >
+            <Select
+              id="propertyId"
+              required
+              value={propertyId}
+              onChange={(e) => setPropertyId(e.target.value)}
+            >
+              {(properties ?? []).length === 0 && <option value="">Aucun bien disponible</option>}
+              {(properties ?? []).map((property) => (
+                <option key={property.id} value={property.id}>
+                  {property.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         <Field label="Nom de l'espace" htmlFor="name">
           <Input
             id="name"
@@ -236,19 +301,25 @@ export function SpaceForm({
       </Card>
 
       <Card className="flex flex-col gap-4 p-5">
-        <h2 className="text-lg font-medium">Équipements et photos</h2>
-        <Field label="Équipements" htmlFor="amenities" hint="Un par ligne, ou séparés par des virgules.">
-          <Textarea
-            id="amenities"
-            value={values.amenities}
-            onChange={(e) => set("amenities")(e.target.value)}
-          />
-        </Field>
+        <h2 className="text-lg font-medium">Équipements</h2>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {AMENITY_VALUES.map((value) => (
+            <label key={value} className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={values.amenities.includes(value)}
+                onChange={() => toggleAmenity(value)}
+              />
+              {SPACE_AMENITY_LABELS[value]}
+            </label>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-5">
+        <h2 className="text-lg font-medium">Photos</h2>
         {spaceId ? (
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">Photos</span>
-            <SpacePhotos spaceId={spaceId} initialPhotos={initialPhotos} />
-          </div>
+          <SpacePhotoManager propertyId={propertyId} spaceId={spaceId} initialPhotos={initialPhotos} />
         ) : (
           <p className="text-sm text-muted-foreground">
             Les photos s&apos;ajoutent une fois le brouillon créé : enregistrez
@@ -284,8 +355,8 @@ export function SpaceForm({
       <Card className="flex flex-col gap-4 p-5">
         <h2 className="text-lg font-medium">Horaires d&apos;ouverture</h2>
         <p className="text-sm text-muted-foreground">
-          Les créneaux réservables sont calculés à partir de ces horaires : matin
-          (ouverture → 13h), après-midi (13h → fermeture), ou journée complète.
+          Plusieurs créneaux par jour sont possibles (matin et après-midi,
+          par exemple). Un jour sans créneau est un jour fermé.
         </p>
         <Field
           label="Fuseau horaire"
@@ -304,34 +375,48 @@ export function SpaceForm({
             ))}
           </Select>
         </Field>
-        <div className="flex flex-col gap-2">
-          {hours.map((hour) => (
-            <div key={hour.weekday} className="flex flex-wrap items-center gap-3">
-              <label className="flex w-32 items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={hour.enabled}
-                  onChange={(e) => setHour(hour.weekday, { enabled: e.target.checked })}
-                />
-                {WEEKDAY_LABELS[hour.weekday]}
-              </label>
-              <Input
-                type="time"
-                aria-label={`Ouverture ${WEEKDAY_LABELS[hour.weekday]}`}
-                className="w-32"
-                disabled={!hour.enabled}
-                value={hour.opensAt}
-                onChange={(e) => setHour(hour.weekday, { opensAt: e.target.value })}
-              />
-              <span className="text-sm text-muted-foreground">→</span>
-              <Input
-                type="time"
-                aria-label={`Fermeture ${WEEKDAY_LABELS[hour.weekday]}`}
-                className="w-32"
-                disabled={!hour.enabled}
-                value={hour.closesAt}
-                onChange={(e) => setHour(hour.weekday, { closesAt: e.target.value })}
-              />
+        <div className="flex flex-col gap-4">
+          {hours.map((day) => (
+            <div key={day.weekday} className="flex flex-col gap-2 border-b border-border pb-3 last:border-0">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">
+                  {WEEKDAY_LABELS[day.weekday]}
+                </span>
+                <Button type="button" variant="ghost" size="sm" onClick={() => addSlot(day.weekday)}>
+                  + Ajouter un créneau
+                </Button>
+              </div>
+              {day.slots.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Fermé</p>
+              ) : (
+                day.slots.map((slot, index) => (
+                  <div key={index} className="flex flex-wrap items-center gap-3">
+                    <Input
+                      type="time"
+                      aria-label={`Ouverture ${WEEKDAY_LABELS[day.weekday]} créneau ${index + 1}`}
+                      className="w-32"
+                      value={slot.opensAt}
+                      onChange={(e) => updateSlot(day.weekday, index, { opensAt: e.target.value })}
+                    />
+                    <span className="text-sm text-muted-foreground">→</span>
+                    <Input
+                      type="time"
+                      aria-label={`Fermeture ${WEEKDAY_LABELS[day.weekday]} créneau ${index + 1}`}
+                      className="w-32"
+                      value={slot.closesAt}
+                      onChange={(e) => updateSlot(day.weekday, index, { closesAt: e.target.value })}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeSlot(day.weekday, index)}
+                    >
+                      Retirer
+                    </Button>
+                  </div>
+                ))
+              )}
             </div>
           ))}
         </div>

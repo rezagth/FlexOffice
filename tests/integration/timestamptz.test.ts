@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { hasDatabase } from "./helpers/should-run";
 import {
   createTestOrganization,
+  createTestProperty,
   createTestSpace,
   createTestUser,
 } from "./helpers/test-fixtures";
@@ -26,12 +27,13 @@ describe.skipIf(!hasDatabase)("timezone-aware temporal columns", () => {
 
   beforeAll(async () => {
     ({ prisma } = await import("@/server/db/prisma"));
-    const org = await createTestOrganization();
-    orgId = org.id;
-    const space = await createTestSpace(orgId);
-    spaceId = space.id;
     const user = await createTestUser();
     clientUserId = user.id;
+    const org = await createTestOrganization();
+    orgId = org.id;
+    const property = await createTestProperty(orgId, clientUserId);
+    const space = await createTestSpace(orgId, property.id);
+    spaceId = space.id;
   });
 
   it("leaves no temporal column without a time zone", async () => {

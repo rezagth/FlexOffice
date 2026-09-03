@@ -31,16 +31,28 @@ export type DaySlots = {
  *
  * Returns `null` when the space has no opening hours configured for that
  * weekday at all (the space is simply closed that day of the week).
+ *
+ * PHASE 5 NOTE — multiple slots per weekday (e.g. 09:00-12:00 AND
+ * 14:00-18:00) are now representable and editable (see
+ * `opening-hours.ts`/the space form), but this booking-availability engine
+ * still is not: rebuilding it to treat a lunch gap as actually closed is
+ * booking-engine work, explicitly out of this phase's scope. Until then, a
+ * weekday with several slots is treated as one continuous span from the
+ * EARLIEST open to the LATEST close — exactly today's single-slot behavior
+ * when there is only one row, and a documented over-approximation (the gap
+ * between slots reads as bookable) when there are several.
  */
 export async function computeDaySlots(spaceId: string, dateStr: string): Promise<DaySlots | null> {
   const space = await prisma.space.findUnique({ where: { id: spaceId } });
   if (!space) return null;
 
   const weekday = weekdayOf(dateStr);
-  const hours = await prisma.spaceOpeningHours.findUnique({
-    where: { spaceId_weekday: { spaceId, weekday } },
+  const rows = await prisma.spaceOpeningHours.findMany({
+    where: { spaceId, weekday },
+    orderBy: { opensAt: "asc" },
   });
-  if (!hours) return null;
+  if (rows.length === 0) return null;
+  const hours = { opensAt: rows[0].opensAt, closesAt: rows[rows.length - 1].closesAt };
 
   const timeZone = space.timezone || DEFAULT_TIMEZONE;
   const dayStart = zonedTimeToUtc(dateStr, hours.opensAt, timeZone);

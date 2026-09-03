@@ -89,9 +89,133 @@ model Profile {
   disputesRaised Dispute[]            @relation("DisputeRaisedBy")
   auditLogs      AuditLog[]
 
+  verificationsRequested        LandlordVerification[] @relation("VerificationRequestedBy")
+  verificationsReviewed         LandlordVerification[] @relation("VerificationReviewedBy")
+  verificationDocumentsUploaded VerificationDocument[] @relation("VerificationDocumentUploadedBy")
+
+  propertiesCreated  Property[]         @relation("PropertyCreatedBy")
+  propertyOwnerOf    PropertyOwner[]    @relation("PropertyOwnerProfile")
+  propertyOperatorOf PropertyOperator[] @relation("PropertyOperatorProfile")
+  propertyManagerOf  PropertyManager[]  @relation("PropertyManagerProfile")
+
   @@index([organizationId])
   @@index([activeOrganizationId])
   @@map("profiles")
+}
+
+/// One side of "why may this organization let a space" — see
+/// `LandlordActivityType` below for the distinction from `OrgRole.OWNER`.
+enum LandlordActivityType {
+  OWNER
+  OPERATOR
+}
+
+enum VerificationStatus {
+  DRAFT
+  PENDING_REVIEW
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+/// The dossier behind "Devenir bailleur": why an organization may let a
+/// space, and OfficeFlex's review of the evidence for it. Scoped to the
+/// organization's activity as a whole — Phase 4's Property/PropertyOwner/
+/// PropertyOperator models attach this to individual properties.
+///
+/// `activityType` is a different axis from `OrgRole.OWNER`
+/// (Phase 2, membership inside an organization): this answers "does the
+/// organization own the space or merely exploit it under a sublet
+/// authorisation", not "what may this person do inside the organization".
+model LandlordVerification {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  requestedByProfileId String  @map("requested_by_profile_id") @db.Uuid
+  requestedBy          Profile @relation("VerificationRequestedBy", fields: [requestedByProfileId], references: [id])
+
+  activityType LandlordActivityType @map("activity_type")
+  status       VerificationStatus   @default(DRAFT)
+
+  submittedAt         DateTime? @map("submitted_at") @db.Timestamptz(3)
+  reviewStartedAt     DateTime? @map("review_started_at") @db.Timestamptz(3)
+  reviewedAt          DateTime? @map("reviewed_at") @db.Timestamptz(3)
+  /// SET NULL, not RESTRICT: the reviewer's own account may later be
+  /// deleted or anonymized; the decision itself must survive that.
+  reviewedByProfileId String?   @map("reviewed_by_profile_id") @db.Uuid
+  reviewedBy          Profile?  @relation("VerificationReviewedBy", fields: [reviewedByProfileId], references: [id])
+  /// A rejection without a reason is the failure mode this exists to
+  /// prevent — enforced by `landlord_verifications_rejection_reason_check`.
+  rejectionReason     String?   @map("rejection_reason")
+  expiresAt           DateTime? @map("expires_at") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  documents VerificationDocument[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("landlord_verifications")
+}
+
+/// Kept open-ended on purpose: which types are REQUIRED for a given
+/// (holderType, activityType) pair is a business rule in
+/// `src/server/domains/verification/requirements.ts`, not a database
+/// constraint — adding a new required document later is a code change.
+enum VerificationDocumentType {
+  IDENTITY_DOCUMENT
+  OWNERSHIP_PROOF
+  K_BIS
+  VAT_PROOF
+  LEGAL_REPRESENTATIVE_ID
+  SUBLEASE_AUTHORIZATION
+  OTHER
+}
+
+enum VerificationDocumentStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+/// Evidence attached to a dossier. Never the file itself — only where it
+/// lives in the private `verification-documents` Storage bucket and enough
+/// metadata to review and retain it. See
+/// `src/server/domains/verification/storage.ts` for why `storagePath` is
+/// server-generated and never derived from `originalFilename`.
+model VerificationDocument {
+  id             String               @id @default(uuid()) @db.Uuid
+  verificationId String               @map("verification_id") @db.Uuid
+  verification   LandlordVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  type VerificationDocumentType
+
+  /// Internal, server-generated Storage object key.
+  storagePath      String                     @unique @map("storage_path")
+  /// Sanitized for DISPLAY only — never used to build a storage path or any
+  /// other identifier.
+  originalFilename String                     @map("original_filename")
+  mimeType         String                     @map("mime_type")
+  sizeBytes        Int                        @map("size_bytes")
+  /// SHA-256 hex of the uploaded bytes, computed server-side.
+  checksum         String?
+  status           VerificationDocumentStatus @default(PENDING)
+
+  uploadedByProfileId String    @map("uploaded_by_profile_id") @db.Uuid
+  uploadedBy          Profile   @relation("VerificationDocumentUploadedBy", fields: [uploadedByProfileId], references: [id])
+  uploadedAt          DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz(3)
+  /// RGPD: when set, a retention job (a later phase) purges the object and
+  /// this row past this date. Null means "still part of an active dossier".
+  retentionUntil      DateTime? @map("retention_until") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([verificationId])
+  @@map("verification_documents")
 }
 
 /// Who holds the letting activity. An INDIVIDUAL's identity already lives on
@@ -194,15 +318,215 @@ model Organization {
   /// @deprecated the reverse side of `Profile.organizationId`. Use
   /// `memberships` — it is the authority for who belongs to an organization.
   members           Profile[]
-  activeForProfiles Profile[]            @relation("ActiveOrganization")
+  activeForProfiles Profile[]              @relation("ActiveOrganization")
   memberships       OrganizationMember[]
+  verifications     LandlordVerification[]
   spaces            Space[]
   bookings          Booking[]
   payments          Payment[]
   auditLogs         AuditLog[]
 
+  propertyOwnerOf    PropertyOwner[]
+  propertyOperatorOf PropertyOperator[]
+  propertyManagerOf  PropertyManager[]
+
   @@index([status])
   @@map("organizations")
+}
+
+// ---------------------------------------------------------------------------
+// Properties — the physical building. A Property holds one or more Spaces;
+// who may let a Space on the platform is a question about the Property
+// (its owner, operator, manager), not about the Space itself. See Phase 4.
+// ---------------------------------------------------------------------------
+
+/// Open on purpose: a physical building can be many things, and the product
+/// will want more of them (retail, industrial…) without a schema migration
+/// blocking every one. OTHER exists so a listing is never blocked on this
+/// enum lagging the catalogue.
+enum PropertyType {
+  OFFICE
+  COMMERCIAL
+  COWORKING
+  MEETING_SPACE
+  RESIDENTIAL
+  MIXED_USE
+  OTHER
+}
+
+enum PropertyStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Property {
+  id           String         @id @default(uuid()) @db.Uuid
+  label        String
+  propertyType PropertyType   @map("property_type")
+  status       PropertyStatus @default(ACTIVE)
+
+  /// Free text, saveable as a draft and editable — not yet shown anywhere
+  /// public (no Listing exists yet to display it on). Validated server-side
+  /// (length) like every other field, nothing more: Phase 6 owns anything
+  /// publication-shaped (SEO, a commercial title, visibility).
+  description String?
+
+  addressLine1 String  @map("address_line1")
+  addressLine2 String? @map("address_line2")
+  postalCode   String  @map("postal_code")
+  city         String
+  /// State/region, where the country has one. Free text: the shape differs
+  /// per country and this is not yet validated against anything.
+  region       String?
+  /// ISO 3166-1 alpha-2. Defaults to "FR" because every property today is
+  /// French; kept a plain column, not an enum, so expansion needs no schema
+  /// change.
+  country      String  @default("FR")
+
+  /// Nullable while the geocoding provider is not yet decided (Phase 4 scope
+  /// explicitly excludes it) — a property can be created and let before its
+  /// coordinates are known.
+  latitude  Float?
+  longitude Float?
+
+  createdByProfileId String  @map("created_by_profile_id") @db.Uuid
+  createdBy          Profile @relation("PropertyCreatedBy", fields: [createdByProfileId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owners    PropertyOwner[]
+  operators PropertyOperator[]
+  managers  PropertyManager[]
+  spaces    Space[]
+  photos    PropertyPhoto[]
+
+  @@index([city])
+  @@index([status])
+  @@map("properties")
+}
+
+/// A photo of the building itself (facade, common areas, entrance) — as
+/// opposed to `SpacePhoto`, a photo of one reservable unit inside it.
+///
+/// `storagePath` is server-generated (see `src/server/domains/media/
+/// photo-storage.ts`), never derived from the uploaded filename. At most one
+/// PRIMARY photo per property is a partial UNIQUE index
+/// (`property_photos_one_primary_idx`, added by hand in the migration — the
+/// same reason `property_operators_one_current_idx` is not in this schema).
+model PropertyPhoto {
+  id          String   @id @default(uuid()) @db.Uuid
+  propertyId  String   @map("property_id") @db.Uuid
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  storagePath String   @unique @map("storage_path")
+  mimeType    String   @map("mime_type")
+  /// Nullable: a row backfilled from a legacy URL (see the Phase 5
+  /// migration) has no reliably known size.
+  sizeBytes   Int?     @map("size_bytes")
+  width       Int?
+  height      Int?
+  position    Int      @default(0)
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  altText     String?  @map("alt_text")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([propertyId])
+  @@map("property_photos")
+}
+
+/// Who possesses the building, legally. `profileId` for a natural person
+/// recorded outright (a co-owner who is not necessarily a platform landlord
+/// themselves), `organizationId` for the usual case of an organization that
+/// also acts on the platform — never both, never neither: see
+/// `property_owners_holder_check` in the migration. Multiple rows express
+/// co-ownership; `ownershipShareBasisPoints` is an integer (10000 = 100%)
+/// because a legal quote-part is never a float. The sum of active owners'
+/// shares for one property is a cross-row invariant a CHECK cannot see —
+/// enforced in `src/server/domains/properties/owners.ts`, with a test, the
+/// same documented trade-off as the booking/payment invariants above.
+model PropertyOwner {
+  id         String   @id @default(uuid()) @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  profileId      String?       @map("profile_id") @db.Uuid
+  profile        Profile?      @relation("PropertyOwnerProfile", fields: [profileId], references: [id], onDelete: Restrict)
+  organizationId String?       @map("organization_id") @db.Uuid
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  ownershipShareBasisPoints Int       @default(10000) @map("ownership_share_basis_points")
+  startsAt                  DateTime  @default(now()) @map("starts_at") @db.Timestamptz(3)
+  endsAt                    DateTime? @map("ends_at")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([propertyId])
+  @@index([profileId])
+  @@index([organizationId])
+  @@map("property_owners")
+}
+
+/// Who is authorized to let the property on OfficeFlex — the owner
+/// themselves, or a third party operating under a mandate
+/// (`mandateReference`, free text: no canonical registry to validate
+/// against yet). This is the relation later payout logic reads to know who
+/// gets paid — see the same "not yet" note on PropertyManager below.
+///
+/// NOTE: at most one CURRENT operator (`endsAt IS NULL`) per property is
+/// enforced by a partial UNIQUE index added by hand in the migration —
+/// Prisma has no syntax for a partial index, so it does not appear here;
+/// see `property_operators_one_current_idx`, the same pattern as the
+/// booking EXCLUDE constraint documented above `model Booking`.
+model PropertyOperator {
+  id         String   @id @default(uuid()) @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  profileId      String?       @map("profile_id") @db.Uuid
+  profile        Profile?      @relation("PropertyOperatorProfile", fields: [profileId], references: [id], onDelete: Restrict)
+  organizationId String?       @map("organization_id") @db.Uuid
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  mandateReference String?   @map("mandate_reference")
+  startsAt         DateTime  @default(now()) @map("starts_at") @db.Timestamptz(3)
+  endsAt           DateTime? @map("ends_at")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([propertyId])
+  @@index([organizationId])
+  @@map("property_operators")
+}
+
+/// Runs the property day to day — calendar, requests, information — without
+/// becoming an owner or an operator: a manager never automatically receives
+/// revenue, and this phase does not yet grant one anything beyond being
+/// recorded (no per-property RBAC yet; `scope` is free-form JSON reserved
+/// for that). Both `profileId` and `organizationId` are nullable for the
+/// same reason as PropertyOwner/PropertyOperator — see there.
+model PropertyManager {
+  id         String   @id @default(uuid()) @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  profileId      String?       @map("profile_id") @db.Uuid
+  profile        Profile?      @relation("PropertyManagerProfile", fields: [profileId], references: [id], onDelete: Restrict)
+  organizationId String?       @map("organization_id") @db.Uuid
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  /// Reserved for a future per-property permission model. Read nowhere yet
+  /// — see the model doc comment.
+  scope    Json?
+  startsAt DateTime  @default(now()) @map("starts_at") @db.Timestamptz(3)
+  endsAt   DateTime? @map("ends_at")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([propertyId])
+  @@map("property_managers")
 }
 
 enum SpaceType {
@@ -219,42 +543,112 @@ enum SpaceStatus {
   ARCHIVED
 }
 
+/// A controlled vocabulary, not free text — so a future search filter can
+/// query on it instead of matching strings someone typed. OTHER exists for
+/// the case this list has not anticipated; extend the list itself, in a
+/// migration, before reaching for OTHER as a permanent home for something
+/// common.
+enum SpaceAmenity {
+  WIFI
+  PARKING
+  PROJECTOR
+  SCREEN
+  PRINTER
+  KITCHEN
+  AIR_CONDITIONING
+  WHEELCHAIR_ACCESS
+  COFFEE
+  PHONE_BOOTH
+  WHITEBOARD
+  OTHER
+}
+
 model Space {
-  id                 String       @id @default(uuid()) @db.Uuid
-  organizationId     String       @map("organization_id") @db.Uuid
-  organization       Organization @relation(fields: [organizationId], references: [id])
-  slug               String       @unique
+  id                 String         @id @default(uuid()) @db.Uuid
+  propertyId         String         @map("property_id") @db.Uuid
+  property           Property       @relation(fields: [propertyId], references: [id])
+  /// @deprecated legacy direct link, kept live: every read and write in this
+  /// phase still uses it for authorization (unchanged, see Phase 4 report),
+  /// and it must always name an organization that is a CURRENT owner or
+  /// operator of `property` — checked in the service layer
+  /// (`src/server/domains/organizations/create-space.ts`,
+  /// `update-space.ts`), not by a CHECK, for the same cross-table reason as
+  /// the other invariants documented above. Superseding it with
+  /// Property-derived authorization is Phase 5+ work.
+  organizationId     String         @map("organization_id") @db.Uuid
+  organization       Organization   @relation(fields: [organizationId], references: [id])
+  slug               String         @unique
   name               String
   type               SpaceType
   description        String
   address            String
   city               String
-  postalCode         String       @map("postal_code")
+  postalCode         String         @map("postal_code")
   capacity           Int
-  amenities          String[]
+  amenities          SpaceAmenity[]
+  /// @deprecated legacy free-text amenity values, from before this column
+  /// was a controlled enum array (Phase 5). Preserved for anything not
+  /// mappable onto `SpaceAmenity` — see the migration backfill. Nothing
+  /// writes to it any more.
+  amenitiesLegacy    String[]       @default([]) @map("amenities_legacy")
+  /// @deprecated superseded by `SpacePhoto` (Phase 5), which is what new
+  /// uploads write to. Kept and still read by the public space page and
+  /// search card, which are not yet wired to the new model — see the
+  /// Phase 5 report, DETTE TECHNIQUE. Not written to any more.
   photos             String[]
-  halfDayPriceCents  Int          @map("half_day_price_cents")
-  dayPriceCents      Int          @map("day_price_cents")
+  halfDayPriceCents  Int            @map("half_day_price_cents")
+  dayPriceCents      Int            @map("day_price_cents")
   // Shown to the client only after a booking is confirmed (door code,
   // reception instructions, floor). Optional: partners may not need one.
-  accessInstructions String?      @map("access_instructions")
+  accessInstructions String?        @map("access_instructions")
   // IANA zone the opening hours are expressed in — see domains/bookings/timezone.ts.
-  timezone           String       @default("Europe/Paris")
-  status             SpaceStatus  @default(DRAFT)
-  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  timezone           String         @default("Europe/Paris")
+  status             SpaceStatus    @default(DRAFT)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   openingHours SpaceOpeningHours[]
   closures     SpaceClosure[]
   bookings     Booking[]
   favorites    Favorite[]
+  spacePhotos  SpacePhoto[]
 
   @@unique([id, organizationId])
   @@index([organizationId])
+  @@index([propertyId])
   @@index([city, status])
   @@map("spaces")
 }
 
+/// A photo of a `Space` — as opposed to `PropertyPhoto`, a photo of the
+/// building. Same shape and the same partial-unique-index primary-photo
+/// guarantee (`space_photos_one_primary_idx`) as `PropertyPhoto` — see its
+/// doc comment for what is deliberately not here (a DB size-positive CHECK,
+/// width/height population).
+model SpacePhoto {
+  id          String   @id @default(uuid()) @db.Uuid
+  spaceId     String   @map("space_id") @db.Uuid
+  space       Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  storagePath String   @unique @map("storage_path")
+  mimeType    String   @map("mime_type")
+  sizeBytes   Int?     @map("size_bytes")
+  width       Int?
+  height      Int?
+  position    Int      @default(0)
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  altText     String?  @map("alt_text")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([spaceId])
+  @@map("space_photos")
+}
+
+/// Multiple slots per weekday are supported since Phase 5 — no longer one
+/// `[spaceId, weekday]` unique row per day (dropped in the Phase 5
+/// migration). Overlap between two slots on the same weekday cannot be a
+/// CHECK (cross-row); validated in
+/// `src/lib/validation/spaces.ts#openingHoursWeekSchema` and
+/// `src/server/domains/organizations/opening-hours.ts`, with a test.
 model SpaceOpeningHours {
   id       String @id @default(uuid()) @db.Uuid
   spaceId  String @map("space_id") @db.Uuid
@@ -263,7 +657,7 @@ model SpaceOpeningHours {
   opensAt  String @map("opens_at") // "09:00"
   closesAt String @map("closes_at") // "19:00"
 
-  @@unique([spaceId, weekday])
+  @@index([spaceId, weekday])
   @@map("space_opening_hours")
 }
 

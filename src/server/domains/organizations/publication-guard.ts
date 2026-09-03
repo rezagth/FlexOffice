@@ -14,25 +14,29 @@ import { logEvent } from "@/server/lib/logger";
  * trust between companies, suspension that does not suspend anything is the
  * worst kind of control: it looks like one.
  *
- * THE PHASE 1 THRESHOLD, AND WHY IT IS NOT `VERIFIED` ONLY
- * Blocking everything but VERIFIED is where this ends up, but it cannot land
- * before the verification workflow exists: there is no way for an
- * organization to *become* verified today except a manual database write, so
- * the strict rule would silently hide every real signup and look like a bug.
- * Phase 1 therefore enforces the half that is unambiguous — a SUSPENDED
- * organization publishes nothing — and Phase 2 tightens the same constant
- * once `Verification` gives organizations a route to VERIFIED.
+ * THE THRESHOLD, AND WHY IT WAS NOT `VERIFIED` ONLY UNTIL NOW
+ * Phase 1 could not require VERIFIED: there was no route for an organization
+ * to *become* verified except a manual database write, so the strict rule
+ * would have silently hidden every real signup. It therefore enforced only
+ * the unambiguous half — a SUSPENDED organization publishes nothing — with
+ * this comment promising the real threshold once a verification workflow
+ * existed.
+ *
+ * Phase 3 is that workflow: `LandlordVerification` gives an organization an
+ * actual, auditable route to VERIFIED (admin approval sets
+ * `Organization.status`, see domains/verification/review.ts). The threshold
+ * is tightened to match — an organization mid-review no longer publishes.
  *
  * Changing the policy means editing this one list. Nothing else in the
  * codebase should compare an OrganizationStatus by hand.
  */
 export const STATUSES_ALLOWED_TO_PUBLISH: readonly OrganizationStatus[] = [
-  "PENDING_VERIFICATION",
   "VERIFIED",
 ];
 
 /** Statuses excluded from every public surface. */
 export const STATUSES_BLOCKED_FROM_PUBLISHING: readonly OrganizationStatus[] = [
+  "PENDING_VERIFICATION",
   "SUSPENDED",
 ];
 

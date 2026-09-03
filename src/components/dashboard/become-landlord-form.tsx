@@ -9,7 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 /**
- * "Devenir bailleur" — the holder-type choice and the details that go with it.
+ * "Devenir bailleur" — activity type, holder type, and the details that go
+ * with them.
+ *
+ * Three sections on one scrollable page rather than three separate routes:
+ * Phase 2 already established this as a single-page form, and a route per
+ * step would mean losing everything already typed if a caller navigates back
+ * — a numbered progress strip conveys "clear and progressive" without that
+ * cost. Documents (step 4) and the recap/submit (step 5) genuinely need
+ * their own page: they need a verification id, which this form's own
+ * successful submission is what creates. See /app/landlord/verification.
  *
  * Validates with the same Zod schema the route uses, for the error messages,
  * not for the security: the server parses the payload again and every rule
@@ -17,12 +26,13 @@ import { Button } from "@/components/ui/button";
  * is also a CHECK constraint in the database. A hand-crafted request meets
  * all three.
  *
- * On success it opens the activity and immediately switches to landlord mode,
- * so the journey ends where the user expects: in their new space. The two
- * calls are separate on purpose — unlocking the capability and choosing to
- * use it are distinct acts, and the switch goes through the same endpoint any
- * later switch uses rather than a special path.
+ * On success it opens the activity, immediately switches to landlord mode —
+ * unlocking the capability and choosing to use it are separate acts, but
+ * there is no reason to make the caller ask twice — and lands on the
+ * verification page rather than the generic home, since uploading documents
+ * is the very next thing to do.
  */
+type ActivityType = "OWNER" | "OPERATOR";
 type HolderType = "INDIVIDUAL" | "COMPANY";
 
 const emptyForm = {
@@ -39,6 +49,7 @@ const emptyForm = {
 
 export function BecomeLandlordForm() {
   const router = useRouter();
+  const [activityType, setActivityType] = useState<ActivityType>("OWNER");
   const [holderType, setHolderType] = useState<HolderType>("INDIVIDUAL");
   const [form, setForm] = useState(emptyForm);
   const [pending, setPending] = useState(false);
@@ -56,6 +67,7 @@ export function BecomeLandlordForm() {
       holderType === "INDIVIDUAL"
         ? {
             holderType: "INDIVIDUAL" as const,
+            activityType,
             displayName: form.displayName || undefined,
             contactEmail: form.contactEmail || undefined,
             address: form.address,
@@ -64,6 +76,7 @@ export function BecomeLandlordForm() {
           }
         : {
             holderType: "COMPANY" as const,
+            activityType,
             legalName: form.legalName,
             displayName: form.displayName || undefined,
             siret: form.siret,
@@ -104,36 +117,90 @@ export function BecomeLandlordForm() {
     }).catch(() => null);
 
     setPending(false);
-    router.push("/app");
+    // Not /app: uploading the required documents is the immediate next step,
+    // and the dossier this form just created is where that happens.
+    router.push("/app/landlord/verification");
     router.refresh();
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex max-w-lg flex-col gap-5">
-      <div role="radiogroup" aria-label="Type de titulaire" className="grid grid-cols-2 gap-2">
-        {(
-          [
-            { value: "INDIVIDUAL" as const, label: "Particulier" },
-            { value: "COMPANY" as const, label: "Société" },
-          ]
-        ).map((option) => (
+    <form onSubmit={handleSubmit} noValidate className="flex max-w-lg flex-col gap-6">
+      {/* Step 1 — what the caller is here to do. Determines which documents
+          the dossier will require (see requirements.ts), so it is asked
+          before anything else. */}
+      <section className="flex flex-col gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Étape 1 · Type de bailleur
+        </p>
+        <p className="text-sm font-medium text-foreground">Que souhaitez-vous faire ?</p>
+        <div role="radiogroup" aria-label="Type de bailleur" className="flex flex-col gap-2">
           <button
-            key={option.value}
             type="button"
             role="radio"
-            aria-checked={holderType === option.value}
-            onClick={() => setHolderType(option.value)}
+            aria-checked={activityType === "OWNER"}
+            onClick={() => setActivityType("OWNER")}
             className={clsx(
               "rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors",
-              holderType === option.value
+              activityType === "OWNER"
                 ? "border-primary bg-primary/5 text-primary"
                 : "border-border text-muted-foreground hover:bg-muted"
             )}
           >
-            {option.label}
+            Publier un bien que je possède
           </button>
-        ))}
-      </div>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={activityType === "OPERATOR"}
+            onClick={() => setActivityType("OPERATOR")}
+            className={clsx(
+              "rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors",
+              activityType === "OPERATOR"
+                ? "border-primary bg-primary/5 text-primary"
+                : "border-border text-muted-foreground hover:bg-muted"
+            )}
+          >
+            Publier un bien que j&apos;exploite
+          </button>
+        </div>
+        {activityType === "OPERATOR" && (
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Une autorisation de sous-location vous sera demandée pour prouver
+            votre droit d&apos;exploitation.
+          </p>
+        )}
+      </section>
+
+      {/* Step 2 — who holds the activity. */}
+      <section className="flex flex-col gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Étape 2 · Titulaire
+        </p>
+        <div role="radiogroup" aria-label="Type de titulaire" className="grid grid-cols-2 gap-2">
+          {(
+            [
+              { value: "INDIVIDUAL" as const, label: "Particulier" },
+              { value: "COMPANY" as const, label: "Société" },
+            ]
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={holderType === option.value}
+              onClick={() => setHolderType(option.value)}
+              className={clsx(
+                "rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors",
+                holderType === option.value
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
       {error && (
         <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -141,107 +208,114 @@ export function BecomeLandlordForm() {
         </p>
       )}
 
-      {holderType === "COMPANY" ? (
-        <>
-          <Field label="Raison sociale" htmlFor="legalName">
+      {/* Step 3 — the details. */}
+      <section className="flex flex-col gap-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Étape 3 · Informations
+        </p>
+
+        {holderType === "COMPANY" ? (
+          <>
+            <Field label="Raison sociale" htmlFor="legalName">
+              <Input
+                id="legalName"
+                required
+                value={form.legalName}
+                onChange={(e) => update("legalName", e.target.value)}
+              />
+            </Field>
+            <Field label="SIRET" htmlFor="siret" hint="14 chiffres">
+              <Input
+                id="siret"
+                required
+                inputMode="numeric"
+                value={form.siret}
+                onChange={(e) => update("siret", e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Numéro de TVA intracommunautaire (optionnel)"
+              htmlFor="vatNumber"
+            >
+              <Input
+                id="vatNumber"
+                value={form.vatNumber}
+                onChange={(e) => update("vatNumber", e.target.value.toUpperCase())}
+              />
+            </Field>
+            <Field label="Représentant légal" htmlFor="legalRepresentativeName">
+              <Input
+                id="legalRepresentativeName"
+                required
+                value={form.legalRepresentativeName}
+                onChange={(e) => update("legalRepresentativeName", e.target.value)}
+              />
+            </Field>
+          </>
+        ) : (
+          <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+            Votre identité est déjà rattachée à votre compte. Nous avons
+            seulement besoin de l&apos;adresse de votre activité.
+          </p>
+        )}
+
+        <Field
+          label="Nom affiché (optionnel)"
+          htmlFor="displayName"
+          hint="Le nom que verront les clients"
+        >
+          <Input
+            id="displayName"
+            value={form.displayName}
+            onChange={(e) => update("displayName", e.target.value)}
+          />
+        </Field>
+
+        <Field label="Adresse" htmlFor="address">
+          <Input
+            id="address"
+            required
+            value={form.address}
+            onChange={(e) => update("address", e.target.value)}
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Ville" htmlFor="city">
             <Input
-              id="legalName"
+              id="city"
               required
-              value={form.legalName}
-              onChange={(e) => update("legalName", e.target.value)}
+              value={form.city}
+              onChange={(e) => update("city", e.target.value)}
             />
           </Field>
-          <Field label="SIRET" htmlFor="siret" hint="14 chiffres">
+          <Field label="Code postal" htmlFor="postalCode">
             <Input
-              id="siret"
+              id="postalCode"
               required
               inputMode="numeric"
-              value={form.siret}
-              onChange={(e) => update("siret", e.target.value)}
+              value={form.postalCode}
+              onChange={(e) => update("postalCode", e.target.value)}
             />
           </Field>
-          <Field
-            label="Numéro de TVA intracommunautaire (optionnel)"
-            htmlFor="vatNumber"
-          >
-            <Input
-              id="vatNumber"
-              value={form.vatNumber}
-              onChange={(e) => update("vatNumber", e.target.value.toUpperCase())}
-            />
-          </Field>
-          <Field label="Représentant légal" htmlFor="legalRepresentativeName">
-            <Input
-              id="legalRepresentativeName"
-              required
-              value={form.legalRepresentativeName}
-              onChange={(e) => update("legalRepresentativeName", e.target.value)}
-            />
-          </Field>
-        </>
-      ) : (
-        <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-          Votre identité est déjà rattachée à votre compte. Nous avons
-          seulement besoin de l&apos;adresse de votre activité.
-        </p>
-      )}
+        </div>
 
-      <Field
-        label="Nom affiché (optionnel)"
-        htmlFor="displayName"
-        hint="Le nom que verront les clients"
-      >
-        <Input
-          id="displayName"
-          value={form.displayName}
-          onChange={(e) => update("displayName", e.target.value)}
-        />
-      </Field>
-
-      <Field label="Adresse" htmlFor="address">
-        <Input
-          id="address"
-          required
-          value={form.address}
-          onChange={(e) => update("address", e.target.value)}
-        />
-      </Field>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Ville" htmlFor="city">
+        <Field
+          label="Email de contact (optionnel)"
+          htmlFor="contactEmail"
+          hint="Par défaut, l'email de votre compte"
+        >
           <Input
-            id="city"
-            required
-            value={form.city}
-            onChange={(e) => update("city", e.target.value)}
+            id="contactEmail"
+            type="email"
+            value={form.contactEmail}
+            onChange={(e) => update("contactEmail", e.target.value)}
           />
         </Field>
-        <Field label="Code postal" htmlFor="postalCode">
-          <Input
-            id="postalCode"
-            required
-            inputMode="numeric"
-            value={form.postalCode}
-            onChange={(e) => update("postalCode", e.target.value)}
-          />
-        </Field>
-      </div>
+      </section>
 
-      <Field
-        label="Email de contact (optionnel)"
-        htmlFor="contactEmail"
-        hint="Par défaut, l'email de votre compte"
-      >
-        <Input
-          id="contactEmail"
-          type="email"
-          value={form.contactEmail}
-          onChange={(e) => update("contactEmail", e.target.value)}
-        />
-      </Field>
-
-      <Button type="submit" disabled={pending} className="mt-2 self-start">
-        {pending ? "Activation…" : "Activer mon activité de bailleur"}
+      <Button type="submit" disabled={pending} className="self-start">
+        {pending ? "Activation…" : "Continuer vers les documents"}
       </Button>
     </form>
   );

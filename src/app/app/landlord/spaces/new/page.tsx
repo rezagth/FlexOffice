@@ -1,11 +1,21 @@
 import { requirePageLandlordOrg } from "@/server/auth/page-guards";
+import { listPropertiesForOrg } from "@/server/domains/properties/get";
 import { SpaceForm } from "@/components/dashboard/space-form";
 
-export default async function NewSpacePage() {
-  // Guard only: the form posts to /api/partner/spaces, which resolves the
-  // organization from the session itself. Nothing on this page needs the
-  // context, but the page still has to assert who may see it.
-  await requirePageLandlordOrg("landlord:manage_spaces");
+export const dynamic = "force-dynamic";
+
+export default async function NewSpacePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ propertyId?: string }>;
+}) {
+  // Guard only for the form itself: it posts to /api/partner/spaces, which
+  // resolves the organization from the session itself. The property list is
+  // the one thing this page does need context for.
+  const ctx = await requirePageLandlordOrg("landlord:manage_spaces");
+  const { propertyId } = await searchParams;
+
+  const properties = await listPropertiesForOrg(ctx.activeOrgId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -16,7 +26,10 @@ export default async function NewSpacePage() {
           validation : il sera visible publiquement une fois approuvé.
         </p>
       </div>
-      <SpaceForm />
+      <SpaceForm
+        properties={properties.map((p) => ({ id: p.id, label: p.label }))}
+        initialPropertyId={propertyId}
+      />
     </div>
   );
 }

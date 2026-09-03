@@ -58,8 +58,29 @@ export async function createTestUser(
  * Removes an auth user. The cascade to `profiles` does the rest — which is
  * itself worth exercising, since a blocked cascade was the original bug
  * (see migration 20260903103000_account_deletion_strategy).
+ *
+ * `landlord_verifications.requested_by_profile_id` is ON DELETE RESTRICT by
+ * design (see migration 20260905100000_landlord_verification) — a review
+ * decision must not silently lose who asked for it. The application's own
+ * deletion path (`domains/users/gdpr.ts`) accounts for that by anonymizing
+ * rather than hard-deleting an account with verification history; this raw
+ * helper is test cleanup, not that path, so it clears the dossier directly
+ * first. Documents cascade automatically from the verification.
  */
 export async function deleteTestUser(userId: string) {
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM landlord_verifications WHERE requested_by_profile_id = $1`,
+    userId
+  );
+  // Same RESTRICT-FK reason as landlord_verifications above, added in
+  // Phase 4: properties.created_by_profile_id, and the profile-held rows on
+  // the three property_* join tables. Owner/operator/manager rows cascade
+  // away with their property; a profile that only appears as a holder (not
+  // a creator) needs its own rows cleared directly.
+  await prisma.$executeRawUnsafe(`DELETE FROM properties WHERE created_by_profile_id = $1`, userId);
+  await prisma.$executeRawUnsafe(`DELETE FROM property_owners WHERE profile_id = $1`, userId);
+  await prisma.$executeRawUnsafe(`DELETE FROM property_operators WHERE profile_id = $1`, userId);
+  await prisma.$executeRawUnsafe(`DELETE FROM property_managers WHERE profile_id = $1`, userId);
   await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1`, userId);
 }
 
@@ -77,8 +98,34 @@ export async function createTestOrganization(options: { name?: string; city?: st
   });
 }
 
+/** A Property owned and operated by `organizationId` — every Space fixture
+ * needs one now (Phase 4: `spaces.property_id` is NOT NULL). `profileId`
+ * is a real profile (RESTRICT FK on `created_by_profile_id`): any test
+ * profile works as the "creator", including one otherwise unrelated to
+ * this organization, since nothing here asserts who created a property. */
+export async function createTestProperty(
+  organizationId: string,
+  createdByProfileId: string,
+  overrides: Partial<{ city: string }> = {}
+) {
+  const suffix = uniqueSuffix();
+  return prisma.property.create({
+    data: {
+      label: `Test Property ${suffix}`,
+      propertyType: "OFFICE",
+      addressLine1: "1 rue de Test",
+      city: overrides.city ?? "Paris",
+      postalCode: "75001",
+      createdByProfileId,
+      owners: { create: { organizationId, ownershipShareBasisPoints: 10000 } },
+      operators: { create: { organizationId } },
+    },
+  });
+}
+
 export async function createTestSpace(
   organizationId: string,
+  propertyId: string,
   overrides: Partial<{
     capacity: number;
     status: "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "ARCHIVED";
@@ -88,6 +135,7 @@ export async function createTestSpace(
   const suffix = uniqueSuffix();
   return prisma.space.create({
     data: {
+      propertyId,
       organizationId,
       slug: `space-${suffix}`,
       name: `Test Space ${suffix}`,

@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/prisma";
 import type { AuthContext } from "@/server/auth/rbac";
 import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, ValidationError } from "@/server/lib/errors";
+import { createDraftVerification } from "@/server/domains/verification/create";
 
 /**
  * "Devenir bailleur" — opens a letting activity on an existing account.
@@ -10,20 +11,25 @@ import { ConflictError, ValidationError } from "@/server/lib/errors";
  * WHAT IT ACTUALLY DOES, IN ONE TRANSACTION
  *   1. creates the Organization that will hold the activity;
  *   2. adds the caller to it as OWNER, ACTIVE;
- *   3. unlocks `isLandlord` and preselects the new organization.
+ *   3. unlocks `isLandlord` and preselects the new organization;
+ *   4. creates the DRAFT verification dossier for it (Phase 3).
  *
- * All three or none. Step 2 is the one that matters: every landlord
- * authorization reads `organization_members`, so an organization created
- * without a membership would look right and grant nothing. Creating them in
- * separate statements outside a transaction is exactly how that state
- * appears.
+ * All four or none. Step 2 is the one Phase 2 already documented here: every
+ * landlord authorization reads `organization_members`, so an organization
+ * created without a membership would look right and grant nothing. Step 4 is
+ * the same failure mode one level up — an organization with no dossier would
+ * never appear in an admin's review queue and could never become VERIFIED,
+ * while `isLandlord` already looks fully set up.
  *
  * WHAT IT DOES NOT DO
- * No document upload, no identity check, no proof of ownership, no Kbis
- * lookup. The organization is created `PENDING_VERIFICATION` (the column
- * default), and publication is already gated on the organization's status by
- * `publication-guard.ts` — so Phase 3 tightens that threshold rather than
- * having to retrofit a check.
+ * No document upload here — a dossier needs its own id to attach documents
+ * to, which this call is what creates. `activityType` (OWNER vs OPERATOR,
+ * see `src/lib/validation/landlord.ts`) is collected as part of THIS payload
+ * because it decides which documents that dossier will require
+ * (`domains/verification/requirements.ts`), and the dossier is created here.
+ * The organization is created `PENDING_VERIFICATION` (the column default);
+ * `publication-guard.ts` now requires VERIFIED, which only
+ * `domains/verification/review.ts` can grant.
  *
  * The mode is NOT switched here. Unlocking the capability and choosing to use
  * it are separate acts; the caller switches afterwards, through
@@ -98,7 +104,7 @@ export async function becomeLandlord({
         city: input.city,
         postalCode: input.postalCode,
         // Explicit rather than relying on the default: this is the fact
-        // Phase 3's verification will act on.
+        // the verification dossier below acts on.
         status: "PENDING_VERIFICATION",
         memberships: {
           create: {
@@ -120,14 +126,20 @@ export async function becomeLandlord({
       },
     });
 
-    return created;
+    const verification = await createDraftVerification(tx, {
+      organizationId: created.id,
+      requestedByProfileId: actor.userId,
+      activityType: input.activityType,
+    });
+
+    return { ...created, verificationId: verification.id };
   });
 
   await recordAudit({
     event: "landlord.activity_opened",
     actorUserId: actor.userId,
     organizationId: organization.id,
-    metadata: { holder_type: organization.holderType },
+    metadata: { holder_type: organization.holderType, verification_id: organization.verificationId },
   });
 
   return organization;

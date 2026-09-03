@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hasDatabase } from "./helpers/should-run";
 import {
   createTestOrganization,
+  createTestProperty,
   createTestSpace,
   createTestUser,
   deleteTestUser,
@@ -15,6 +16,7 @@ import {
 describe.skipIf(!hasDatabase)("bookings_no_overlap_excl (DB-level, concurrent)", () => {
   let prisma: typeof import("@/server/db/prisma").prisma;
   let orgId: string;
+  let propertyId: string;
   let spaceId: string;
   let clientUserId: string;
 
@@ -31,7 +33,10 @@ describe.skipIf(!hasDatabase)("bookings_no_overlap_excl (DB-level, concurrent)",
     const org = await createTestOrganization({ name: "Test Org Booking" });
     orgId = org.id;
 
-    const space = await createTestSpace(orgId, { capacity: 4 });
+    const property = await createTestProperty(orgId, clientUserId);
+    propertyId = property.id;
+
+    const space = await createTestSpace(orgId, propertyId, { capacity: 4 });
     spaceId = space.id;
   });
 
@@ -43,6 +48,9 @@ describe.skipIf(!hasDatabase)("bookings_no_overlap_excl (DB-level, concurrent)",
       await prisma.booking.deleteMany({ where: { spaceId } });
       await prisma.space.deleteMany({ where: { id: spaceId } });
     }
+    // Before the org: property_owners/operators reference it RESTRICT, and
+    // deleting the property cascades those rows away first.
+    if (propertyId) await prisma.property.deleteMany({ where: { id: propertyId } });
     if (orgId) await prisma.organization.deleteMany({ where: { id: orgId } });
     if (clientUserId) await deleteTestUser(clientUserId);
     await prisma.$disconnect();

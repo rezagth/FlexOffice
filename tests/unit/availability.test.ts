@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const spaceFindUnique = vi.fn();
-const hoursFindUnique = vi.fn();
+const hoursFindMany = vi.fn();
 const closuresFindMany = vi.fn();
 const bookingsFindMany = vi.fn();
 
 vi.mock("@/server/db/prisma", () => ({
   prisma: {
     space: { findUnique: spaceFindUnique },
-    spaceOpeningHours: { findUnique: hoursFindUnique },
+    spaceOpeningHours: { findMany: hoursFindMany },
     spaceClosure: { findMany: closuresFindMany },
     booking: { findMany: bookingsFindMany },
   },
@@ -22,7 +22,7 @@ const MONDAY = "2030-03-04";
 
 beforeEach(() => {
   spaceFindUnique.mockReset().mockResolvedValue(SPACE);
-  hoursFindUnique.mockReset().mockResolvedValue({ weekday: 1, opensAt: "09:00", closesAt: "18:00" });
+  hoursFindMany.mockReset().mockResolvedValue([{ weekday: 1, opensAt: "09:00", closesAt: "18:00" }]);
   closuresFindMany.mockReset().mockResolvedValue([]);
   bookingsFindMany.mockReset().mockResolvedValue([]);
 });
@@ -38,19 +38,19 @@ describe("computeDaySlots", () => {
   });
 
   it("returns null when the space has no opening hours for that weekday", async () => {
-    hoursFindUnique.mockResolvedValue(null);
+    hoursFindMany.mockResolvedValue([]);
     expect(await computeDaySlots(SPACE.id, MONDAY)).toBeNull();
   });
 
   it("has no afternoon slot when the space closes at or before 13:00", async () => {
-    hoursFindUnique.mockResolvedValue({ weekday: 1, opensAt: "09:00", closesAt: "12:00" });
+    hoursFindMany.mockResolvedValue([{ weekday: 1, opensAt: "09:00", closesAt: "12:00" }]);
     const slots = await computeDaySlots(SPACE.id, MONDAY);
     expect(slots?.afternoon).toBeNull();
     expect(slots?.morning).not.toBeNull();
   });
 
   it("ends the morning at closing time when the space closes before 13:00", async () => {
-    hoursFindUnique.mockResolvedValue({ weekday: 1, opensAt: "09:00", closesAt: "12:00" });
+    hoursFindMany.mockResolvedValue([{ weekday: 1, opensAt: "09:00", closesAt: "12:00" }]);
     const slots = await computeDaySlots(SPACE.id, MONDAY);
     // March 4th is CET (UTC+1): 12:00 Paris is 11:00 UTC.
     expect(slots?.morning?.endsAt.toISOString()).toBe("2030-03-04T11:00:00.000Z");
@@ -58,14 +58,14 @@ describe("computeDaySlots", () => {
   });
 
   it("has no morning slot when the space opens at or after 13:00", async () => {
-    hoursFindUnique.mockResolvedValue({ weekday: 1, opensAt: "14:00", closesAt: "19:00" });
+    hoursFindMany.mockResolvedValue([{ weekday: 1, opensAt: "14:00", closesAt: "19:00" }]);
     const slots = await computeDaySlots(SPACE.id, MONDAY);
     expect(slots?.morning).toBeNull();
     expect(slots?.afternoon).not.toBeNull();
   });
 
   it("starts the afternoon at opening time when the space opens after 13:00", async () => {
-    hoursFindUnique.mockResolvedValue({ weekday: 1, opensAt: "14:00", closesAt: "19:00" });
+    hoursFindMany.mockResolvedValue([{ weekday: 1, opensAt: "14:00", closesAt: "19:00" }]);
     const slots = await computeDaySlots(SPACE.id, MONDAY);
     expect(slots?.afternoon?.startsAt.toISOString()).toBe("2030-03-04T13:00:00.000Z");
   });

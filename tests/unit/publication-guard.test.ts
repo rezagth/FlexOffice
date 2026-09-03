@@ -19,13 +19,12 @@ describe("canOrganizationPublish", () => {
     expect(canOrganizationPublish("VERIFIED")).toBe(true);
   });
 
-  it("allows an organization still awaiting verification, for now", () => {
-    // Deliberate Phase 1 threshold: there is no way for an organization to
-    // reach VERIFIED yet other than a manual database write, so requiring it
-    // would hide every genuine signup. Phase 2 tightens this once the
-    // Verification workflow exists — and this test is expected to change
-    // with it, on purpose.
-    expect(canOrganizationPublish("PENDING_VERIFICATION")).toBe(true);
+  it("blocks an organization still awaiting verification", () => {
+    // Tightened in Phase 3: LandlordVerification now gives an organization a
+    // real, auditable route to VERIFIED (admin approval), so there is no
+    // longer a reason to publish before it exists. See publication-guard.ts
+    // for the Phase 1 history of this threshold.
+    expect(canOrganizationPublish("PENDING_VERIFICATION")).toBe(false);
   });
 
   it("covers every status exactly once, so a new one cannot default to allowed", () => {

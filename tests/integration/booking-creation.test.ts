@@ -17,6 +17,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
   let createBooking: typeof import("@/server/domains/bookings/create-booking").createBooking;
   let ConflictError: typeof import("@/server/lib/errors").ConflictError;
   let orgId: string;
+  let propertyId: string;
   let spaceId: string;
   let clientUserId: string;
   const date = "2031-06-02"; // a Monday
@@ -27,6 +28,17 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
     ({ ConflictError } = await import("@/server/lib/errors"));
 
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    // Created before the org/property below: Property.createdByProfileId
+    // needs a real profile to point at, and this is the profile already at
+    // hand — nothing here asserts who created the property, only who books.
+    clientUserId = crypto.randomUUID();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
+      clientUserId,
+      `booking-client-${suffix}@test.local`,
+      JSON.stringify({ role: "CLIENT", name: "Booking Client" })
+    );
 
     const org = await prisma.organization.create({
       data: {
@@ -40,8 +52,23 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
     });
     orgId = org.id;
 
+    const property = await prisma.property.create({
+      data: {
+        label: "Booking Property",
+        propertyType: "OFFICE",
+        addressLine1: "1 rue Test",
+        city: "Paris",
+        postalCode: "75001",
+        createdByProfileId: clientUserId,
+        owners: { create: { organizationId: orgId, ownershipShareBasisPoints: 10000 } },
+        operators: { create: { organizationId: orgId } },
+      },
+    });
+    propertyId = property.id;
+
     const space = await prisma.space.create({
       data: {
+        propertyId,
         organizationId: orgId,
         slug: `booking-space-${suffix}`,
         name: "Booking Space",
@@ -62,14 +89,6 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       },
     });
     spaceId = space.id;
-
-    clientUserId = crypto.randomUUID();
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
-      clientUserId,
-      `booking-client-${suffix}@test.local`,
-      JSON.stringify({ role: "CLIENT", name: "Booking Client" })
-    );
   });
 
   afterAll(async () => {
@@ -85,6 +104,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       await prisma.spaceOpeningHours.deleteMany({ where: { spaceId } });
       await prisma.space.deleteMany({ where: { id: spaceId } });
     }
+    if (propertyId) await prisma.property.deleteMany({ where: { id: propertyId } });
     if (orgId) await prisma.organization.deleteMany({ where: { id: orgId } });
     if (clientUserId) {
       await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1`, clientUserId);

@@ -13,10 +13,11 @@ const validSpace = {
   city: "Paris",
   postalCode: "75004",
   capacity: 8,
-  amenities: ["Écran", "Wifi"],
+  amenities: ["SCREEN", "WIFI"],
   photos: ["https://example.com/photo.jpg"],
   halfDayPriceCents: 9000,
   dayPriceCents: 15000,
+  propertyId: "b6f2f5f0-3e0a-4c3f-8b0a-9a3f6a2e6b7d",
 };
 
 describe("createSpaceSchema", () => {
@@ -54,11 +55,19 @@ describe("openingHoursWeekSchema", () => {
     ).toThrow();
   });
 
-  it("rejects two entries for the same weekday", () => {
+  it("accepts two non-overlapping slots on the same weekday (Phase 5)", () => {
+    const parsed = openingHoursWeekSchema.parse([
+      { weekday: 1, opensAt: "09:00", closesAt: "12:00" },
+      { weekday: 1, opensAt: "14:00", closesAt: "18:00" },
+    ]);
+    expect(parsed).toHaveLength(2);
+  });
+
+  it("rejects two overlapping slots on the same weekday", () => {
     expect(() =>
       openingHoursWeekSchema.parse([
-        { weekday: 1, opensAt: "09:00", closesAt: "12:00" },
-        { weekday: 1, opensAt: "14:00", closesAt: "18:00" },
+        { weekday: 1, opensAt: "09:00", closesAt: "14:00" },
+        { weekday: 1, opensAt: "12:00", closesAt: "18:00" },
       ])
     ).toThrow();
   });

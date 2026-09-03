@@ -170,10 +170,55 @@ async function main() {
 
   const spaceCount = await prisma.space.count();
   if (spaceCount === 0) {
-    console.log("Seeding demo spaces…");
+    console.log("Seeding demo properties and spaces…");
+
+    // One Property per building: the two Paris spaces share an address (one
+    // building, two units), Lyon's two spaces do not (two buildings). Each
+    // organization is both owner and operator of its own building — the
+    // same default `createProperty()` applies for a real signup.
+    const [lyonPartDieu, parisRivoli, lyonConfluence] = await Promise.all([
+      prisma.property.create({
+        data: {
+          label: "18 rue de la Villette",
+          propertyType: "MEETING_SPACE",
+          addressLine1: "18 rue de la Villette",
+          city: "Lyon",
+          postalCode: "69003",
+          createdByProfileId: lyonProfile.id,
+          owners: { create: { organizationId: lyonProfile.organizationId!, ownershipShareBasisPoints: 10000 } },
+          operators: { create: { organizationId: lyonProfile.organizationId! } },
+        },
+      }),
+      prisma.property.create({
+        data: {
+          label: "12 rue de Rivoli",
+          propertyType: "OFFICE",
+          addressLine1: "12 rue de Rivoli",
+          city: "Paris",
+          postalCode: "75004",
+          createdByProfileId: parisProfile.id,
+          owners: { create: { organizationId: parisProfile.organizationId!, ownershipShareBasisPoints: 10000 } },
+          operators: { create: { organizationId: parisProfile.organizationId! } },
+        },
+      }),
+      prisma.property.create({
+        data: {
+          label: "5 quai Perrache",
+          propertyType: "COWORKING",
+          addressLine1: "5 quai Perrache",
+          city: "Lyon",
+          postalCode: "69002",
+          createdByProfileId: lyonProfile.id,
+          owners: { create: { organizationId: lyonProfile.organizationId!, ownershipShareBasisPoints: 10000 } },
+          operators: { create: { organizationId: lyonProfile.organizationId! } },
+        },
+      }),
+    ]);
+
     await prisma.space.createMany({
       data: [
         {
+          propertyId: lyonPartDieu.id,
           organizationId: lyonProfile.organizationId!,
           slug: "salle-part-dieu-lyon",
           name: "Salle Part-Dieu",
@@ -184,7 +229,7 @@ async function main() {
           city: "Lyon",
           postalCode: "69003",
           capacity: 6,
-          amenities: ["Wifi", "Écran"],
+          amenities: ["WIFI", "SCREEN"],
           photos: [],
           halfDayPriceCents: 8000,
           dayPriceCents: 14000,
@@ -193,6 +238,7 @@ async function main() {
           status: "PENDING_REVIEW",
         },
         {
+          propertyId: parisRivoli.id,
           organizationId: parisProfile.organizationId!,
           slug: "salle-rivoli-paris",
           name: "Salle Rivoli",
@@ -203,13 +249,14 @@ async function main() {
           city: "Paris",
           postalCode: "75004",
           capacity: 8,
-          amenities: ["Wifi", "Écran", "Caméra", "Tableau blanc"],
+          amenities: ["WIFI", "SCREEN", "WHITEBOARD"],
           photos: [],
           halfDayPriceCents: 12000,
           dayPriceCents: 20000,
           status: "PUBLISHED",
         },
         {
+          propertyId: parisRivoli.id,
           organizationId: parisProfile.organizationId!,
           slug: "bureau-flex-paris",
           name: "Bureau individuel Flex",
@@ -219,13 +266,14 @@ async function main() {
           city: "Paris",
           postalCode: "75004",
           capacity: 2,
-          amenities: ["Wifi", "Imprimante"],
+          amenities: ["WIFI", "PRINTER"],
           photos: [],
           halfDayPriceCents: 4000,
           dayPriceCents: 7000,
           status: "PUBLISHED",
         },
         {
+          propertyId: lyonConfluence.id,
           organizationId: lyonProfile.organizationId!,
           slug: "espace-formation-confluence",
           name: "Espace formation Confluence",
@@ -235,7 +283,7 @@ async function main() {
           city: "Lyon",
           postalCode: "69002",
           capacity: 20,
-          amenities: ["Wifi", "Vidéoprojecteur", "Paperboard", "Parking"],
+          amenities: ["WIFI", "PROJECTOR", "PARKING"],
           photos: [],
           halfDayPriceCents: 18000,
           dayPriceCents: 30000,
