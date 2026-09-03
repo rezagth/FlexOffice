@@ -1,10 +1,10 @@
-import { requirePageRole } from "@/server/auth/page-guards";
+import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 
 export default async function AdminOrganizationsPage() {
-  await requirePageRole("ADMIN");
+  await requirePageAdmin();
   const organizations = await prisma.organization.findMany({
     orderBy: { createdAt: "desc" },
   });

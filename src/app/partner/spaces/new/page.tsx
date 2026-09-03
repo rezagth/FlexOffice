@@ -1,22 +1,21 @@
-import { requirePageOrg } from "@/server/auth/page-guards";
-import { SpaceForm } from "@/components/dashboard/space-form";
+import { permanentRedirect } from "next/navigation";
 
-export default async function NewSpacePage() {
-  // Guard only: the form posts to /api/partner/spaces, which resolves the
-  // organization from the session itself. Nothing on this page needs the
-  // context, but the page still has to assert who may see it.
-  await requirePageOrg();
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Publier un espace</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Votre espace est enregistré en brouillon. Soumettez-le ensuite pour
-          validation : il sera visible publiquement une fois approuvé.
-        </p>
-      </div>
-      <SpaceForm />
-    </div>
-  );
+/**
+ * Phase 2 compatibility redirect.
+ *
+ * `/client` and `/partner` were two spaces because `Profile.role` made a
+ * renter and a lister two kinds of account. They are one account with two
+ * modes now, served by `/app`, so this URL has one job left: not breaking
+ * for anyone who bookmarked it.
+ *
+ * No guard here on purpose — the destination guards itself, and an
+ * unauthenticated visitor should reach the login redirect from `/app`
+ * rather than from a path that no longer means anything.
+ *
+ * 308 rather than 307: the move is permanent, and letting caches and search
+ * engines learn it is the point. Removed once the old paths have been out of
+ * circulation long enough — see the Phase 2 report.
+ */
+export default function LegacyRedirectPage() {
+  permanentRedirect("/app/landlord/spaces/new");
 }

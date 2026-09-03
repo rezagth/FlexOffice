@@ -1,10 +1,10 @@
-import { requirePageRole } from "@/server/auth/page-guards";
+import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { formatCents } from "@/lib/format";
 
 export default async function AdminDashboardPage() {
-  await requirePageRole("ADMIN");
+  await requirePageAdmin();
 
   const [organizationsCount, activeSpacesCount, bookingsCount, revenue] =
     await Promise.all([

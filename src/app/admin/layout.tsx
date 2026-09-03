@@ -1,4 +1,4 @@
-import { requirePageRole } from "@/server/auth/page-guards";
+import { requirePageAdmin } from "@/server/auth/page-guards";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 const NAV_ITEMS = [
@@ -10,7 +10,7 @@ const NAV_ITEMS = [
 ];
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  const ctx = await requirePageRole("ADMIN");
+  const ctx = await requirePageAdmin();
 
   return (
     <DashboardShell navItems={NAV_ITEMS} roleLabel="Back-office admin" userName={ctx.name}>

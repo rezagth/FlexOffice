@@ -116,6 +116,140 @@ Après tout changement de `prisma/schema.prisma` : régénérer le client
 
 ---
 
+## Modèle de compte
+
+**Un compte OfficeFlex, deux modes d'usage.** Un même utilisateur loue des
+espaces *et* peut louer les siens — ce sont deux choses qu'une personne fait,
+pas deux types de personnes.
+
+L'ancien modèle (`Profile.role = CLIENT | PARTNER | ADMIN`) rendait cela
+impossible : il mélangeait dans une seule colonne ce que l'on est pour la
+plateforme et ce que l'on fait à un instant donné. Il est remplacé par trois
+faits indépendants.
+
+| Fait | Valeurs | Ce que c'est |
+|---|---|---|
+| `Profile.platformRole` | `USER` \| `ADMIN` | Ce que vous êtes pour la plateforme. Un administrateur reste un utilisateur ordinaire qui peut louer et mettre en location. |
+| `Profile.isLandlord` | booléen | Une **capacité** débloquée par « Devenir bailleur ». **Pas une autorisation.** |
+| `Profile.activeMode` | `TENANT` \| `LANDLORD` | Ce que vous faites **en ce moment**. **Pas une autorisation.** |
+
+### Profile, Organization, OrganizationMember
+
+```
+auth.users  (Supabase)
+    │  1-1
+Profile ─────────────── platformRole · isLandlord · activeMode · activeOrganizationId
+    │  N-N via OrganizationMember (orgRole, status)
+Organization ────────── holderType INDIVIDUAL | COMPANY
+```
+
+- **`Profile`** — l'identité de la personne. Une par compte Supabase.
+- **`Organization`** — l'entité qui **exerce** l'activité de bailleur.
+  `holderType = INDIVIDUAL` (un particulier : son identité est déjà sur le
+  Profile, l'organisation ne porte que l'activité) ou `COMPANY` (raison
+  sociale, SIRET, SIREN, TVA, représentant légal).
+- **`OrganizationMember`** — le **lien**, et l'**autorité** de toute décision
+  d'autorisation côté bailleur. C'est ce modèle qui remplace
+  `Profile.organizationId` et qui rend possibles, sans retoucher au modèle de
+  compte : plusieurs personnes dans une organisation, une personne dans
+  plusieurs organisations, et des rôles distincts (`OWNER`, `ADMIN`,
+  `MANAGER`, `ACCOUNTANT`, `VIEWER`).
+
+### Le mode n'est pas une permission
+
+C'est la règle qui gouverne tout le reste. `activeMode = LANDLORD` dit ce que
+l'utilisateur regarde ; il n'accorde rien.
+
+Les permissions sont des **capacités** résolues côté serveur à chaque requête
+(`src/server/auth/capabilities.ts`), à partir de trois entrées : le
+`platformRole`, le drapeau `isLandlord`, et le rôle détenu dans
+l'organisation **effectivement** concernée. Il faut la capacité **et** une
+appartenance `ACTIVE` : l'une sans l'autre n'accorde rien.
+
+```ts
+requireCapability("landlord:publish_listing")   // ✔ la bonne question
+requireRole("PARTNER")                          // ✘ déprécié : interroge le mode
+```
+
+La séparation des rôles n'est pas décorative : un `MANAGER` tient le
+calendrier et les réservations sans jamais voir l'argent, un `ACCOUNTANT`
+l'inverse. La navigation elle-même est dérivée des capacités, pas du mode.
+
+### Contexte actif : stocké en base, mais jamais cru
+
+`activeMode` et `activeOrganizationId` sont deux colonnes sur `profiles`, pas
+un cookie. Un cookie demanderait une signature, une clé à gérer et à faire
+tourner, et une politique en cas de signature périmée ; une colonne n'est pas
+falsifiable du tout — et `getAuthContext()` charge déjà le profil.
+
+**Mais « non falsifiable » n'est pas « encore valide ».**
+`activeOrganizationId` enregistre un choix passé ; depuis, l'appartenance a
+pu être révoquée, le rôle rétrogradé, l'organisation supprimée. Alors :
+
+- l'identifiant stocké est un **indice**, revalidé à **chaque requête**
+  contre une ligne `OrganizationMember` en statut `ACTIVE` ;
+- un mode `LANDLORD` que plus aucune appartenance ne soutient se résout en
+  `TENANT`, et l'interface le **dit** au lieu d'afficher un tableau de bord
+  vide ;
+- un `organizationId` reçu du navigateur est une **cible**, jamais un droit :
+  `switchMode()` vérifie l'appartenance avant de l'honorer.
+
+La base verrouille l'invariant de son côté :
+`profiles_landlord_mode_requires_capability_check` rend le couple
+« mode bailleur sans capacité » irreprésentable, même pour une écriture SQL
+directe.
+
+### « Devenir bailleur »
+
+```
+/app  →  « Devenir bailleur »  →  Particulier / Société  →  informations
+      →  Organisation créée (PENDING_VERIFICATION)
+      →  OrganizationMember OWNER / ACTIVE
+      →  isLandlord = true
+      →  bascule vers le mode bailleur
+```
+
+Les trois écritures se font dans **une seule transaction**
+(`src/server/domains/organizations/become-landlord.ts`). L'appartenance est
+celle qui compte : une organisation créée sans membre paraîtrait correcte et
+n'accorderait rien.
+
+Le mode n'est **pas** basculé par cette fonction. Débloquer la capacité et
+choisir de l'utiliser sont deux actes distincts ; la bascule passe ensuite par
+`switchMode()`, le même chemin que toute bascule ultérieure.
+
+La **vérification des pièces** (identité, Kbis, titre de propriété,
+autorisation de sous-location) n'est pas demandée ici : l'organisation naît
+`PENDING_VERIFICATION` et la publication est déjà conditionnée à ce statut
+(`publication-guard.ts`), de sorte que la phase de vérification n'aura qu'à
+resserrer le seuil.
+
+### Migration de l'ancien modèle
+
+`profiles.role` et `profiles.organizationId` **existent toujours** et sont
+toujours écrits par le trigger d'inscription. **Plus rien ne les lit pour
+autoriser.** `AuthContext.role` est *dérivé* de `platformRole` + `activeMode`
+(et non lu de la colonne), le temps que les dernières routes héritées
+disparaissent.
+
+Conversion appliquée une seule fois, par la migration
+`20260904100000_account_model_expand` :
+
+| Ancien | Devient |
+|---|---|
+| `CLIENT` | `platformRole = USER`, `isLandlord = false`, `activeMode = TENANT` |
+| `PARTNER` avec organisation | `platformRole = USER`, `isLandlord = true`, `OrganizationMember` `OWNER`/`ACTIVE`, organisation présélectionnée, `activeMode = LANDLORD` |
+| `ADMIN` | `platformRole = ADMIN` ; reste un utilisateur ordinaire en mode `TENANT` |
+| `PARTNER` **sans** organisation (anomalie) | laissé locataire : il n'y a pas d'organisation dont être `OWNER`, et en inventer une serait pire. Le compte peut refaire « Devenir bailleur ». |
+
+Les partenaires existants passent en mode `LANDLORD`, alors qu'une **nouvelle**
+inscription commence toujours en `TENANT`. Ce n'est pas une incohérence :
+toute l'activité d'un partenaire existant est du travail de bailleur, et le
+faire atterrir dans l'espace locataire serait une régression de son
+expérience, pas une migration.
+
+---
+
 ## Sécurité
 
 Le point de départ, à garder en tête avant d'écrire le moindre contrôle :
@@ -147,10 +281,11 @@ Conséquences concrètes, toutes appliquées dans le dépôt :
   le SQL.
 - **`src/server/auth/rbac.ts` est la frontière d'autorisation.** Les layouts et
   les pages appellent les gardes de `src/server/auth/page-guards.ts` (qui
-  redirigent) ; les route handlers appellent `requireAuth`, `requireRole`,
-  `requireOrg` ou `requireOrganizationAccess` (qui renvoient un statut HTTP).
-  Masquer un lien de navigation n'est pas une autorisation, et une garde de
-  layout ne protège pas un route handler.
+  redirigent) ; les route handlers appellent `requireCapability`,
+  `requireAdmin`, `requireOrg` ou `requireOrganizationAccess` (qui renvoient
+  un statut HTTP). Masquer un lien de navigation n'est pas une autorisation,
+  une garde de layout ne protège pas un route handler, et **le mode actif
+  n'est pas une permission** — voir *Modèle de compte*.
 - **Toute requête sensible est scopée par une valeur issue de la session
   vérifiée** (`ctx.userId`, `ctx.organizationId`), jamais par un identifiant
   fourni par le client. Un accès par identifiant filtre la propriété dans le
@@ -328,19 +463,23 @@ src/app/(marketing)/     landing publique + pages légales (CGU, CGV, confidenti
 src/app/(auth)/          login, register
 src/app/search/          recherche publique (sans compte)
 src/app/spaces/[slug]/   fiche espace publique + tunnel de réservation
-src/app/client/          espace Client      (layout = garde de rôle)
-src/app/partner/         espace Partenaire
+src/app/app/             espace unifié du compte (layout = garde d'authentification)
+  landlord/              modules bailleur (gardes par capacité)
+src/app/client/          redirections héritées vers /app  (à supprimer)
+src/app/partner/         redirections héritées vers /app  (à supprimer)
 src/app/admin/           back-office Admin
 src/app/api/             route handlers
 src/components/          ui/ · marketing/ · auth/ · dashboard/ · booking/
 src/lib/                 helpers isomorphes (format, timezone, validation, supabase-browser)
 src/server/              code strictement serveur
-  auth/                  rbac · page-guards · runtime-config · rate-limit/ · supabase-*
+  auth/                  rbac · capabilities · active-context · page-guards
+                         runtime-config · rate-limit/ · supabase-*
   db/prisma.ts           client Prisma paresseux
   domains/<domaine>/     bookings · payments · organizations · users · spaces · notifications
   lib/                   http · errors · logger · audit
 src/generated/prisma/    client Prisma généré — NE JAMAIS éditer à la main
-src/proxy.ts             remplace middleware.ts (Next.js 16) — rafraîchit la session, n'autorise rien
+src/proxy.ts             remplace middleware.ts (Next.js 16) — rafraîchit la session
+                         et transmet le chemin demandé ; n'autorise rien
 ```
 
 Règles de structure :

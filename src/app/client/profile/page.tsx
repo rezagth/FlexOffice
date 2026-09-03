@@ -1,40 +1,21 @@
-import { requirePageRole } from "@/server/auth/page-guards";
-import { Card } from "@/components/ui/card";
-import { GdprActions } from "@/components/dashboard/gdpr-actions";
+import { permanentRedirect } from "next/navigation";
 
-export default async function ClientProfilePage() {
-  const ctx = await requirePageRole("CLIENT");
-
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-foreground">Profil</h1>
-
-      <Card className="max-w-lg p-5">
-        <dl className="flex flex-col gap-3 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Nom</dt>
-            <dd className="font-medium">{ctx.name}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Email</dt>
-            <dd className="font-medium">{ctx.email}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Rôle</dt>
-            <dd className="font-medium">Client</dd>
-          </div>
-        </dl>
-      </Card>
-
-      <Card className="max-w-lg p-5">
-        <h2 className="mb-4 text-lg font-medium">Mes données personnelles</h2>
-        <GdprActions />
-      </Card>
-
-      <p className="max-w-lg text-sm text-muted-foreground">
-        La modification des informations de profil arrive dans une prochaine
-        itération.
-      </p>
-    </div>
-  );
+/**
+ * Phase 2 compatibility redirect.
+ *
+ * `/client` and `/partner` were two spaces because `Profile.role` made a
+ * renter and a lister two kinds of account. They are one account with two
+ * modes now, served by `/app`, so this URL has one job left: not breaking
+ * for anyone who bookmarked it.
+ *
+ * No guard here on purpose — the destination guards itself, and an
+ * unauthenticated visitor should reach the login redirect from `/app`
+ * rather than from a path that no longer means anything.
+ *
+ * 308 rather than 307: the move is permanent, and letting caches and search
+ * engines learn it is the point. Removed once the old paths have been out of
+ * circulation long enough — see the Phase 2 report.
+ */
+export default function LegacyRedirectPage() {
+  permanentRedirect("/app/account");
 }

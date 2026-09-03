@@ -16,10 +16,34 @@ datasource db {
 // inserting directly — this keeps "auth user exists" and "profile exists"
 // atomic. The real foreign key to `auth.users(id)` is also added by hand in
 // that migration, since Prisma does not manage the `auth` schema.
+/// DEPRECATED — Phase 2 replaced this with three independent facts:
+/// `Profile.platformRole` (USER | ADMIN), `Profile.isLandlord` (a capability)
+/// and `Profile.activeMode` (TENANT | LANDLORD). The enum conflated who you
+/// are to the platform with what you are doing, which is why one person could
+/// not be both a renter and a lister.
+///
+/// Still written by the signup trigger and still present on the column so the
+/// migration stays reversible. Nothing reads it for authorization. Removing
+/// it is a separate migration — see the Phase 2 report.
 enum Role {
   CLIENT
   PARTNER
   ADMIN
+}
+
+/// Who the account is to the platform. Independent of what they are doing:
+/// an administrator is also an ordinary user who can rent and let spaces.
+enum PlatformRole {
+  USER
+  ADMIN
+}
+
+/// What the account is currently doing. A context, never a permission —
+/// LANDLORD mode grants nothing that the organization membership does not
+/// already carry.
+enum ActiveMode {
+  TENANT
+  LANDLORD
 }
 
 model Profile {
@@ -27,23 +51,106 @@ model Profile {
   email          String        @unique
   name           String
   phone          String?
+  /// @deprecated see the `Role` enum. Kept for reversibility only.
   role           Role
+  /// @deprecated superseded by `OrganizationMember`. A profile can now belong
+  /// to several organizations, so a single column cannot express membership.
+  /// Kept for reversibility only; `activeOrganizationId` is the current
+  /// selection and the membership table is the authority.
   organizationId String?       @map("organization_id") @db.Uuid
   organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  platformRole         PlatformRole  @default(USER) @map("platform_role")
+  /// The landlord capability has been unlocked ("Devenir bailleur"). A
+  /// capability, NOT an authorization: every landlord action is still checked
+  /// against an ACTIVE OrganizationMember row and the resolved capability set.
+  isLandlord           Boolean       @default(false) @map("is_landlord")
+  /// Stored server-side rather than in a cookie: a column cannot be forged at
+  /// all, and getAuthContext() already loads the profile. A DB CHECK also
+  /// makes LANDLORD-without-capability unrepresentable.
+  activeMode           ActiveMode    @default(TENANT) @map("active_mode")
+  /// Last selected organization. A convenience, never a grant — always
+  /// revalidated against an ACTIVE membership before use, because a stored id
+  /// goes stale when a membership is revoked.
+  activeOrganizationId String?       @map("active_organization_id") @db.Uuid
+  activeOrganization   Organization? @relation("ActiveOrganization", fields: [activeOrganizationId], references: [id])
+
   // Set on GDPR account deletion for a profile that has bookings (and
   // therefore cannot be hard-deleted, see bookings_client_user_id_fkey
   // ON DELETE RESTRICT). name/email/phone are anonymized at the same time.
-  deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(3)
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  memberships    OrganizationMember[] @relation("MemberProfile")
+  invitedMembers OrganizationMember[] @relation("MemberInvitedBy")
   bookings       Booking[]
   favorites      Favorite[]
-  disputesRaised Dispute[]  @relation("DisputeRaisedBy")
+  disputesRaised Dispute[]            @relation("DisputeRaisedBy")
   auditLogs      AuditLog[]
 
   @@index([organizationId])
+  @@index([activeOrganizationId])
   @@map("profiles")
+}
+
+/// Who holds the letting activity. An INDIVIDUAL's identity already lives on
+/// the Profile, so the organization carries only the activity; a COMPANY
+/// carries its own registration details.
+enum HolderType {
+  INDIVIDUAL
+  COMPANY
+}
+
+/// Role inside one organization. Five values now, granular permissions later:
+/// call sites resolve capabilities through
+/// `src/server/auth/capabilities.ts` rather than comparing this value, so
+/// replacing the enum with a role/permission table stays a local change.
+enum OrgRole {
+  OWNER
+  ADMIN
+  MANAGER
+  ACCOUNTANT
+  VIEWER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  REVOKED
+}
+
+/// The link that replaces `Profile.organizationId`, and the authority for
+/// every landlord authorization decision.
+///
+/// One membership per (organization, person) — enforced by the composite
+/// primary key, so a duplicate is impossible rather than merely unlikely.
+///
+/// NOT enforced in the database: "an organization always has at least one
+/// ACTIVE OWNER". A CHECK cannot see other rows, and multiple OWNERs must
+/// stay legal (an agency with two partners is the normal case), so a unique
+/// index would be wrong. Enforced in
+/// `src/server/domains/organizations/membership.ts`, with a test.
+model OrganizationMember {
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profileId      String       @map("profile_id") @db.Uuid
+  profile        Profile      @relation("MemberProfile", fields: [profileId], references: [id], onDelete: Cascade)
+
+  orgRole OrgRole          @map("org_role")
+  status  MembershipStatus @default(ACTIVE)
+
+  joinedAt           DateTime @default(now()) @map("joined_at") @db.Timestamptz(3)
+  invitedByProfileId String?  @map("invited_by_profile_id") @db.Uuid
+  invitedBy          Profile? @relation("MemberInvitedBy", fields: [invitedByProfileId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@id([organizationId, profileId])
+  @@index([profileId])
+  @@index([organizationId, status])
+  @@map("organization_members")
 }
 
 // ---------------------------------------------------------------------------
@@ -56,26 +163,43 @@ enum OrganizationStatus {
 }
 
 model Organization {
-  id              String             @id @default(uuid()) @db.Uuid
-  name            String
-  siret           String             @unique
-  status          OrganizationStatus @default(PENDING_VERIFICATION)
-  email           String
-  address         String
-  city            String
-  postalCode      String             @map("postal_code")
+  id                      String             @id @default(uuid()) @db.Uuid
+  name                    String
+  /// INDIVIDUAL or COMPANY. Drives which registration fields apply and
+  /// whether a SIRET is required — see the CHECK constraints in migration
+  /// 20260904100000_account_model_expand.
+  holderType              HolderType         @default(COMPANY) @map("holder_type")
+  /// Nullable since Phase 2: an individual holder has no SIRET. Still unique
+  /// where present — PostgreSQL treats NULLs as distinct, so any number of
+  /// individuals coexist while two companies cannot share a SIRET.
+  siret                   String?            @unique
+  /// Registration details, COMPANY only. Collected progressively: the
+  /// verification of these values (Kbis, VAT lookup) is Phase 3.
+  legalName               String?            @map("legal_name")
+  siren                   String?
+  vatNumber               String?            @map("vat_number")
+  legalRepresentativeName String?            @map("legal_representative_name")
+  status                  OrganizationStatus @default(PENDING_VERIFICATION)
+  email                   String
+  address                 String
+  city                    String
+  postalCode              String             @map("postal_code")
   // Stripe Connect account id (Express/Standard). Null until the
   // organization completes onboarding — payouts stay on the mock provider
   // until this is set and PAYMENT_PROVIDER=stripe.
-  stripeAccountId String?            @map("stripe_account_id")
-  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  stripeAccountId         String?            @map("stripe_account_id")
+  createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  members   Profile[]
-  spaces    Space[]
-  bookings  Booking[]
-  payments  Payment[]
-  auditLogs AuditLog[]
+  /// @deprecated the reverse side of `Profile.organizationId`. Use
+  /// `memberships` — it is the authority for who belongs to an organization.
+  members           Profile[]
+  activeForProfiles Profile[]            @relation("ActiveOrganization")
+  memberships       OrganizationMember[]
+  spaces            Space[]
+  bookings          Booking[]
+  payments          Payment[]
+  auditLogs         AuditLog[]
 
   @@index([status])
   @@map("organizations")

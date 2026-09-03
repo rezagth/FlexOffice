@@ -1,4 +1,4 @@
-import { requirePageRole } from "@/server/auth/page-guards";
+import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
@@ -8,7 +8,7 @@ import { SPACE_STATUS_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function AdminListingsPage() {
-  await requirePageRole("ADMIN");
+  await requirePageAdmin();
   const spaces = await prisma.space.findMany({
     include: { organization: { select: { name: true } } },
     orderBy: { createdAt: "desc" },

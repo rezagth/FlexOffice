@@ -1,11 +1,11 @@
-import { requirePageRole } from "@/server/auth/page-guards";
+import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatDateTime } from "@/lib/format";
 
 export default async function AdminDisputesPage() {
-  await requirePageRole("ADMIN");
+  await requirePageAdmin();
   const disputes = await prisma.dispute.findMany({
     include: { booking: { include: { space: true } }, raisedBy: { select: { name: true } } },
     orderBy: { createdAt: "desc" },

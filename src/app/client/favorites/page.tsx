@@ -1,38 +1,21 @@
-import { requirePageRole } from "@/server/auth/page-guards";
-import { prisma } from "@/server/db/prisma";
-import { EmptyState } from "@/components/dashboard/states";
-import { SpaceCard } from "@/components/marketing/space-card";
-import { ButtonLink } from "@/components/ui/button";
+import { permanentRedirect } from "next/navigation";
 
-export default async function ClientFavoritesPage() {
-  const ctx = await requirePageRole("CLIENT");
-  const favorites = await prisma.favorite.findMany({
-    where: { userId: ctx.userId },
-    include: { space: { include: { organization: { select: { name: true } } } } },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-foreground">Espaces favoris</h1>
-
-      {favorites.length === 0 ? (
-        <EmptyState
-          title="Aucun favori pour l'instant"
-          description="Ajoutez des espaces à vos favoris pendant votre recherche pour les retrouver ici."
-          action={
-            <ButtonLink href="/search" size="sm">
-              Rechercher un espace
-            </ButtonLink>
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {favorites.map(({ space }) => (
-            <SpaceCard key={space.slug} space={space} href={`/spaces/${space.slug}`} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+/**
+ * Phase 2 compatibility redirect.
+ *
+ * `/client` and `/partner` were two spaces because `Profile.role` made a
+ * renter and a lister two kinds of account. They are one account with two
+ * modes now, served by `/app`, so this URL has one job left: not breaking
+ * for anyone who bookmarked it.
+ *
+ * No guard here on purpose — the destination guards itself, and an
+ * unauthenticated visitor should reach the login redirect from `/app`
+ * rather than from a path that no longer means anything.
+ *
+ * 308 rather than 307: the move is permanent, and letting caches and search
+ * engines learn it is the point. Removed once the old paths have been out of
+ * circulation long enough — see the Phase 2 report.
+ */
+export default function LegacyRedirectPage() {
+  permanentRedirect("/app/favorites");
 }

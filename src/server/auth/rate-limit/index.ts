@@ -48,6 +48,12 @@ export const RATE_LIMITS = {
   publicAvailability: { limit: 60, windowSeconds: 60 } satisfies RateLimitConfig,
   /** Irreversible, self-service account erasure. */
   accountDeletion: { limit: 3, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /**
+   * Opening a letting activity. Creates an organization, so it must not be
+   * loopable — but a legitimate caller only ever does it once, and a few
+   * retries after a validation error must stay comfortable.
+   */
+  becomeLandlord: { limit: 5, windowSeconds: 3600 } satisfies RateLimitConfig,
 } as const;
 
 type StoreErrorBehaviour = "deny" | "allow";

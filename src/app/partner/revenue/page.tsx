@@ -1,51 +1,21 @@
-import { requirePageOrg } from "@/server/auth/page-guards";
-import { prisma } from "@/server/db/prisma";
-import { Card } from "@/components/ui/card";
-import { formatCents } from "@/lib/format";
+import { permanentRedirect } from "next/navigation";
 
-export default async function PartnerRevenuePage() {
-  const ctx = await requirePageOrg();
-  const totals = await prisma.payment.aggregate({
-    where: { organizationId: ctx.organizationId, status: "SUCCEEDED" },
-    _sum: { amountCents: true, commissionAmountCents: true, netAmountCents: true },
-  });
-
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-foreground">Revenus</h1>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Revenu brut
-          </p>
-          <p className="mt-2 text-2xl font-semibold">
-            {formatCents(totals._sum.amountCents ?? 0)}
-          </p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Commission OfficeFlex
-          </p>
-          <p className="mt-2 text-2xl font-semibold">
-            {formatCents(totals._sum.commissionAmountCents ?? 0)}
-          </p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Revenu net reversé
-          </p>
-          <p className="mt-2 text-2xl font-semibold">
-            {formatCents(totals._sum.netAmountCents ?? 0)}
-          </p>
-        </Card>
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        Le calcul du taux d&apos;occupation et du potentiel de revenu inexploité
-        arrive dans une prochaine itération, une fois le calendrier de disponibilité
-        implémenté.
-      </p>
-    </div>
-  );
+/**
+ * Phase 2 compatibility redirect.
+ *
+ * `/client` and `/partner` were two spaces because `Profile.role` made a
+ * renter and a lister two kinds of account. They are one account with two
+ * modes now, served by `/app`, so this URL has one job left: not breaking
+ * for anyone who bookmarked it.
+ *
+ * No guard here on purpose — the destination guards itself, and an
+ * unauthenticated visitor should reach the login redirect from `/app`
+ * rather than from a path that no longer means anything.
+ *
+ * 308 rather than 307: the move is permanent, and letting caches and search
+ * engines learn it is the point. Removed once the old paths have been out of
+ * circulation long enough — see the Phase 2 report.
+ */
+export default function LegacyRedirectPage() {
+  permanentRedirect("/app/landlord/revenue");
 }
