@@ -18,6 +18,9 @@ export type CreatePaymentIntentParams = {
    * eventually receive the transfer, net of the platform's commission.
    * Ignored by providers that don't support Connect yet. */
   connectedAccountId?: string | null;
+  /** The client's email, so Stripe emails its own hosted receipt on capture.
+   * Ignored by providers that don't support it (the mock has no receipt). */
+  receiptEmail?: string | null;
 };
 
 export type CapturePaymentOutcome = {

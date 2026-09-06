@@ -58,6 +58,7 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   const organization = await prisma.organization.findUniqueOrThrow({
     where: { id: space.organizationId },
   });
+  const clientUser = await prisma.profile.findUniqueOrThrow({ where: { id: clientUserId } });
 
   const daySlots = await computeDaySlots(input.spaceId, input.date);
   if (!daySlots) throw new ConflictError("This space is closed on the requested date");
@@ -108,6 +109,7 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
       bookingId: booking.id,
       amountCents: priceAmountCents,
       connectedAccountId: organization.stripeAccountId,
+      receiptEmail: clientUser.email,
     });
     providerPaymentIntentId = result.providerPaymentIntentId;
     clientSecret = result.clientSecret;
@@ -141,7 +143,6 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
     metadata: { bookingId: booking.id },
   });
 
-  const clientUser = await prisma.profile.findUniqueOrThrow({ where: { id: clientUserId } });
   const emailContext: BookingEmailContext = {
     clientEmail: clientUser.email,
     clientName: clientUser.name,

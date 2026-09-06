@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PartnerRevenuePage() {
   const ctx = await requirePageLandlordOrg("landlord:view_revenue");
-  const [totals, payments] = await Promise.all([
+  const [totals, payments, commissionStatements] = await Promise.all([
     prisma.payment.aggregate({
       where: { organizationId: ctx.activeOrgId, status: "SUCCEEDED" },
       _sum: { amountCents: true, commissionAmountCents: true, netAmountCents: true },
@@ -26,6 +26,10 @@ export default async function PartnerRevenuePage() {
       include: { booking: { include: { space: true } } },
       orderBy: { createdAt: "desc" },
       take: 50,
+    }),
+    prisma.commissionStatement.findMany({
+      where: { organizationId: ctx.activeOrgId },
+      orderBy: { periodStart: "desc" },
     }),
   ]);
 
@@ -83,6 +87,40 @@ export default async function PartnerRevenuePage() {
         arrive dans une prochaine itération, une fois le calendrier de disponibilité
         implémenté.
       </p>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-medium">Relevés de commission</h2>
+        {commissionStatements.length === 0 ? (
+          <EmptyState
+            title="Aucun relevé pour l'instant"
+            description="Un relevé mensuel récapitule les commissions déjà prélevées sur vos réservations du mois."
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {commissionStatements.map((statement) => (
+              <a
+                key={statement.id}
+                href={statement.hostedInvoiceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <Card className="flex flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:bg-muted">
+                  <p className="font-medium text-foreground">
+                    {statement.periodStart.toLocaleDateString("fr-FR", {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </p>
+                  <p className="text-sm font-medium">
+                    {formatCents(statement.totalCommissionAmountCents)}
+                  </p>
+                </Card>
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">Factures</h2>

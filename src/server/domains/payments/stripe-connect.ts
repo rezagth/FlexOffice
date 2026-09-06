@@ -18,7 +18,7 @@ function getStripeClient(): Stripe {
   if (!secretKey) {
     throw new ValidationError("Le paiement réel n'est pas configuré sur cette instance.");
   }
-  return new Stripe(secretKey);
+  return new Stripe(secretKey, { apiVersion: "2026-08-26.dahlia" });
 }
 
 /** Creates the Express account on first call; returns the existing one on

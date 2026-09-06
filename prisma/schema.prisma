@@ -325,6 +325,11 @@ model Organization {
   // organization completes onboarding — payouts stay on the mock provider
   // until this is set and PAYMENT_PROVIDER=stripe.
   stripeAccountId         String?            @map("stripe_account_id")
+  // Stripe Customer id, distinct from stripeAccountId above: this org as a
+  // bill-to party for monthly commission statements (Invoicing), not as a
+  // Connect payee. Created lazily on first statement — see
+  // commission-statements.ts.
+  stripeCustomerId        String?            @map("stripe_customer_id")
   createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -342,6 +347,8 @@ model Organization {
   propertyOwnerOf    PropertyOwner[]
   propertyOperatorOf PropertyOperator[]
   propertyManagerOf  PropertyManager[]
+
+  commissionStatements CommissionStatement[]
 
   @@index([status])
   @@map("organizations")
@@ -765,7 +772,8 @@ model Payment {
   createdAt               DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  refunds Refund[]
+  refunds        Refund[]
+  stripeDisputes StripeDispute[]
 
   @@index([organizationId, status])
   @@map("payments")
@@ -790,6 +798,59 @@ model Refund {
 
   @@index([paymentId])
   @@map("refunds")
+}
+
+// A real Stripe chargeback — distinct from `Dispute` below, which is an
+// app-level booking complaint (client vs. partner). Recorded for visibility
+// only: the platform absorbs chargeback losses, there is no automatic
+// transfer reversal against the partner's Connect balance (business
+// decision — see src/server/domains/payments/disputes.ts).
+enum StripeDisputeStatus {
+  WARNING_NEEDS_RESPONSE
+  WARNING_UNDER_REVIEW
+  WARNING_CLOSED
+  NEEDS_RESPONSE
+  UNDER_REVIEW
+  CHARGE_REFUNDED
+  WON
+  LOST
+}
+
+model StripeDispute {
+  id                String              @id @default(uuid()) @db.Uuid
+  paymentId         String              @map("payment_id") @db.Uuid
+  payment           Payment             @relation(fields: [paymentId], references: [id])
+  providerDisputeId String              @unique @map("provider_dispute_id")
+  status            StripeDisputeStatus
+  reason            String
+  amountCents       Int                 @map("amount_cents")
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([paymentId])
+  @@map("stripe_disputes")
+}
+
+// One row per partner per billed month. A retrospective statement of
+// commission already collected via the destination-charge split at capture
+// time — not a new collection attempt, hence `paid_out_of_band: true` on
+// the Stripe Invoice (see commission-statements.ts). @@unique makes
+// re-running a month idempotent: catch the P2002 and return the existing
+// row instead of creating a second invoice.
+model CommissionStatement {
+  id                         String       @id @default(uuid()) @db.Uuid
+  organizationId             String       @map("organization_id") @db.Uuid
+  organization               Organization @relation(fields: [organizationId], references: [id])
+  periodStart                DateTime     @map("period_start") @db.Timestamptz(3)
+  periodEnd                  DateTime     @map("period_end") @db.Timestamptz(3)
+  stripeInvoiceId            String       @unique @map("stripe_invoice_id")
+  totalCommissionAmountCents Int          @map("total_commission_amount_cents")
+  hostedInvoiceUrl           String       @map("hosted_invoice_url")
+  invoicePdfUrl              String       @map("invoice_pdf_url")
+  createdAt                  DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, periodStart])
+  @@map("commission_statements")
 }
 
 // Idempotency ledger for provider webhooks (Stripe today, others later).

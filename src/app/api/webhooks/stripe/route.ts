@@ -3,6 +3,10 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
 import { applyPaymentOutcome } from "@/server/domains/payments/apply-outcome";
+import {
+  recordDisputeEvent,
+  type StripeDisputeEventData,
+} from "@/server/domains/payments/disputes";
 import { logEvent } from "@/server/lib/logger";
 import { withErrorHandling } from "@/server/lib/http";
 
@@ -52,7 +56,11 @@ export const POST = withErrorHandling(async (request: Request) => {
     logEvent({ event: "webhook.received", providerEventId: event.id, type: event.type });
   }
 
-  await dispatchOutcome(event.type, event.data);
+  if (event.type.startsWith("charge.dispute.")) {
+    await dispatchDispute(event.data);
+  } else {
+    await dispatchOutcome(event.type, event.data);
+  }
 
   return NextResponse.json({ received: true, ...(duplicate ? { duplicate: true } : {}) });
 });
@@ -62,6 +70,25 @@ function extractPaymentIntentId(data: unknown): string | null {
     return (data as { id: string }).id;
   }
   return null;
+}
+
+function isStripeDisputeEventData(data: unknown): data is StripeDisputeEventData {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    "id" in data &&
+    "reason" in data &&
+    "status" in data &&
+    "amount" in data
+  );
+}
+
+async function dispatchDispute(data: unknown) {
+  if (!isStripeDisputeEventData(data)) {
+    logEvent({ event: "webhook.malformed_dispute_payload" });
+    return;
+  }
+  await recordDisputeEvent(data);
 }
 
 async function dispatchOutcome(type: string, data: unknown) {

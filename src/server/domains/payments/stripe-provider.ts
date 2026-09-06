@@ -19,7 +19,10 @@ export class StripePaymentProvider implements PaymentProvider {
     if (!secretKey || !webhookSecret) {
       throw new Error("STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET must be set");
     }
-    this.stripe = new Stripe(secretKey);
+    // Pinned explicitly rather than left to the account's Dashboard default,
+    // so a Dashboard-side default change can never silently alter request/
+    // response behavior for this app (stripe-best-practices reference).
+    this.stripe = new Stripe(secretKey, { apiVersion: "2026-08-26.dahlia" });
     this.webhookSecret = webhookSecret;
   }
 
@@ -40,6 +43,7 @@ export class StripePaymentProvider implements PaymentProvider {
       ...(params.connectedAccountId
         ? { transfer_data: { destination: params.connectedAccountId } }
         : {}),
+      ...(params.receiptEmail ? { receipt_email: params.receiptEmail } : {}),
     });
     // client_secret is only absent if Stripe created the intent without
     // confirmation being possible at all, which does not happen for a
