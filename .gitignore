@@ -43,3 +43,10 @@ next-env.d.ts
 
 # generated Prisma client — regenerated via `pnpm prisma generate`
 /src/generated/
+
+# local reference skill bundles (npx skills add) — dev tooling, not app code
+/.agents/
+/.claude/skills/
+/.devin/
+/.windsurf/
+skills-lock.json
