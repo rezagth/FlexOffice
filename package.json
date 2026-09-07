@@ -25,6 +25,7 @@
     "@stripe/stripe-js": "^9.15.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
+    "@vercel/analytics": "^2.0.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "leaflet": "^1.9.4",
