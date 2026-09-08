@@ -137,7 +137,7 @@ export async function listPublishedSpaces(
       ...(amenityFilter.length ? { amenities: { hasEvery: amenityFilter } } : {}),
     },
     include: {
-      organization: { select: { name: true } },
+      organization: { select: { name: true, status: true } },
       property: { select: { latitude: true, longitude: true } },
       spacePhotos: spacePhotosInclude(),
     },
@@ -201,7 +201,7 @@ export async function getPublishedSpaceBySlug(slug: string) {
       organization: publiclyVisibleOrganization(),
     },
     include: {
-      organization: { select: { name: true } },
+      organization: { select: { name: true, status: true } },
       openingHours: true,
       spacePhotos: spacePhotosInclude(),
     },

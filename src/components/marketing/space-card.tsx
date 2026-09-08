@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { FavoriteButton } from "@/components/marketing/favorite-button";
+import { VerifiedBadge } from "@/components/marketing/verified-badge";
 import { formatCents, SPACE_TYPE_LABELS } from "@/lib/format";
+import { isOrganizationVerified } from "@/lib/verification";
 
 export type SpaceCardData = {
   id: string;
@@ -13,7 +15,7 @@ export type SpaceCardData = {
   amenities: string[];
   dayPriceCents: number;
   photos?: string[];
-  organization: { name: string };
+  organization: { name: string; status?: string };
   /** Only set when the caller searched "around me" — see search-geolocation.tsx. */
   distanceKm?: number | null;
   /** Whether the signed-in visitor already favorited this space.
@@ -56,6 +58,7 @@ export function SpaceCard({
           <p className="text-sm text-muted-foreground">
             {space.organization.name} · jusqu&apos;à {space.capacity} pers.
           </p>
+          {isOrganizationVerified(space.organization.status) && <VerifiedBadge />}
           <p className="mt-1 text-sm font-medium text-foreground">
             {formatCents(space.dayPriceCents)}{" "}
             <span className="font-normal text-muted-foreground">/ jour</span>

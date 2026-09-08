@@ -7,7 +7,9 @@ import { SiteHeader } from "@/components/marketing/site-header";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/marketing/favorite-button";
+import { VerifiedBadge } from "@/components/marketing/verified-badge";
 import { formatCents, SPACE_TYPE_LABELS } from "@/lib/format";
+import { isOrganizationVerified } from "@/lib/verification";
 
 export default async function SpaceDetailPage({
   params,
@@ -70,6 +72,11 @@ export default async function SpaceDetailPage({
                   Proposé par {space.organization.name} · jusqu&apos;à {space.capacity}{" "}
                   personnes
                 </p>
+                {isOrganizationVerified(space.organization.status) && (
+                  <div className="mt-2">
+                    <VerifiedBadge />
+                  </div>
+                )}
               </div>
               {favorited !== null && (
                 <FavoriteButton spaceId={space.id} initialFavorited={favorited} variant="detail" />
