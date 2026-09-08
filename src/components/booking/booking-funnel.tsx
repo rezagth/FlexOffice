@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { StripeCardStep } from "./stripe-card-step";
 import { formatCents } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export type SlotKind = "MORNING" | "AFTERNOON" | "FULL_DAY";
 export type SlotOption = { kind: SlotKind; available: boolean; priceCents: number };
@@ -114,32 +116,31 @@ export function BookingFunnel({
             {spaceName} est fermé ce jour-là. Choisissez une autre date.
           </p>
         ) : (
-          slots.map((slot) => (
-            <label
-              key={slot.kind}
-              className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${
-                !slot.available
-                  ? "border-border bg-muted text-muted-foreground"
-                  : selected === slot.kind
-                    ? "border-primary"
-                    : "border-border hover:bg-muted"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <input
-                  type="radio"
-                  name="slot"
-                  value={slot.kind}
-                  disabled={!slot.available}
-                  checked={selected === slot.kind}
-                  onChange={() => setSelected(slot.kind)}
-                />
-                {SLOT_LABELS[slot.kind]}
-                {!slot.available && <span className="text-xs">— indisponible</span>}
-              </span>
-              <span className="font-medium">{formatCents(slot.priceCents)}</span>
-            </label>
-          ))
+          <RadioGroup
+            value={selected ?? undefined}
+            onValueChange={(value) => setSelected(value as SlotKind)}
+          >
+            {slots.map((slot) => (
+              <label
+                key={slot.kind}
+                className={cn(
+                  "flex items-center justify-between rounded-lg border px-4 py-3 text-sm",
+                  !slot.available
+                    ? "border-border bg-muted text-muted-foreground"
+                    : selected === slot.kind
+                      ? "border-primary"
+                      : "border-border hover:bg-muted"
+                )}
+              >
+                <span className="flex items-center gap-3">
+                  <RadioGroupItem value={slot.kind} disabled={!slot.available} />
+                  {SLOT_LABELS[slot.kind]}
+                  {!slot.available && <span className="text-xs">— indisponible</span>}
+                </span>
+                <span className="font-medium">{formatCents(slot.priceCents)}</span>
+              </label>
+            ))}
+          </RadioGroup>
         )}
       </Card>
 

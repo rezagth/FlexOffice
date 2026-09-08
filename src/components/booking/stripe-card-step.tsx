@@ -102,7 +102,27 @@ export function StripeCardStep({
         Vos coordonnées bancaires sont autorisées maintenant, mais vous ne serez débité
         qu&apos;après acceptation de votre demande par l&apos;entreprise.
       </p>
-      <Elements stripe={stripePromise} options={{ clientSecret }}>
+      {/* Stripe's PaymentElement renders in its own isolated iframe — a PCI
+       * boundary we never reach into with our own CSS — but its Appearance
+       * API lets the card fields at least match this app's brand color,
+       * radius and danger color instead of Stripe's generic defaults. */}
+      <Elements
+        stripe={stripePromise}
+        options={{
+          clientSecret,
+          appearance: {
+            theme: "stripe",
+            variables: {
+              colorPrimary: "#0f6e5d",
+              colorBackground: "#ffffff",
+              colorText: "#1f1b16",
+              colorDanger: "#b42318",
+              fontFamily: "Inter, system-ui, sans-serif",
+              borderRadius: "8px",
+            },
+          },
+        }}
+      >
         <CardForm onSuccess={onSuccess} returnUrl={returnUrl} />
       </Elements>
     </Card>
