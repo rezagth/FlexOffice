@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -310,10 +311,9 @@ export function SpaceForm({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {AMENITY_VALUES.map((value) => (
             <label key={value} className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={values.amenities.includes(value)}
-                onChange={() => toggleAmenity(value)}
+                onCheckedChange={() => toggleAmenity(value)}
               />
               {SPACE_AMENITY_LABELS[value]}
             </label>
