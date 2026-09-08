@@ -3,6 +3,7 @@ import type {
   CapturePaymentOutcome,
   CreatePaymentIntentParams,
   PaymentProvider,
+  RefundOutcome,
   VerifiedWebhookEvent,
 } from "./provider";
 
@@ -36,6 +37,15 @@ export class MockPaymentProvider implements PaymentProvider {
   async cancelPaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
     void providerPaymentIntentId;
     return { outcome: "succeeded" };
+  }
+
+  async refundPaymentIntent(
+    providerPaymentIntentId: string,
+    amountCents: number
+  ): Promise<RefundOutcome> {
+    void providerPaymentIntentId;
+    void amountCents;
+    return { providerRefundId: `mock_re_${crypto.randomUUID()}`, outcome: "succeeded" };
   }
 
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent {

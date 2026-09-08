@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
 import { applyPaymentOutcome } from "@/server/domains/payments/apply-outcome";
+import { applyRefundOutcome } from "@/server/domains/payments/apply-refund-outcome";
 import {
   recordDisputeEvent,
   type StripeDisputeEventData,
@@ -58,6 +59,8 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   if (event.type.startsWith("charge.dispute.")) {
     await dispatchDispute(event.data);
+  } else if (event.type === "refund.updated" || event.type === "refund.created") {
+    await dispatchRefund(event.data);
   } else {
     await dispatchOutcome(event.type, event.data);
   }
@@ -89,6 +92,25 @@ async function dispatchDispute(data: unknown) {
     return;
   }
   await recordDisputeEvent(data);
+}
+
+function isStripeRefundEventData(data: unknown): data is { id: string; status: string } {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    "id" in data &&
+    typeof (data as { id: unknown }).id === "string" &&
+    "status" in data &&
+    typeof (data as { status: unknown }).status === "string"
+  );
+}
+
+async function dispatchRefund(data: unknown) {
+  if (!isStripeRefundEventData(data)) {
+    logEvent({ event: "webhook.malformed_refund_payload" });
+    return;
+  }
+  await applyRefundOutcome(data.id, data.status);
 }
 
 async function dispatchOutcome(type: string, data: unknown) {

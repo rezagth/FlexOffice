@@ -4,6 +4,7 @@ import type {
   CapturePaymentOutcome,
   CreatePaymentIntentParams,
   PaymentProvider,
+  RefundOutcome,
   VerifiedWebhookEvent,
 } from "./provider";
 
@@ -63,6 +64,21 @@ export class StripePaymentProvider implements PaymentProvider {
   async cancelPaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
     await this.stripe.paymentIntents.cancel(providerPaymentIntentId);
     return { outcome: "processing" };
+  }
+
+  async refundPaymentIntent(
+    providerPaymentIntentId: string,
+    amountCents: number
+  ): Promise<RefundOutcome> {
+    const refund = await this.stripe.refunds.create({
+      payment_intent: providerPaymentIntentId,
+      amount: amountCents,
+    });
+    // Never trust the synchronous response as final — same reasoning as
+    // capture/cancel above. The Refund row only moves to SUCCEEDED when a
+    // verified refund.updated webhook event confirms it (see
+    // apply-refund-outcome.ts).
+    return { providerRefundId: refund.id, outcome: "processing" };
   }
 
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent {

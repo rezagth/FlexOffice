@@ -2,6 +2,7 @@ import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import { assertRefundFitsPayment } from "@/server/domains/payments/refund-invariants";
+import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
 
 const REVIEWABLE_STATUSES = ["OPEN", "INVESTIGATING"] as const;
 
@@ -39,11 +40,11 @@ export async function takeChargeOfDispute(disputeId: string, actorUserId: string
 
 /**
  * Resolves a litige: either RESOLVED_NO_ACTION, or RESOLVED_REFUND — which
- * creates a Refund row, not just a status change. `providerRefundId` is
- * `mock_re_*` because the `PaymentProvider` interface has no `refund()`
- * method yet (see provider.ts): refunding through real Stripe is separate
- * work this does not fake. Called against a non-mock payment is refused
- * outright, honestly, rather than silently pretending success.
+ * creates a Refund row, not just a status change. The actual refund is
+ * issued through whichever PaymentProvider is configured (mock or Stripe) —
+ * see provider.ts. The provider call happens only after the dispute row has
+ * been atomically claimed (see below), so a concurrent second resolution
+ * can never reach the provider a second time for the same dispute.
  */
 export async function resolveDispute({
   disputeId,
@@ -81,20 +82,19 @@ export async function resolveDispute({
     if (!payment) {
       throw new ValidationError("Aucun paiement associé à cette réservation.");
     }
-    if (payment.provider !== "mock") {
-      throw new ValidationError(
-        "Le remboursement via un vrai prestataire de paiement n'est pas encore implémenté."
-      );
-    }
 
     const amountCents = refundAmountCents ?? payment.amountCents;
     await assertRefundFitsPayment({ paymentId: payment.id, amountCents });
 
+    const provider = getPaymentProvider();
+
     // Interactive transaction, not the array form: the updateMany's guard
-    // (status still OPEN/INVESTIGATING) must be checked BEFORE the refund is
-    // created, or a concurrent second resolution would create two refunds
-    // for one decision — the array form sends every operation regardless of
-    // what an earlier one returned.
+    // (status still OPEN/INVESTIGATING) must be checked, and committed to,
+    // BEFORE the provider is called — the updateMany takes the dispute
+    // row's lock immediately, so a concurrent second resolveDispute() call
+    // blocks on it and, once this transaction commits, sees the status
+    // already changed and never reaches the provider. Money moves at most
+    // once per dispute.
     await prisma.$transaction(async (tx) => {
       const updated = await tx.dispute.updateMany({
         where: { id: disputeId, status: { in: [...REVIEWABLE_STATUSES] } },
@@ -103,13 +103,19 @@ export async function resolveDispute({
       if (updated.count === 0) {
         throw new ConflictError("Ce litige n'est pas en attente de décision.");
       }
+
+      const refundResult = await provider.refundPaymentIntent(
+        payment.providerPaymentIntentId,
+        amountCents
+      );
+
       await tx.refund.create({
         data: {
           paymentId: payment.id,
           amountCents,
           reason: notes,
-          providerRefundId: `mock_re_${crypto.randomUUID()}`,
-          status: "SUCCEEDED",
+          providerRefundId: refundResult.providerRefundId,
+          status: refundResult.outcome === "succeeded" ? "SUCCEEDED" : "PENDING",
         },
       });
       await tx.disputeEvent.create({ data: { disputeId, status: targetStatus, note: notes } });

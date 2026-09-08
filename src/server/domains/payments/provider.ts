@@ -34,6 +34,16 @@ export type CapturePaymentOutcome = {
   outcome: "succeeded" | "processing";
 };
 
+export type RefundOutcome = {
+  /** Provider-assigned id for this refund — stored on Refund.providerRefundId,
+   * and the key a later refund webhook event uses to find the row again. */
+  providerRefundId: string;
+  /** Same succeeded/processing split as CapturePaymentOutcome: the mock is
+   * its own authority, real Stripe refunds are only final once a verified
+   * `refund.updated`/`charge.refunded` webhook event confirms it. */
+  outcome: "succeeded" | "processing";
+};
+
 export interface PaymentProvider {
   readonly name: string;
   /** HTTP header carrying the signature, e.g. "stripe-signature". */
@@ -60,4 +70,13 @@ export interface PaymentProvider {
    * client — called when a partner rejects a booking request, or when a
    * stale request auto-expires. */
   cancelPaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome>;
+
+  /** Refunds part or all of a captured payment intent — called when an
+   * admin resolves a dispute with a REFUND decision. `amountCents` is
+   * always computed and bounds-checked server-side
+   * (see assertRefundFitsPayment) — never a client-supplied amount. */
+  refundPaymentIntent(
+    providerPaymentIntentId: string,
+    amountCents: number
+  ): Promise<RefundOutcome>;
 }
