@@ -29,7 +29,11 @@ export default async function ClientFavoritesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {favorites.map(({ space }) => (
-            <SpaceCard key={space.slug} space={space} href={`/spaces/${space.slug}`} />
+            <SpaceCard
+              key={space.slug}
+              space={{ ...space, favorited: true }}
+              href={`/spaces/${space.slug}`}
+            />
           ))}
         </div>
       )}

@@ -1,4 +1,7 @@
 import { listPublishedSpaces } from "@/server/domains/spaces/list-spaces";
+import { getAuthContext } from "@/server/auth/rbac";
+import { isDatabaseConfigured } from "@/server/auth/runtime-config";
+import { getFavoritedSpaceIds } from "@/server/domains/favorites/favorites";
 import { EmptyState } from "@/components/dashboard/states";
 import { SpaceCard } from "@/components/marketing/space-card";
 import { SiteHeader } from "@/components/marketing/site-header";
@@ -37,14 +40,30 @@ export default async function SearchPage({
   const dateFilter =
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
 
-  const spaces = await listPublishedSpaces({
-    city: cityFilter,
-    near,
-    capacity: capacityFilter,
-    amenities: amenitiesFilter,
-    date: dateFilter,
-    track: true,
-  });
+  const [rawSpaces, ctx] = await Promise.all([
+    listPublishedSpaces({
+      city: cityFilter,
+      near,
+      capacity: capacityFilter,
+      amenities: amenitiesFilter,
+      date: dateFilter,
+      track: true,
+    }),
+    getAuthContext(),
+  ]);
+
+  // Demo mode has no real Favorite table to query — same reason mock
+  // spaces skip capacity/amenities/date above. A signed-out visitor sees
+  // no favorite state either (favorited is left `undefined`, which hides
+  // the button — see SpaceCard).
+  const favoritedIds =
+    ctx && isDatabaseConfigured()
+      ? await getFavoritedSpaceIds(ctx.userId, rawSpaces.map((s) => s.id))
+      : null;
+  const spaces = rawSpaces.map((space) => ({
+    ...space,
+    favorited: favoritedIds ? favoritedIds.has(space.id) : undefined,
+  }));
 
   const mapPoints = spaces
     .filter(

@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 import { getPublishedSpaceBySlug } from "@/server/domains/spaces/list-spaces";
 import { getAuthContext } from "@/server/auth/rbac";
+import { isDatabaseConfigured } from "@/server/auth/runtime-config";
+import { isSpaceFavorited } from "@/server/domains/favorites/favorites";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
+import { FavoriteButton } from "@/components/marketing/favorite-button";
 import { formatCents, SPACE_TYPE_LABELS } from "@/lib/format";
 
 export default async function SpaceDetailPage({
@@ -17,6 +20,11 @@ export default async function SpaceDetailPage({
   if (!space) {
     notFound();
   }
+
+  // Same demo-mode guard as /search: no real Favorite table to query
+  // without a database, and no favorite state for a signed-out visitor.
+  const favorited =
+    ctx && isDatabaseConfigured() ? await isSpaceFavorited(ctx.userId, space.id) : null;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -52,15 +60,20 @@ export default async function SpaceDetailPage({
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="flex flex-col gap-4 lg:col-span-2">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                {SPACE_TYPE_LABELS[space.type] ?? space.type} · {space.city}
-              </p>
-              <h1 className="text-2xl font-semibold text-foreground">{space.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                Proposé par {space.organization.name} · jusqu&apos;à {space.capacity}{" "}
-                personnes
-              </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {SPACE_TYPE_LABELS[space.type] ?? space.type} · {space.city}
+                </p>
+                <h1 className="text-2xl font-semibold text-foreground">{space.name}</h1>
+                <p className="text-sm text-muted-foreground">
+                  Proposé par {space.organization.name} · jusqu&apos;à {space.capacity}{" "}
+                  personnes
+                </p>
+              </div>
+              {favorited !== null && (
+                <FavoriteButton spaceId={space.id} initialFavorited={favorited} variant="detail" />
+              )}
             </div>
 
             <p className="text-sm leading-relaxed text-foreground">{space.description}</p>
