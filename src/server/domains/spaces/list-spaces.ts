@@ -1,7 +1,29 @@
 import { prisma } from "@/server/db/prisma";
 import { STATUSES_ALLOWED_TO_PUBLISH } from "@/server/domains/organizations/publication-guard";
 import { recordSearchEvent } from "@/server/domains/analytics/search-events";
+import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import { MOCK_SPACES } from "./mock-data";
+
+/** Ordered exactly like the partner-side photo manager: primary photo
+ * first, then upload order. `Space.photos` (the deprecated string[] column,
+ * see schema.prisma) is used only as a fallback for a space that predates
+ * SpacePhoto uploads — nothing writes to it any more, so real listings
+ * converge on SpacePhoto once a partner uploads at least one photo.
+ *
+ * Rebuilt per call, same reason as publiclyVisibleOrganization() above:
+ * `as const`/a shared literal would make the `orderBy` array readonly,
+ * which Prisma's generated args type — mutable — rejects. */
+function spacePhotosInclude() {
+  return {
+    orderBy: [{ isPrimary: "desc" as const }, { position: "asc" as const }],
+    select: { storagePath: true },
+  };
+}
+
+function resolvePhotoUrls(legacyPhotos: string[], spacePhotos: { storagePath: string }[]): string[] {
+  if (spacePhotos.length === 0) return legacyPhotos;
+  return spacePhotos.map((photo) => getPublicPhotoUrl(photo.storagePath));
+}
 
 // No DATABASE_URL configured yet (e.g. a demo deploy without Supabase
 // wired up): fall back to static demo data instead of erroring, so the
@@ -71,7 +93,7 @@ export async function listPublishedSpaces(
     );
   }
 
-  const spaces = await prisma.space.findMany({
+  const rawSpaces = await prisma.space.findMany({
     where: {
       status: "PUBLISHED",
       organization: publiclyVisibleOrganization(),
@@ -82,10 +104,16 @@ export async function listPublishedSpaces(
     include: {
       organization: { select: { name: true } },
       property: { select: { latitude: true, longitude: true } },
+      spacePhotos: spacePhotosInclude(),
     },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
+
+  const spaces = rawSpaces.map(({ spacePhotos, ...space }) => ({
+    ...space,
+    photos: resolvePhotoUrls(space.photos, spacePhotos),
+  }));
 
   if (!params.near) {
     if (params.track) {
@@ -124,7 +152,7 @@ export async function getPublishedSpaceBySlug(slug: string) {
     return MOCK_SPACES.find((space) => space.slug === slug) ?? null;
   }
 
-  return prisma.space.findFirst({
+  const space = await prisma.space.findFirst({
     where: {
       slug,
       status: "PUBLISHED",
@@ -133,6 +161,11 @@ export async function getPublishedSpaceBySlug(slug: string) {
     include: {
       organization: { select: { name: true } },
       openingHours: true,
+      spacePhotos: spacePhotosInclude(),
     },
   });
+  if (!space) return null;
+
+  const { spacePhotos, ...rest } = space;
+  return { ...rest, photos: resolvePhotoUrls(space.photos, spacePhotos) };
 }
