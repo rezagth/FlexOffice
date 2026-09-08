@@ -1,8 +1,40 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { PhotoCarousel } from "@/components/marketing/photo-carousel";
+
+// jsdom has no real layout engine and no window.matchMedia — Embla (the
+// engine behind the shadcn Carousel PhotoCarousel is built on) reads
+// matchMedia while resolving its responsive options and throws without a
+// polyfill. A minimal stub is enough; nothing here asserts on actual
+// media-query behavior.
+beforeAll(() => {
+  window.matchMedia ??= ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+
+  // Same reason: Embla also watches slide visibility via
+  // IntersectionObserver and container/slide sizing via ResizeObserver,
+  // neither of which jsdom implements.
+  (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
 
 afterEach(() => {
   cleanup();
