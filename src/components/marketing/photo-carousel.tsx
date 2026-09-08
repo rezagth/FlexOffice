@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { clsx } from "clsx";
 
 /**
@@ -86,18 +87,18 @@ export function PhotoCarousel({ photos, spaceName }: { photos: string[]; spaceNa
               onClick={() => scrollToIndex(index - 1)}
               disabled={index === 0}
               aria-label="Photo précédente"
-              className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-lg text-foreground shadow-sm transition-opacity disabled:opacity-40"
+              className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm transition-opacity disabled:opacity-40"
             >
-              ‹
+              <ChevronLeft aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={() => scrollToIndex(index + 1)}
               disabled={index === total - 1}
               aria-label="Photo suivante"
-              className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-lg text-foreground shadow-sm transition-opacity disabled:opacity-40"
+              className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm transition-opacity disabled:opacity-40"
             >
-              ›
+              <ChevronRight aria-hidden="true" />
             </button>
             <span
               aria-hidden="true"
