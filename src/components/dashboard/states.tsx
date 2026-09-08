@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 
+/** Same flat API as before (title, description, action) — the ~20 call
+ * sites across the app don't need to change; only the internals now
+ * compose shadcn's Empty/EmptyHeader/EmptyTitle/EmptyDescription. */
 export function EmptyState({
   title,
   description,
@@ -11,10 +16,14 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <Card className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-      <p className="text-base font-medium text-foreground">{title}</p>
-      <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
-      {action}
+    <Card>
+      <Empty className="py-16">
+        <EmptyHeader>
+          <EmptyTitle>{title}</EmptyTitle>
+          <EmptyDescription>{description}</EmptyDescription>
+        </EmptyHeader>
+        {action && <EmptyContent>{action}</EmptyContent>}
+      </Empty>
     </Card>
   );
 }
@@ -22,10 +31,7 @@ export function EmptyState({
 export function LoadingState({ label = "Chargement…" }: { label?: string }) {
   return (
     <div role="status" className="flex items-center gap-3 px-6 py-16 justify-center">
-      <span
-        aria-hidden="true"
-        className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-primary"
-      />
+      <Spinner aria-hidden="true" className="text-primary" />
       <span className="text-sm text-muted-foreground">{label}</span>
     </div>
   );
@@ -39,9 +45,13 @@ export function ErrorState({
   description?: string;
 }) {
   return (
-    <Card role="alert" className="flex flex-col items-center gap-2 px-6 py-16 text-center">
-      <p className="text-base font-medium text-danger">{title}</p>
-      <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
+    <Card role="alert">
+      <Empty className="py-16">
+        <EmptyHeader>
+          <EmptyTitle className="text-danger">{title}</EmptyTitle>
+          <EmptyDescription>{description}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     </Card>
   );
 }
