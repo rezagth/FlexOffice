@@ -33,16 +33,21 @@ export type DaySlots = {
   fullDay: DaySlot;
 };
 
+export type OpeningHoursRow = { opensAt: string; closesAt: string };
+export type OverlapWindow = { startsAt: Date; endsAt: Date };
+
 /**
  * The MVP's whole notion of a bookable slot: for a given calendar day, a
  * half-day is either the morning (opensAt→13:00) or the afternoon
  * (13:00→closesAt), and a full day is opensAt→closesAt. This is the only
- * place that decides what "available" means — the booking creation route
- * and the public availability endpoint both call this rather than
- * re-deriving overlap logic themselves.
+ * place that decides what "available" means — computeDaySlots() (a single
+ * space/day, fetching from the DB) and computeOrganizationOccupancy() (a
+ * whole organization/period, against data it already fetched in bulk —
+ * see occupancy.ts) both call this pure function rather than each
+ * re-deriving the rule.
  *
- * Returns `null` when the space has no opening hours configured for that
- * weekday at all (the space is simply closed that day of the week).
+ * Returns `null` when `hoursForDay` is empty — the space has no opening
+ * hours configured for that weekday at all (simply closed that day).
  *
  * PHASE 5 NOTE — multiple slots per weekday (e.g. 09:00-12:00 AND
  * 14:00-18:00) are now representable and editable (see
@@ -54,40 +59,27 @@ export type DaySlots = {
  * when there is only one row, and a documented over-approximation (the gap
  * between slots reads as bookable) when there are several.
  */
-export async function computeDaySlots(spaceId: string, dateStr: string): Promise<DaySlots | null> {
-  const space = await prisma.space.findUnique({ where: { id: spaceId } });
-  if (!space) return null;
-
-  const weekday = weekdayOf(dateStr);
-  const rows = await prisma.spaceOpeningHours.findMany({
-    where: { spaceId, weekday },
-    orderBy: { opensAt: "asc" },
-  });
-  if (rows.length === 0) return null;
-  const hours = { opensAt: rows[0].opensAt, closesAt: rows[rows.length - 1].closesAt };
-
-  const timeZone = space.timezone || DEFAULT_TIMEZONE;
-  const dayStart = zonedTimeToUtc(dateStr, hours.opensAt, timeZone);
-  const dayEnd = zonedTimeToUtc(dateStr, hours.closesAt, timeZone);
-  const middayInstant = zonedTimeToUtc(dateStr, MIDDAY, timeZone);
+export function daySlotsForDay(
+  dateStr: string,
+  hoursForDay: OpeningHoursRow[],
+  closures: OverlapWindow[],
+  bookings: OverlapWindow[],
+  timeZone: string,
+  halfDayPriceCents: number,
+  dayPriceCents: number
+): DaySlots | null {
+  if (hoursForDay.length === 0) return null;
 
   // Zero-padded "HH:mm" strings compare lexicographically in time order.
-  const hasMorning = hours.opensAt < MIDDAY;
-  const hasAfternoon = hours.closesAt > MIDDAY;
+  const opensAt = hoursForDay.reduce((earliest, h) => (h.opensAt < earliest ? h.opensAt : earliest), hoursForDay[0].opensAt);
+  const closesAt = hoursForDay.reduce((latest, h) => (h.closesAt > latest ? h.closesAt : latest), hoursForDay[0].closesAt);
 
-  const [closures, bookings] = await Promise.all([
-    prisma.spaceClosure.findMany({
-      where: { spaceId, startsAt: { lt: dayEnd }, endsAt: { gt: dayStart } },
-    }),
-    prisma.booking.findMany({
-      where: {
-        spaceId,
-        status: { in: ["PENDING", "CONFIRMED"] },
-        startsAt: { lt: dayEnd },
-        endsAt: { gt: dayStart },
-      },
-    }),
-  ]);
+  const dayStart = zonedTimeToUtc(dateStr, opensAt, timeZone);
+  const dayEnd = zonedTimeToUtc(dateStr, closesAt, timeZone);
+  const middayInstant = zonedTimeToUtc(dateStr, MIDDAY, timeZone);
+
+  const hasMorning = opensAt < MIDDAY;
+  const hasAfternoon = closesAt > MIDDAY;
 
   // Partial overlap blocks the whole slot — no pro-rating.
   const isBlocked = (start: Date, end: Date) =>
@@ -99,9 +91,6 @@ export async function computeDaySlots(spaceId: string, dateStr: string): Promise
   // at 14:00 must not offer an afternoon starting at 13:00.
   const morningEnd = middayInstant < dayEnd ? middayInstant : dayEnd;
   const afternoonStart = middayInstant > dayStart ? middayInstant : dayStart;
-
-  const halfDayPriceCents = applyDiscount(space.halfDayPriceCents, space.discountPercent);
-  const dayPriceCents = applyDiscount(space.dayPriceCents, space.discountPercent);
 
   const morning: DaySlot | null = hasMorning
     ? {
@@ -131,9 +120,44 @@ export async function computeDaySlots(spaceId: string, dateStr: string): Promise
   return { morning, afternoon, fullDay };
 }
 
+export async function computeDaySlots(spaceId: string, dateStr: string): Promise<DaySlots | null> {
+  const space = await prisma.space.findUnique({ where: { id: spaceId } });
+  if (!space) return null;
+
+  const weekday = weekdayOf(dateStr);
+  const rows = await prisma.spaceOpeningHours.findMany({
+    where: { spaceId, weekday },
+    orderBy: { opensAt: "asc" },
+  });
+  if (rows.length === 0) return null;
+
+  const timeZone = space.timezone || DEFAULT_TIMEZONE;
+  const dayStart = zonedTimeToUtc(dateStr, rows[0].opensAt, timeZone);
+  const dayEnd = zonedTimeToUtc(dateStr, rows[rows.length - 1].closesAt, timeZone);
+
+  const [closures, bookings] = await Promise.all([
+    prisma.spaceClosure.findMany({
+      where: { spaceId, startsAt: { lt: dayEnd }, endsAt: { gt: dayStart } },
+    }),
+    prisma.booking.findMany({
+      where: {
+        spaceId,
+        status: { in: ["PENDING", "CONFIRMED"] },
+        startsAt: { lt: dayEnd },
+        endsAt: { gt: dayStart },
+      },
+    }),
+  ]);
+
+  const halfDayPriceCents = applyDiscount(space.halfDayPriceCents, space.discountPercent);
+  const dayPriceCents = applyDiscount(space.dayPriceCents, space.discountPercent);
+
+  return daySlotsForDay(dateStr, rows, closures, bookings, timeZone, halfDayPriceCents, dayPriceCents);
+}
+
 export type MonthDayStatus = "CLOSED" | "AVAILABLE" | "PARTIAL" | "BOOKED";
 
-function statusFromSlots(slots: DaySlots): MonthDayStatus {
+export function statusFromSlots(slots: DaySlots): MonthDayStatus {
   if (slots.fullDay.available) return "AVAILABLE";
   const halfAvailable = (slots.morning?.available ?? false) || (slots.afternoon?.available ?? false);
   return halfAvailable ? "PARTIAL" : "BOOKED";
