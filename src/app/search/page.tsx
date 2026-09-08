@@ -3,7 +3,7 @@ import { getAuthContext } from "@/server/auth/rbac";
 import { isDatabaseConfigured } from "@/server/auth/runtime-config";
 import { getFavoritedSpaceIds } from "@/server/domains/favorites/favorites";
 import { EmptyState } from "@/components/dashboard/states";
-import { SpaceCard } from "@/components/marketing/space-card";
+import { SearchResultsGrid } from "@/components/marketing/search-results-grid";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SearchGeolocation } from "@/components/marketing/search-geolocation";
 import { SearchMapLoader } from "@/components/marketing/search-map-loader";
@@ -145,11 +145,7 @@ export default async function SearchPage({
             description="Essayez une autre ville, ou revenez plus tard : de nouveaux espaces sont ajoutés régulièrement."
           />
         ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {spaces.map((space) => (
-              <SpaceCard key={space.slug} space={space} href={`/spaces/${space.slug}`} />
-            ))}
-          </div>
+          <SearchResultsGrid spaces={spaces} />
         )}
       </main>
     </div>

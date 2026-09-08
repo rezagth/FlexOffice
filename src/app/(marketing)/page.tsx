@@ -4,7 +4,7 @@ import { Hero } from "@/components/marketing/hero";
 import { ProblemSection } from "@/components/marketing/problem-section";
 import { HowItWorks } from "@/components/marketing/how-it-works";
 import { TrustBadges } from "@/components/marketing/trust-badges";
-import { SpaceCard } from "@/components/marketing/space-card";
+import { SearchResultsGrid } from "@/components/marketing/search-results-grid";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { EmptyState } from "@/components/dashboard/states";
 
@@ -33,11 +33,7 @@ export default async function HomePage() {
                 description="Les premiers espaces publiés par nos entreprises partenaires apparaîtront ici."
               />
             ) : (
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {featuredSpaces.map((space) => (
-                  <SpaceCard key={space.slug} space={space} href={`/spaces/${space.slug}`} />
-                ))}
-              </div>
+              <SearchResultsGrid spaces={featuredSpaces} />
             )}
           </div>
         </div>

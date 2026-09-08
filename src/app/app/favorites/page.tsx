@@ -1,7 +1,7 @@
 import { requirePageAuth } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { EmptyState } from "@/components/dashboard/states";
-import { SpaceCard } from "@/components/marketing/space-card";
+import { SearchResultsGrid } from "@/components/marketing/search-results-grid";
 import { ButtonLink } from "@/components/ui/button";
 
 export default async function ClientFavoritesPage() {
@@ -27,15 +27,7 @@ export default async function ClientFavoritesPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {favorites.map(({ space }) => (
-            <SpaceCard
-              key={space.slug}
-              space={{ ...space, favorited: true }}
-              href={`/spaces/${space.slug}`}
-            />
-          ))}
-        </div>
+        <SearchResultsGrid spaces={favorites.map(({ space }) => ({ ...space, favorited: true }))} />
       )}
     </div>
   );
