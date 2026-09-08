@@ -6,6 +6,9 @@ import { SearchGeolocation } from "@/components/marketing/search-geolocation";
 import { SearchMapLoader } from "@/components/marketing/search-map-loader";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { SPACE_AMENITY_LABELS } from "@/lib/format";
+
+const AMENITY_VALUES = Object.keys(SPACE_AMENITY_LABELS);
 
 export const metadata = { title: "Rechercher un espace — OfficeFlex" };
 // Reflects live listings and query-string filters — must not be cached.
@@ -17,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function SearchPage({
   searchParams,
 }: PageProps<"/search">) {
-  const { city, lat, lng } = await searchParams;
+  const { city, lat, lng, capacity, amenities, date } = await searchParams;
   const cityFilter = typeof city === "string" ? city : undefined;
   const latNum = typeof lat === "string" ? Number(lat) : undefined;
   const lngNum = typeof lng === "string" ? Number(lng) : undefined;
@@ -25,8 +28,23 @@ export default async function SearchPage({
     latNum != null && lngNum != null && Number.isFinite(latNum) && Number.isFinite(lngNum)
       ? { lat: latNum, lng: lngNum }
       : undefined;
+  const capacityNum = typeof capacity === "string" ? Number(capacity) : undefined;
+  const capacityFilter =
+    capacityNum != null && Number.isFinite(capacityNum) && capacityNum > 0
+      ? Math.floor(capacityNum)
+      : undefined;
+  const amenitiesFilter = amenities == null ? [] : Array.isArray(amenities) ? amenities : [amenities];
+  const dateFilter =
+    typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
 
-  const spaces = await listPublishedSpaces({ city: cityFilter, near, track: true });
+  const spaces = await listPublishedSpaces({
+    city: cityFilter,
+    near,
+    capacity: capacityFilter,
+    amenities: amenitiesFilter,
+    date: dateFilter,
+    track: true,
+  });
 
   const mapPoints = spaces
     .filter(
@@ -44,20 +62,53 @@ export default async function SearchPage({
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Rechercher un espace</h1>
           <p className="text-sm text-muted-foreground">
-            Filtre par ville pour l&apos;instant — date, capacité et équipements
-            arrivent dans une prochaine itération.
+            Filtrez par ville, date, capacité et équipements.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <form className="flex max-w-md gap-2">
-            <Input
-              type="search"
-              name="city"
-              defaultValue={cityFilter}
-              placeholder="Ville (ex. Paris, Lyon…)"
-              aria-label="Filtrer par ville"
-            />
+        <div className="flex flex-col gap-4">
+          <form className="flex flex-wrap items-end gap-4">
+            <div className="flex max-w-md flex-1 gap-2">
+              <Input
+                type="search"
+                name="city"
+                defaultValue={cityFilter}
+                placeholder="Ville (ex. Paris, Lyon…)"
+                aria-label="Filtrer par ville"
+              />
+            </div>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Date
+              <Input type="date" name="date" defaultValue={dateFilter} aria-label="Filtrer par date" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Capacité minimale
+              <Input
+                type="number"
+                name="capacity"
+                min={1}
+                defaultValue={capacityFilter}
+                placeholder="ex. 10"
+                aria-label="Filtrer par capacité minimale"
+                className="w-28"
+              />
+            </label>
+            <fieldset className="flex flex-col gap-1">
+              <legend className="text-xs text-muted-foreground">Équipements</legend>
+              <div className="flex max-w-lg flex-wrap gap-x-3 gap-y-1">
+                {AMENITY_VALUES.map((value) => (
+                  <label key={value} className="flex items-center gap-1.5 text-xs text-foreground">
+                    <input
+                      type="checkbox"
+                      name="amenities"
+                      value={value}
+                      defaultChecked={amenitiesFilter.includes(value)}
+                    />
+                    {SPACE_AMENITY_LABELS[value]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <Button type="submit" size="md">
               Rechercher
             </Button>

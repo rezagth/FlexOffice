@@ -9,13 +9,13 @@ import { listPublishedSpaces } from "@/server/domains/spaces/list-spaces";
 import { RateLimitedError } from "@/server/lib/errors";
 import { withErrorHandling } from "@/server/lib/http";
 
-// GET /api/spaces?city=Paris
+// GET /api/spaces?city=Paris&capacity=10&amenities=WIFI&amenities=PARKING&date=2026-09-10
 // Auth: none (public listing search)
 // Rate limit: 120 / min / IP — unauthenticated and it queries the database, so
 //   it is a free amplification point without one.
 // Output: published spaces only, from organizations that are not suspended
-//   (see list-spaces.ts). City substring match; capacity/date/amenities
-//   filters are a follow-up.
+//   (see list-spaces.ts). City substring, capacity floor, amenities
+//   (must have every one requested) and same-day availability.
 export const GET = withErrorHandling(async (request: Request) => {
   const { ip, trusted } = getClientIp(request);
   // onStoreError "allow": this is a public read, not an authentication
@@ -37,6 +37,21 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const url = new URL(request.url);
   const city = url.searchParams.get("city") ?? undefined;
-  const spaces = await listPublishedSpaces({ city, track: true });
+  const capacityParam = url.searchParams.get("capacity");
+  const capacity =
+    capacityParam && Number.isFinite(Number(capacityParam)) && Number(capacityParam) > 0
+      ? Math.floor(Number(capacityParam))
+      : undefined;
+  const amenities = url.searchParams.getAll("amenities");
+  const dateParam = url.searchParams.get("date");
+  const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
+
+  const spaces = await listPublishedSpaces({
+    city,
+    capacity,
+    amenities: amenities.length ? amenities : undefined,
+    date,
+    track: true,
+  });
   return NextResponse.json({ spaces });
 });

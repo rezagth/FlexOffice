@@ -1,8 +1,22 @@
+import type { SpaceAmenity } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { STATUSES_ALLOWED_TO_PUBLISH } from "@/server/domains/organizations/publication-guard";
 import { recordSearchEvent } from "@/server/domains/analytics/search-events";
 import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
+import { isSpaceAvailableOnDate } from "@/server/domains/bookings/availability";
+import { SPACE_AMENITY_LABELS } from "@/lib/format";
 import { MOCK_SPACES } from "./mock-data";
+
+const VALID_AMENITIES = new Set(Object.keys(SPACE_AMENITY_LABELS));
+
+/** Drops anything that isn't a known SpaceAmenity — `amenities` reaches
+ * here straight from a public query string (GET /api/spaces, /search), and
+ * `amenities: { hasEvery: [...] }` is a Postgres enum-array filter: an
+ * unrecognized value would throw, not just match nothing. */
+function sanitizeAmenities(amenities: string[] | undefined): SpaceAmenity[] {
+  if (!amenities?.length) return [];
+  return amenities.filter((a): a is SpaceAmenity => VALID_AMENITIES.has(a));
+}
 
 /** Ordered exactly like the partner-side photo manager: primary photo
  * first, then upload order. `Space.photos` (the deprecated string[] column,
@@ -77,6 +91,16 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
  * appended after every space that does have one, rather than dropped from
  * the results.
  *
+ * `capacity` (>=) and `amenities` (must have every one requested) are
+ * applied in the database query. `date` is not: availability depends on
+ * each space's own opening hours/closures/bookings, so it is checked
+ * per-candidate via isSpaceAvailableOnDate() after the DB filter narrows
+ * the list — same N-calls-for-N-spaces tradeoff summarizeMonth() already
+ * accepts for a page-sized (`take: 50`) result set, not a hot inner loop.
+ *
+ * None of the three run against the demo mock data — same as `near`
+ * above, mock mode only ever supported the city filter.
+ *
  * `track: true` records a `SearchEvent` (see analytics/search-events.ts),
  * used only for the recherche → réservation conversion KPI. Passed only by
  * the actual search surfaces (`/search`, `GET /api/spaces`) — the landing
@@ -84,7 +108,14 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
  * is not a visitor searching and must not inflate the denominator.
  */
 export async function listPublishedSpaces(
-  params: { city?: string; near?: { lat: number; lng: number }; track?: boolean } = {}
+  params: {
+    city?: string;
+    near?: { lat: number; lng: number };
+    capacity?: number;
+    amenities?: string[];
+    date?: string;
+    track?: boolean;
+  } = {}
 ) {
   if (useMockData) {
     const city = params.city?.toLowerCase();
@@ -93,6 +124,8 @@ export async function listPublishedSpaces(
     );
   }
 
+  const amenityFilter = sanitizeAmenities(params.amenities);
+
   const rawSpaces = await prisma.space.findMany({
     where: {
       status: "PUBLISHED",
@@ -100,6 +133,8 @@ export async function listPublishedSpaces(
       ...(params.city
         ? { city: { contains: params.city, mode: "insensitive" } }
         : {}),
+      ...(params.capacity ? { capacity: { gte: params.capacity } } : {}),
+      ...(amenityFilter.length ? { amenities: { hasEvery: amenityFilter } } : {}),
     },
     include: {
       organization: { select: { name: true } },
@@ -110,10 +145,17 @@ export async function listPublishedSpaces(
     take: 50,
   });
 
-  const spaces = rawSpaces.map(({ spacePhotos, ...space }) => ({
+  let spaces = rawSpaces.map(({ spacePhotos, ...space }) => ({
     ...space,
     photos: resolvePhotoUrls(space.photos, spacePhotos),
   }));
+
+  if (params.date) {
+    const availableFlags = await Promise.all(
+      spaces.map((space) => isSpaceAvailableOnDate(space.id, params.date!))
+    );
+    spaces = spaces.filter((_, i) => availableFlags[i]);
+  }
 
   if (!params.near) {
     if (params.track) {

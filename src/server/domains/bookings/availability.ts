@@ -140,6 +140,19 @@ function statusFromSlots(slots: DaySlots): MonthDayStatus {
 }
 
 /**
+ * Whether a space has anything at all bookable on `dateStr` — closed that
+ * weekday, or fully booked/blocked, is "no"; a space with only a half-day
+ * still free is "yes". Used by the public search date filter
+ * (list-spaces.ts) so it answers the same question the booking funnel and
+ * the partner calendar already answer, via computeDaySlots(), rather than
+ * re-deriving overlap logic against opening hours/closures/bookings itself.
+ */
+export async function isSpaceAvailableOnDate(spaceId: string, dateStr: string): Promise<boolean> {
+  const slots = await computeDaySlots(spaceId, dateStr);
+  return slots !== null && statusFromSlots(slots) !== "BOOKED";
+}
+
+/**
  * One status per calendar day of `yearMonth` ("YYYY-MM"), for the partner
  * calendar view. Calls computeDaySlots per day (roughly one DB round trip
  * per day) — accepted N+1 for MVP scale (a handful of partner-facing
