@@ -21,6 +21,14 @@ const STRIPE_DISPUTE_STATUS_LABELS: Record<string, string> = {
 
 export const dynamic = "force-dynamic";
 
+// Still open — the eventual amount at risk, not yet a realized loss.
+const OPEN_STATUSES = new Set([
+  "WARNING_NEEDS_RESPONSE",
+  "WARNING_UNDER_REVIEW",
+  "NEEDS_RESPONSE",
+  "UNDER_REVIEW",
+]);
+
 export default async function AdminStripeDisputesPage() {
   await requirePageAdmin();
   const disputes = await prisma.stripeDispute.findMany({
@@ -30,14 +38,47 @@ export default async function AdminStripeDisputesPage() {
     orderBy: { createdAt: "desc" },
   });
 
+  const absorbedCents = disputes
+    .filter((d) => d.status === "LOST")
+    .reduce((sum, d) => sum + d.amountCents, 0);
+  const atRiskCents = disputes
+    .filter((d) => OPEN_STATUSES.has(d.status))
+    .reduce((sum, d) => sum + d.amountCents, 0);
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold text-foreground">Litiges Stripe</h1>
-      <p className="max-w-lg text-sm text-muted-foreground">
-        Contestations de paiement (chargebacks) remontées par Stripe. La
-        plateforme absorbe la perte : aucune reprise automatique sur le
-        compte du partenaire.
-      </p>
+
+      {/* Business decision, not a code comment only support has to trust —
+       * see src/server/domains/payments/disputes.ts. Deliberately styled as
+       * a standing notice (accent border, always visible), not a tooltip:
+       * every chargeback here is money the platform absorbs, and this page
+       * is the only place that says so in plain language. */}
+      <div className="max-w-lg rounded-2xl border border-accent/30 bg-accent/5 p-4">
+        <p className="text-sm font-medium text-accent">
+          La plateforme absorbe la perte de chaque contestation perdue
+        </p>
+        <p className="mt-1 text-sm text-foreground">
+          Tant qu&apos;aucun mécanisme de recouvrement auprès du partenaire
+          n&apos;existe (pas de reprise automatique sur son compte Stripe
+          Connect), un chargeback perdu est une perte nette pour OfficeFlex,
+          pas pour l&apos;entreprise partenaire.
+        </p>
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Déjà absorbé (perdus)
+            </dt>
+            <dd className="font-medium text-foreground">{formatCents(absorbedCents)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Exposition en cours
+            </dt>
+            <dd className="font-medium text-foreground">{formatCents(atRiskCents)}</dd>
+          </div>
+        </dl>
+      </div>
 
       {disputes.length === 0 ? (
         <EmptyState
