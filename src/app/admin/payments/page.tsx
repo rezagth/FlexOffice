@@ -1,8 +1,8 @@
 import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { EmptyState } from "@/components/dashboard/states";
 import { PaginationControls } from "@/components/dashboard/pagination-controls";
 import { SortLink } from "@/components/dashboard/sort-link";
@@ -85,50 +85,56 @@ export default async function AdminPaymentsPage({
         />
       ) : (
         <>
-          <div className="flex gap-4 px-1 text-xs">
-            <SortLink
-              label="Date"
-              field="createdAt"
-              currentSort={sort}
-              currentOrder={order}
-              basePath="/admin/payments"
-              searchParams={activeParams}
-            />
-            <SortLink
-              label="Montant"
-              field="amountCents"
-              currentSort={sort}
-              currentOrder={order}
-              basePath="/admin/payments"
-              searchParams={activeParams}
-            />
-            <SortLink
-              label="Statut"
-              field="status"
-              currentSort={sort}
-              currentOrder={order}
-              defaultOrder="asc"
-              basePath="/admin/payments"
-              searchParams={activeParams}
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            {payments.map((payment) => (
-              <Card key={payment.id} className="flex items-center justify-between p-4">
-                <div>
-                  <p className="font-medium">{payment.organization.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDateTime(payment.createdAt)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium">{formatCents(payment.amountCents)}</p>
-                  <p className="text-xs text-muted-foreground">{payment.status}</p>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Entreprise</TableHead>
+                <TableHead>
+                  <SortLink
+                    label="Date"
+                    field="createdAt"
+                    currentSort={sort}
+                    currentOrder={order}
+                    basePath="/admin/payments"
+                    searchParams={activeParams}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortLink
+                    label="Montant"
+                    field="amountCents"
+                    currentSort={sort}
+                    currentOrder={order}
+                    basePath="/admin/payments"
+                    searchParams={activeParams}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortLink
+                    label="Statut"
+                    field="status"
+                    currentSort={sort}
+                    currentOrder={order}
+                    defaultOrder="asc"
+                    basePath="/admin/payments"
+                    searchParams={activeParams}
+                  />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payments.map((payment) => (
+                <TableRow key={payment.id}>
+                  <TableCell className="font-medium">{payment.organization.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatDateTime(payment.createdAt)}</TableCell>
+                  <TableCell className="font-medium">{formatCents(payment.amountCents)}</TableCell>
+                  <TableCell className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {payment.status}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
 
           <PaginationControls
             page={page}

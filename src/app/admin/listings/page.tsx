@@ -3,12 +3,13 @@ import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { EmptyState } from "@/components/dashboard/states";
 import { SpaceModerationActions } from "@/components/dashboard/space-moderation-actions";
 import { PaginationControls } from "@/components/dashboard/pagination-controls";
 import { SortLink } from "@/components/dashboard/sort-link";
 import { parsePageParam, paginationOffsets, totalPageCount } from "@/lib/pagination";
-import { SPACE_STATUS_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
+import { SPACE_STATUS_LABELS, SPACE_TYPE_LABELS, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -121,39 +122,49 @@ export default async function AdminListingsPage({
           />
         ) : (
           <>
-            <div className="flex gap-4 px-1 text-xs">
-              <SortLink
-                label="Date de création"
-                field="createdAt"
-                currentSort={sort}
-                currentOrder={order}
-                basePath="/admin/listings"
-                searchParams={activeParams}
-              />
-              <SortLink
-                label="Statut"
-                field="status"
-                currentSort={sort}
-                currentOrder={order}
-                defaultOrder="asc"
-                basePath="/admin/listings"
-                searchParams={activeParams}
-              />
-            </div>
-
-            {others.map((space) => (
-              <Card key={space.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="font-medium">{space.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {space.organization.name} · {SPACE_TYPE_LABELS[space.type] ?? space.type}
-                  </p>
-                </div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {SPACE_STATUS_LABELS[space.status] ?? space.status}
-                </p>
-              </Card>
-            ))}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Espace</TableHead>
+                  <TableHead>Entreprise / Type</TableHead>
+                  <TableHead>
+                    <SortLink
+                      label="Statut"
+                      field="status"
+                      currentSort={sort}
+                      currentOrder={order}
+                      defaultOrder="asc"
+                      basePath="/admin/listings"
+                      searchParams={activeParams}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortLink
+                      label="Date de création"
+                      field="createdAt"
+                      currentSort={sort}
+                      currentOrder={order}
+                      basePath="/admin/listings"
+                      searchParams={activeParams}
+                    />
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {others.map((space) => (
+                  <TableRow key={space.id}>
+                    <TableCell className="font-medium">{space.name}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {space.organization.name} · {SPACE_TYPE_LABELS[space.type] ?? space.type}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {SPACE_STATUS_LABELS[space.status] ?? space.status}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatDateTime(space.createdAt)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
 
             <PaginationControls
               page={page}

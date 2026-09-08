@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { EmptyState } from "@/components/dashboard/states";
 import { PaginationControls } from "@/components/dashboard/pagination-controls";
 import { SortLink } from "@/components/dashboard/sort-link";
 import { parsePageParam, paginationOffsets, totalPageCount } from "@/lib/pagination";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -93,50 +94,59 @@ export default async function AdminOrganizationsPage({
         />
       ) : (
         <>
-          <div className="flex gap-4 px-1 text-xs">
-            <SortLink
-              label="Date d'inscription"
-              field="createdAt"
-              currentSort={sort}
-              currentOrder={order}
-              basePath="/admin/organizations"
-              searchParams={activeParams}
-            />
-            <SortLink
-              label="Nom"
-              field="name"
-              currentSort={sort}
-              currentOrder={order}
-              defaultOrder="asc"
-              basePath="/admin/organizations"
-              searchParams={activeParams}
-            />
-            <SortLink
-              label="Statut"
-              field="status"
-              currentSort={sort}
-              currentOrder={order}
-              defaultOrder="asc"
-              basePath="/admin/organizations"
-              searchParams={activeParams}
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            {organizations.map((org) => (
-              <Card key={org.id} className="flex items-center justify-between p-4">
-                <div>
-                  <p className="font-medium">{org.name}</p>
-                  <p className="text-sm text-muted-foreground">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <SortLink
+                    label="Nom"
+                    field="name"
+                    currentSort={sort}
+                    currentOrder={order}
+                    defaultOrder="asc"
+                    basePath="/admin/organizations"
+                    searchParams={activeParams}
+                  />
+                </TableHead>
+                <TableHead>SIRET / Ville</TableHead>
+                <TableHead>
+                  <SortLink
+                    label="Statut"
+                    field="status"
+                    currentSort={sort}
+                    currentOrder={order}
+                    defaultOrder="asc"
+                    basePath="/admin/organizations"
+                    searchParams={activeParams}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortLink
+                    label="Inscrite le"
+                    field="createdAt"
+                    currentSort={sort}
+                    currentOrder={order}
+                    basePath="/admin/organizations"
+                    searchParams={activeParams}
+                  />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {organizations.map((org) => (
+                <TableRow key={org.id}>
+                  <TableCell className="font-medium">{org.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
                     SIRET {org.siret} · {org.city}
-                  </p>
-                </div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {org.status}
-                </p>
-              </Card>
-            ))}
-          </div>
+                  </TableCell>
+                  <TableCell className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {org.status}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatDateTime(org.createdAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
 
           <PaginationControls
             page={page}
