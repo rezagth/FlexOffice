@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { clsx } from "clsx";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Select } from "@/components/ui/select";
 
 /**
  * The tenant / landlord toggle.
@@ -62,55 +63,46 @@ export function ModeSwitcher({
     <div className="flex flex-col gap-2">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">Mode</p>
 
-      <div role="group" aria-label="Mode d'utilisation" className="flex gap-1 rounded-lg bg-muted p-1">
-        <button
-          type="button"
-          aria-pressed={activeMode === "TENANT"}
-          disabled={pending}
-          onClick={() => switchTo("TENANT")}
-          className={clsx(
-            "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60",
-            activeMode === "TENANT"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
+      <ToggleGroup
+        type="single"
+        aria-label="Mode d'utilisation"
+        value={activeMode}
+        // A single-select ToggleGroup can report "" (deselected) when the
+        // already-pressed item is clicked again — this domain always has
+        // exactly one active mode, so an empty value is simply ignored.
+        onValueChange={(value) => {
+          if (value) switchTo(value as "TENANT" | "LANDLORD");
+        }}
+      >
+        <ToggleGroupItem value="TENANT" disabled={pending}>
           Locataire
-        </button>
-        <button
-          type="button"
-          aria-pressed={activeMode === "LANDLORD"}
+        </ToggleGroupItem>
+        <ToggleGroupItem
+          value="LANDLORD"
           disabled={pending || !isLandlord}
           // Explains the disabled state instead of leaving a dead control.
           title={isLandlord ? undefined : "Activez d'abord votre activité de bailleur"}
-          onClick={() => switchTo("LANDLORD")}
-          className={clsx(
-            "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60",
-            activeMode === "LANDLORD"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          )}
         >
           Bailleur
-        </button>
-      </div>
+        </ToggleGroupItem>
+      </ToggleGroup>
 
       {/* Only shown when there is a genuine choice to make. */}
       {activeMode === "LANDLORD" && organizations.length > 1 && (
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Organisation</span>
-          <select
+          <Select
             value={activeOrgId ?? ""}
             disabled={pending}
             onChange={(event) => switchTo("LANDLORD", event.target.value)}
-            className="rounded-lg border border-border bg-card px-2 py-1.5 text-xs text-foreground"
+            className="h-auto py-1.5 text-xs"
           >
             {organizations.map((org) => (
               <option key={org.organizationId} value={org.organizationId}>
                 {org.organizationName}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
 
