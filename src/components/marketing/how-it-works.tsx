@@ -39,14 +39,14 @@ const PARTNER_STEPS: Step[] = [
   },
 ];
 
-function StepList({ steps }: { steps: Step[] }) {
+function StepList({ steps, iconClassName }: { steps: Step[]; iconClassName: string }) {
   return (
     <ol className="flex flex-col gap-4">
       {steps.map((step) => (
         <li key={step.title} className="flex gap-4">
           <span
             aria-hidden="true"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconClassName}`}
           >
             <step.icon className="size-5" />
           </span>
@@ -76,23 +76,22 @@ export function HowItWorks() {
               </span>
               Pour les clients
             </p>
-            <StepList steps={CLIENT_STEPS} />
+            <StepList steps={CLIENT_STEPS} iconClassName="bg-foreground text-background" />
           </div>
-          {/* Same "highlighted card" idiom as the comparison section's
-           * "avec OfficeFlex" panel — border-primary/30 + bg-primary/5 —
-           * to set this column apart, matching the mockup's distinct
-           * background for "Pour les Entreprises". */}
-          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6">
-            <p className="mb-4 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-primary">
+          {/* Neutral highlighted card — bg-muted — to set this column apart,
+           * matching the mockup's distinct (but not brand-tinted) background
+           * for "Pour les Entreprises". */}
+          <div className="rounded-2xl bg-muted p-6">
+            <p className="mb-4 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-foreground">
               <span
                 aria-hidden="true"
-                className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground"
               >
                 2
               </span>
               Pour les entreprises
             </p>
-            <StepList steps={PARTNER_STEPS} />
+            <StepList steps={PARTNER_STEPS} iconClassName="bg-accent text-accent-foreground" />
           </div>
         </div>
       </div>
