@@ -13,14 +13,9 @@ const AFTER = [
 ];
 
 /**
- * No photography backs either card (same reason as Hero — see its
- * comment): the top band of each card is a flat tone standing in for the
- * mockup's black-and-white "café" photo and interior shot.
- *
- * The "after" card's checkmarks use text-background rather than
- * text-primary: --primary is a dark teal, too close in luminance to this
- * card's --foreground background to clear icon contrast — text-background
- * (near-white) does.
+ * Real photography (Unsplash License — free for commercial use), same
+ * reasoning as Hero: no photo asset of this repo's own exists for either
+ * scene, so these are sourced rather than left as flat color bands.
  */
 export function ProblemSection() {
   return (
@@ -36,17 +31,28 @@ export function ProblemSection() {
 
         <div className="mt-10 grid grid-cols-1 gap-6 text-left sm:grid-cols-2">
           <div className="overflow-hidden rounded-2xl border border-border">
-            <div className="relative flex h-32 items-end bg-muted p-4">
-              <span className="rounded-full bg-foreground/85 px-3 py-1 text-xs font-medium uppercase tracking-wide text-background">
+            <div className="relative h-40">
+              {/* eslint-disable-next-line @next/next/no-img-element -- external decorative photo */}
+              <img
+                src="https://images.unsplash.com/photo-1745815607414-043458ad3bc0?auto=format&fit=crop&w=1200&q=80"
+                alt=""
+                className="h-full w-full grayscale object-cover"
+              />
+              <span className="absolute left-4 top-4 rounded-full bg-foreground/85 px-3 py-1 text-xs font-medium uppercase tracking-wide text-background">
                 Bruyant &amp; public
               </span>
             </div>
             <div className="p-6">
               <p className="font-medium text-foreground">Le café du coin</p>
-              <ul className="mt-3 flex flex-col gap-2 text-sm text-foreground">
+              <ul className="mt-3 flex flex-col gap-2.5 text-sm text-foreground">
                 {BEFORE.map((item) => (
-                  <li key={item} className="flex items-center gap-2">
-                    <X aria-hidden="true" className="size-4 shrink-0 text-danger" />
+                  <li key={item} className="flex items-center gap-2.5">
+                    <span
+                      aria-hidden="true"
+                      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-danger"
+                    >
+                      <X className="size-3 text-background" />
+                    </span>
                     {item}
                   </li>
                 ))}
@@ -55,17 +61,28 @@ export function ProblemSection() {
           </div>
 
           <div className="overflow-hidden rounded-2xl bg-foreground">
-            <div className="relative flex h-32 items-end bg-primary/25 p-4">
-              <span className="rounded-full bg-primary px-3 py-1 text-xs font-medium uppercase tracking-wide text-primary-foreground">
+            <div className="relative h-40">
+              {/* eslint-disable-next-line @next/next/no-img-element -- external decorative photo */}
+              <img
+                src="https://images.unsplash.com/photo-1706074740295-d7a79c079562?auto=format&fit=crop&w=1200&q=80"
+                alt=""
+                className="h-full w-full object-cover"
+              />
+              <span className="absolute left-4 top-4 rounded-full bg-accent px-3 py-1 text-xs font-medium uppercase tracking-wide text-accent-foreground">
                 Précision OfficeFlex
               </span>
             </div>
             <div className="p-6">
-              <p className="font-medium text-background">Bureau OfficeFlex</p>
-              <ul className="mt-3 flex flex-col gap-2 text-sm text-background/90">
+              <p className="font-medium text-accent">Bureau OfficeFlex</p>
+              <ul className="mt-3 flex flex-col gap-2.5 text-sm text-background/90">
                 {AFTER.map((item) => (
-                  <li key={item} className="flex items-center gap-2">
-                    <Check aria-hidden="true" className="size-4 shrink-0 text-background" />
+                  <li key={item} className="flex items-center gap-2.5">
+                    <span
+                      aria-hidden="true"
+                      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary"
+                    >
+                      <Check className="size-3 text-primary-foreground" />
+                    </span>
                     {item}
                   </li>
                 ))}
