@@ -51,6 +51,11 @@ export function SpaceCard({
                 Photo à venir
               </div>
             )}
+            {isOrganizationVerified(space.organization.status) && (
+              <div className="absolute left-2 top-2 rounded-full bg-background/90 backdrop-blur-sm">
+                <VerifiedBadge />
+              </div>
+            )}
             {space.favorited !== undefined && (
               <div className="absolute right-2 top-2">
                 <FavoriteButton spaceId={space.id} initialFavorited={space.favorited} variant="card" />
@@ -66,11 +71,13 @@ export function SpaceCard({
             <p className="text-sm text-muted-foreground">
               {space.organization.name} · jusqu&apos;à {space.capacity} pers.
             </p>
-            {isOrganizationVerified(space.organization.status) && <VerifiedBadge />}
-            <p className="mt-1 text-sm font-medium text-foreground">
-              {formatCents(space.dayPriceCents)}{" "}
-              <span className="font-normal text-muted-foreground">/ jour</span>
-            </p>
+            <div className="mt-1 flex items-baseline justify-between">
+              <p className="text-sm font-medium text-foreground">
+                {formatCents(space.dayPriceCents)}{" "}
+                <span className="font-normal text-muted-foreground">/ jour</span>
+              </p>
+              <span className="text-sm font-medium text-primary">Détails</span>
+            </div>
           </div>
         </Card>
       </motion.div>
