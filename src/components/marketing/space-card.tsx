@@ -76,7 +76,7 @@ export function SpaceCard({
                 {formatCents(space.dayPriceCents)}{" "}
                 <span className="font-normal text-muted-foreground">/ jour</span>
               </p>
-              <span className="text-sm font-medium text-primary">Détails</span>
+              <span className="text-sm font-medium text-accent">Détails</span>
             </div>
           </div>
         </Card>
