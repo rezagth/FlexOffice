@@ -113,9 +113,9 @@ export function StripeCardStep({
           appearance: {
             theme: "stripe",
             variables: {
-              colorPrimary: "#0f6e5d",
+              colorPrimary: "#041627",
               colorBackground: "#ffffff",
-              colorText: "#1f1b16",
+              colorText: "#041627",
               colorDanger: "#b42318",
               fontFamily: "Inter, system-ui, sans-serif",
               borderRadius: "8px",

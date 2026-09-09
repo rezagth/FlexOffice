@@ -54,8 +54,8 @@ export default async function AdminStripeDisputesPage() {
        * a standing notice (accent border, always visible), not a tooltip:
        * every chargeback here is money the platform absorbs, and this page
        * is the only place that says so in plain language. */}
-      <div className="max-w-lg rounded-2xl border border-accent/30 bg-accent/5 p-4">
-        <p className="text-sm font-medium text-accent">
+      <div className="max-w-lg rounded-2xl border border-primary/30 bg-primary/5 p-4">
+        <p className="text-sm font-medium text-primary">
           La plateforme absorbe la perte de chaque contestation perdue
         </p>
         <p className="mt-1 text-sm text-foreground">

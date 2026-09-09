@@ -81,7 +81,7 @@ export default async function SpaceDetailPage({
 
             <Card className="h-fit p-5">
               {space.discountPercent ? (
-                <p className="mb-3 inline-flex w-fit rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                <p className="mb-3 inline-flex w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                   -{space.discountPercent}%
                 </p>
               ) : null}

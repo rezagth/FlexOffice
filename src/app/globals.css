@@ -5,36 +5,38 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Brand values below are the pre-shadcn design system's own colors,
- * carried over as-is into shadcn's variable names (see officeflex-codebase
- * skill / the "identité visuelle actuelle ne doit pas changer" migration
- * rule) — not shadcn's Nova preset defaults. Only --secondary and the
- * chart/sidebar tokens are new concepts this design system didn't have
- * before; they're left at reasonable neutral defaults since nothing binds
- * to them yet.
+ * "Executive Fluidity" brand palette (validated against the Stitch mockup,
+ * see officeflex-notes) — Deep Navy primary / Gold secondary accent /
+ * off-white tertiary / Slate neutral, Plus Jakarta Sans headings. Gold is
+ * reserved for icons, large fills and dark surfaces (never small text on a
+ * light background — see badge.tsx and the two ad-hoc spots fixed
+ * alongside this file for the contrast rule this enforces). Only
+ * --secondary and the chart/sidebar tokens are new concepts this design
+ * system didn't have before; they're left at reasonable neutral defaults
+ * since nothing binds to them yet.
  */
 :root {
   --card: #ffffff;
-  --card-foreground: #1f1b16;
-  --muted: #f2efe9;
-  --muted-foreground: #6b6154;
-  --border: #e6e1d7;
-  --primary: #0f6e5d;
-  --primary-hover: #0b5347;
+  --card-foreground: #041627;
+  --muted: #eef1f4;
+  --muted-foreground: #64748b;
+  --border: #e2e8f0;
+  --primary: #041627;
+  --primary-hover: #0c2d47;
   --primary-foreground: #ffffff;
-  --accent: #b45309;
-  --accent-foreground: #ffffff;
+  --accent: #c5a059;
+  --accent-foreground: #041627;
   --danger: #b42318;
-  --ring: #0f6e5d;
+  --ring: #041627;
   --radius: 1rem;
-  --background: #faf9f7;
-  --foreground: #1f1b16;
+  --background: #f8f9fa;
+  --foreground: #041627;
   --popover: #ffffff;
-  --popover-foreground: #1f1b16;
+  --popover-foreground: #041627;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --destructive: #b42318;
-  --input: #e6e1d7;
+  --input: #e2e8f0;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -67,6 +69,7 @@
   --color-ring: var(--ring);
   --radius-lg: var(--radius);
   --font-sans: var(--font-inter);
+  --font-heading: var(--font-jakarta);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -146,5 +149,13 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Plus Jakarta Sans on headings only — see the mockup's own dual-typeface
+   * split, --font-heading above. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading);
   }
 }
