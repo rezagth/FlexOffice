@@ -1,56 +1,39 @@
-import { ButtonLink } from "@/components/ui/button";
 import { HeroSearch } from "./hero-search";
 
 /**
- * No stock photo backs this section: the repo ships no hero photography
- * asset (public/ has none, mock spaces have empty photo arrays), and
- * hot-linking one from an external host isn't something to fabricate for
- * production code. The dark brand-toned gradient stands in for the
- * mockup's meeting-room photo — swap in a real photo asset here if one
- * becomes available.
+ * Real photography (Marc Wieland, Unsplash License — free for commercial
+ * use, no attribution required): the repo ships no hero photo asset of its
+ * own, so this is sourced rather than replaced with a flat gradient.
+ *
+ * No dual tenant/landlord CTA panel here: the supplied mockup's hero ends
+ * at the search bar. The "publish a space" path still exists — header nav
+ * and the footer both link to it — so nothing is lost, just moved.
  */
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-foreground">
+      {/* eslint-disable-next-line @next/next/no-img-element -- external
+       * decorative photo, not a Next-optimized local asset */}
+      <img
+        src="https://images.unsplash.com/photo-1774186184398-1cc2da3d029e?auto=format&fit=crop&w=2000&q=80"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--primary)_0%,_transparent_55%)] opacity-50"
+        className="absolute inset-0 bg-gradient-to-t from-foreground via-foreground/60 to-foreground/20"
       />
-      <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-8 px-6 py-20 text-center sm:py-28">
+      <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-20 text-center sm:py-28">
         <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-background sm:text-5xl">
           Recevez vos clients dans un vrai espace professionnel.
         </h1>
         <p className="max-w-2xl text-base text-background/80 sm:text-lg">
-          Réservez un bureau d&apos;entreprise à la demi-journée ou à la journée, sans
-          engagement ni abonnement.
+          Réservez un bureau d&apos;entreprise à la journée ou à la demi-journée, sans
+          abonnement.
         </p>
 
         <HeroSearch />
-
-        {/* Dual CTA required by officeflex-context §7.1 ("Hero... double
-         * CTA") — kept and restyled for the darker hero rather than
-         * dropped, since the supplied mockup doesn't show it but the
-         * product spec calls for it. */}
-        <div className="grid w-full max-w-2xl grid-cols-1 gap-4 pt-4 sm:grid-cols-2">
-          <div className="flex flex-col items-start gap-2 rounded-2xl border border-background/15 bg-background/10 p-5 text-left backdrop-blur-sm">
-            <p className="text-sm font-medium text-background/70">Locataire</p>
-            <p className="text-base font-semibold text-background">
-              Trouvez un espace pour votre prochain rendez-vous
-            </p>
-            <ButtonLink href="/search" variant="primary" size="sm">
-              Trouvez un espace
-            </ButtonLink>
-          </div>
-          <div className="flex flex-col items-start gap-2 rounded-2xl border border-background/15 bg-background/10 p-5 text-left backdrop-blur-sm">
-            <p className="text-sm font-medium text-background/70">Entreprise partenaire</p>
-            <p className="text-base font-semibold text-background">
-              Monétisez vos espaces sous-utilisés
-            </p>
-            <ButtonLink href="/register" variant="secondary" size="sm">
-              Publiez votre espace
-            </ButtonLink>
-          </div>
-        </div>
       </div>
     </section>
   );
