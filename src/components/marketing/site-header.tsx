@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HelpCircle } from "lucide-react";
+import { Bell, HelpCircle } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { getAuthContext } from "@/server/auth/rbac";
 
@@ -9,10 +9,10 @@ import { getAuthContext } from "@/server/auth/rbac";
  * sign-in/sign-up — never links that imply bookings or favorites they don't
  * have. A signed-in visitor gets the real `/app` destinations instead.
  *
- * No notification bell: there is no notifications feature in this repo yet,
- * and a bell that opens nothing would be exactly the kind of "pretends to
- * work" control the codebase conventions rule out. The help icon links to
- * the real /contact page instead of nothing.
+ * The bell icon points at /app/messages rather than a real notifications
+ * feed — there is no notifications feature in this repo, but booking
+ * messages are the closest real destination, so the icon isn't a dead
+ * control. The help icon links to the real /contact page.
  */
 export async function SiteHeader() {
   const ctx = await getAuthContext();
@@ -55,7 +55,16 @@ export async function SiteHeader() {
           )}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          {ctx && (
+            <Link
+              href="/app/messages"
+              aria-label="Messages"
+              className="hidden rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground sm:block"
+            >
+              <Bell aria-hidden="true" className="size-5" />
+            </Link>
+          )}
           <Link
             href="/contact"
             aria-label="Aide"
@@ -64,7 +73,11 @@ export async function SiteHeader() {
             <HelpCircle aria-hidden="true" className="size-5" />
           </Link>
           {ctx ? (
-            <ButtonLink href="/app/account" variant="primary" size="sm">
+            <ButtonLink
+              href="/app/account"
+              size="sm"
+              className="ml-2 bg-foreground text-background hover:bg-foreground/90"
+            >
               Profil
             </ButtonLink>
           ) : (
