@@ -23,7 +23,7 @@ export function SiteFooter() {
     <footer className="bg-foreground text-background/70">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-6 py-12 sm:grid-cols-[1.5fr_1fr_1fr]">
         <div>
-          <Link href="/" className="text-lg font-semibold text-background">
+          <Link href="/" className="text-lg font-semibold text-accent">
             OfficeFlex
           </Link>
           <p className="mt-2 max-w-xs text-sm">
