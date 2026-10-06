@@ -16,8 +16,8 @@ describe("MockPaymentProvider.refundPayment", () => {
     const landlord = await provider.refundPayment({ ...params, funding: "LANDLORD" });
     const full = await provider.refundPayment({ ...params, funding: "LANDLORD_AND_FEE" });
 
-    expect(landlord).toMatchObject({ landlordReversalCents: 5000, applicationFeeRefunded: false });
-    expect(full).toMatchObject({ landlordReversalCents: 5000, applicationFeeRefunded: true });
+    expect(landlord).toMatchObject({ reversedFromLandlord: true, applicationFeeRefunded: false });
+    expect(full).toMatchObject({ reversedFromLandlord: true, applicationFeeRefunded: true });
   });
 
   it("returns a distinct provider refund id on each call", async () => {

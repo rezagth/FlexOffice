@@ -1,11 +1,14 @@
 import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
-import { logEvent } from "@/server/lib/logger";
+import { logError, logEvent } from "@/server/lib/logger";
 import { syncPaymentRefundStatus } from "./refunds";
 
 const STATUS_MAP: Record<string, "SUCCEEDED" | "FAILED"> = {
   succeeded: "SUCCEEDED",
   failed: "FAILED",
+  // A canceled refund moved no money either; left PENDING it would count
+  // against the refund bounds forever and block any later refund.
+  canceled: "FAILED",
 };
 
 /**
@@ -60,6 +63,18 @@ export async function applyRefundOutcome(
   });
 
   if (refund && status === "SUCCEEDED") await syncPaymentRefundStatus(refund.paymentId);
+  if (refund && status === "FAILED") {
+    // The client was promised this money (cancellation, dispute) and did
+    // not get it; Stripe returns any reversed amount to the platform
+    // balance. Needs a human: logged at error level for alerting.
+    logError({
+      event: "refund.failed_needs_attention",
+      error: new Error(`Refund ${providerRefundId} ended as ${providerStatus}`),
+      refund_id: refund.id,
+      payment_id: refund.paymentId,
+      amount_cents: refund.amountCents,
+    });
+  }
 
   await recordAudit({
     event: "refund.outcome_applied",

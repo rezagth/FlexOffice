@@ -90,11 +90,24 @@ export type RefundOutcome = {
    * its own authority, real Stripe refunds are only final once a verified
    * `refund.updated`/`charge.refunded` webhook event confirms it. */
   outcome: "succeeded" | "processing";
-  /** How much was actually taken back from the landlord — 0 when the
-   * payment had no transfer to reverse (legacy, pre-Connect payment). */
-  landlordReversalCents: number;
+  /** Whether the landlord's transfer was reversed — false when the
+   * payment had no transfer (legacy, pre-Connect): the platform bore it. */
+  reversedFromLandlord: boolean;
   applicationFeeRefunded: boolean;
 };
+
+/**
+ * The provider definitively refused the refund (invalid request, nothing
+ * left to refund…): no money moved. Any OTHER error from refundPayment()
+ * is ambiguous — a timeout may hide a refund Stripe did issue — and must
+ * not be treated as "nothing happened" (see payments/refunds.ts).
+ */
+export class RefundDeclinedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RefundDeclinedError";
+  }
+}
 
 export interface PaymentProvider {
   readonly name: string;

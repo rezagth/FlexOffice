@@ -7,7 +7,11 @@ import { hasDatabase } from "./helpers/should-run";
  * with a recording payment provider behaving like Stripe or like the mock.
  */
 
-const state = vi.hoisted(() => ({ confirm: true, refundFails: false, accountReady: true }));
+const state = vi.hoisted(() => ({
+  confirm: true,
+  refundFails: false as false | "declined" | "timeout",
+  accountReady: true,
+}));
 
 const provider = vi.hoisted(() => ({
   name: "stripe",
@@ -55,7 +59,6 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
     return new Date(Date.UTC(2030, 0, 1) + dayOffset * 86_400_000).toISOString().slice(0, 10);
   };
   const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000);
-  let slotCounter = 0;
 
   let propertyId: string;
 
@@ -69,7 +72,6 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
     createdAt?: Date;
     endsInHours?: number;
   }) {
-    slotCounter += 1;
     const ownSpace = await fixtures.createTestSpace(orgId, propertyId, { status: "PUBLISHED" });
     const startsAt = hoursFromNow(opts.startsInHours);
     const endsAt =
@@ -163,11 +165,15 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
     provider.capturePaymentIntent.mockReset().mockResolvedValue({ outcome: "succeeded" });
     provider.cancelPaymentIntent.mockReset().mockResolvedValue({ outcome: "succeeded" });
     provider.refundPayment.mockReset().mockImplementation(async (p: { amountCents: number; funding: string; idempotencyKey: string }) => {
-      if (state.refundFails) throw new Error("stripe down");
+      if (state.refundFails === "declined") {
+        const { RefundDeclinedError } = await import("@/server/domains/payments/provider");
+        throw new RefundDeclinedError("No such charge");
+      }
+      if (state.refundFails === "timeout") throw new Error("ETIMEDOUT");
       return {
         providerRefundId: `re_${p.idempotencyKey}`,
         outcome: "succeeded",
-        landlordReversalCents: p.amountCents,
+        reversedFromLandlord: true,
         applicationFeeRefunded: p.funding === "LANDLORD_AND_FEE",
       };
     });
@@ -324,6 +330,9 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
       expect(row.status).toBe("CANCELLED");
       expect(row.payment?.status).toBe("PARTIALLY_REFUNDED");
       expect(row.payment?.refunds[0]).toMatchObject({ status: "SUCCEEDED", landlordReversalCents: 8500, applicationFeeRefunded: false });
+      const { sumKeptAmounts } = await import("@/server/domains/payments/settled-amounts");
+      // Client gets 85 €, the landlord keeps nothing, the platform keeps its 15 €.
+      expect(await sumKeptAmounts({ bookingId: confirmed.id })).toEqual({ grossCents: 1500, netCents: 0, commissionCents: 1500 });
     });
 
     it("between 48 h and 24 h: half of the landlord's share", async () => {
@@ -343,14 +352,80 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
       await expect(cancel.cancelBookingAsClient(otherClientId, confirmed.id)).rejects.toMatchObject({ status: 404 });
     });
 
-    it("keeps the booking confirmed when the refund cannot be issued", async () => {
-      state.refundFails = true;
+    it("keeps the booking confirmed when the provider declines the refund", async () => {
+      state.refundFails = "declined";
       const confirmed = await insertBooking({ status: "CONFIRMED", startsInHours: 72 });
       await expect(cancel.cancelBookingAsClient(clientId, confirmed.id)).rejects.toMatchObject({ status: 503 });
       const row = await reload(confirmed.id);
       expect(row.status).toBe("CONFIRMED");
       expect(row.cancelledAt).toBeNull();
       expect(row.payment?.refunds[0]?.status).toBe("FAILED");
+    });
+
+    it("on an ambiguous error, never refunds twice: the refund stays pending and is retried with the same key", async () => {
+      state.refundFails = "timeout";
+      const confirmed = await insertBooking({ status: "CONFIRMED", startsInHours: 72 });
+      await cancel.cancelBookingAsClient(clientId, confirmed.id);
+      let row = await reload(confirmed.id);
+      expect(row.status).toBe("CANCELLED"); // not restored: money may have moved
+      expect(row.payment?.refunds).toHaveLength(1);
+      expect(row.payment?.refunds[0]?.status).toBe("PENDING");
+      const refundId = row.payment!.refunds[0]!.id;
+
+      // A second cancel attempt is impossible (already cancelled).
+      await expect(cancel.cancelBookingAsClient(clientId, confirmed.id)).rejects.toMatchObject({ status: 409 });
+
+      state.refundFails = false;
+      await prisma.refund.update({ where: { id: refundId }, data: { createdAt: new Date(Date.now() - 15 * 60_000) } });
+      const { retryUnconfirmedRefunds } = await import("@/server/domains/payments/refunds");
+      provider.refundPayment.mockClear();
+      await retryUnconfirmedRefunds();
+      expect(provider.refundPayment).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: refundId }));
+      row = await reload(confirmed.id);
+      expect(row.payment?.refunds).toHaveLength(1);
+      expect(row.payment?.refunds[0]?.status).toBe("SUCCEEDED");
+    });
+
+    it("refuses a free cancellation while the landlord is accepting (capture in flight)", async () => {
+      const pending = await insertBooking({ status: "PENDING", startsInHours: 100 });
+      provider.capturePaymentIntent.mockResolvedValueOnce({ outcome: "processing" }); // Stripe: webhook later
+      await acceptBookingRequest(orgId, pending.id);
+      await expect(cancel.cancelBookingAsClient(clientId, pending.id)).rejects.toMatchObject({ status: 409 });
+      expect((await reload(pending.id)).status).toBe("PENDING");
+    });
+
+    it("keeps revenue figures right after a partial cancellation", async () => {
+      const confirmed = await insertBooking({ status: "CONFIRMED", startsInHours: 30 });
+      await cancel.cancelBookingAsClient(clientId, confirmed.id);
+      const { sumKeptAmounts } = await import("@/server/domains/payments/settled-amounts");
+      const kept = await sumKeptAmounts({ bookingId: confirmed.id });
+      expect(kept).toEqual({ grossCents: 5750, netCents: 4250, commissionCents: 1500 });
+    });
+  });
+
+  describe("captured safety net", () => {
+    it("refunds in full a capture that lands on a booking already written off", async () => {
+      const { applyPaymentOutcome } = await import("@/server/domains/payments/apply-outcome");
+      const expired = await insertBooking({ status: "PENDING", startsInHours: 72 });
+      // Written off (e.g. expired) while Stripe still captured it.
+      await prisma.booking.update({ where: { id: expired.id }, data: { status: "REJECTED" } });
+      await prisma.payment.update({ where: { bookingId: expired.id }, data: { status: "FAILED" } });
+
+      await applyPaymentOutcome(`pi_${expired.id}`, "captured");
+      const row = await reload(expired.id);
+      expect(row.status).toBe("REJECTED");
+      expect(provider.refundPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 10000, funding: "LANDLORD_AND_FEE" })
+      );
+      expect(row.payment?.status).toBe("REFUNDED");
+      expect(emails.sendBookingConfirmed).not.toHaveBeenCalled();
+    });
+
+    it("does nothing on a duplicate 'succeeded' for a live confirmed booking", async () => {
+      const { applyPaymentOutcome } = await import("@/server/domains/payments/apply-outcome");
+      const confirmed = await insertBooking({ status: "CONFIRMED", startsInHours: 72 });
+      await applyPaymentOutcome(`pi_${confirmed.id}`, "captured");
+      expect(provider.refundPayment).not.toHaveBeenCalled();
     });
   });
 
@@ -366,6 +441,10 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
       );
       expect(row).toMatchObject({ status: "CANCELLED", cancelledBy: "LANDLORD" });
       expect(row.payment?.status).toBe("REFUNDED");
+      // The landlord gives back their share; the platform its commission.
+      expect(row.payment?.refunds[0]).toMatchObject({ landlordReversalCents: 8500, applicationFeeRefunded: true });
+      const { sumKeptAmounts } = await import("@/server/domains/payments/settled-amounts");
+      expect(await sumKeptAmounts({ bookingId: confirmed.id })).toEqual({ grossCents: 0, netCents: 0, commissionCents: 0 });
     });
 
     it("a pending request must be refused, not cancelled", async () => {
@@ -405,8 +484,8 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
       expect(provider.refundPayment).not.toHaveBeenCalled();
     });
 
-    it("gives the dispute back to the admin when the refund fails", async () => {
-      state.refundFails = true;
+    it("gives the dispute back to the admin when the refund is declined", async () => {
+      state.refundFails = "declined";
       const booking = await insertBooking({ status: "CONFIRMED", startsInHours: -5, endsInHours: -4 });
       const dispute = await disputeOn(booking.id);
       await expect(

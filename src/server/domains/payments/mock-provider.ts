@@ -59,7 +59,7 @@ export class MockPaymentProvider implements PaymentProvider {
     return {
       providerRefundId: `mock_re_${crypto.randomUUID()}`,
       outcome: "succeeded",
-      landlordReversalCents: params.amountCents,
+      reversedFromLandlord: true,
       applicationFeeRefunded: params.funding === "LANDLORD_AND_FEE",
     };
   }

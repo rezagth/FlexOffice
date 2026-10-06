@@ -2,6 +2,7 @@ import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { formatCents } from "@/lib/format";
+import { sumKeptAmounts } from "@/server/domains/payments/settled-amounts";
 import {
   getActiveSpacesCount,
   getAverageOccupancyRate,
@@ -37,10 +38,7 @@ export default async function AdminDashboardPage() {
     prisma.organization.count(),
     getActiveSpacesCount(),
     prisma.booking.count(),
-    prisma.payment.aggregate({
-      where: { status: "SUCCEEDED" },
-      _sum: { commissionAmountCents: true },
-    }),
+    sumKeptAmounts({}),
     getMonthlyBookingsCount(),
     getSearchToBookingConversionRate(),
     getAverageOccupancyRate(),
@@ -80,7 +78,7 @@ export default async function AdminDashboardPage() {
             Chiffre d&apos;affaires plateforme
           </p>
           <p className="mt-2 text-2xl font-semibold">
-            {formatCents(revenue._sum.commissionAmountCents ?? 0)}
+            {formatCents(revenue.commissionCents)}
           </p>
         </Card>
       </div>

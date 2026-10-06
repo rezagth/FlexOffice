@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
-import { logEvent } from "@/server/lib/logger";
+import { logError, logEvent } from "@/server/lib/logger";
 import {
   sendBookingConfirmed,
   sendBookingExpired,
@@ -9,6 +9,7 @@ import {
 } from "@/server/domains/notifications/send-booking-emails";
 import type { BookingEmailContext } from "@/server/domains/notifications/templates";
 import type { CancellationReason } from "./provider";
+import { issueRefund } from "./refunds";
 
 export type PaymentOutcome = "captured" | "canceled" | "failed";
 
@@ -56,7 +57,10 @@ export async function applyPaymentOutcome(
   }
 
   if (outcome === "captured") {
-    await finalize(payment, "SUCCEEDED", "CONFIRMED", () => sendBookingConfirmed(emailContext(payment)));
+    const result = await finalize(payment, "SUCCEEDED", "CONFIRMED", () =>
+      sendBookingConfirmed(emailContext(payment))
+    );
+    if (result !== "applied") await refundOrphanCapture(payment, result);
     return;
   }
 
@@ -93,7 +97,7 @@ async function finalize(
     // Already applied (retried webhook, or the mock path beat the real
     // one to it) — idempotent no-op, not an error.
     logEvent({ event: "payment.outcome_already_applied", payment_id: payment.id, outcome: paymentStatus });
-    return;
+    return "payment_not_awaiting_capture" as const;
   }
 
   const bookingUpdate = await prisma.booking.updateMany({
@@ -107,7 +111,7 @@ async function finalize(
   // or e-mail claiming a transition that did not happen here.
   if (bookingUpdate.count === 0) {
     logEvent({ event: "payment.outcome_booking_already_left_pending", payment_id: payment.id, outcome: paymentStatus });
-    return;
+    return "booking_left_pending" as const;
   }
 
   await recordAudit({
@@ -117,6 +121,50 @@ async function finalize(
   });
 
   await notify();
+  return "applied" as const;
+}
+
+/**
+ * Safety net: Stripe captured money for a booking we no longer consider
+ * live — it was cancelled or expired while the capture was in flight
+ * (accept-reject.ts claims requests to make this rare, not impossible).
+ * Keeping the money would charge a client for a cancelled booking, so the
+ * capture is recorded and refunded in full, and the incident is logged at
+ * error level for follow-up.
+ */
+async function refundOrphanCapture(
+  payment: PaymentWithBooking,
+  reason: "payment_not_awaiting_capture" | "booking_left_pending"
+) {
+  const current = await prisma.payment.findUnique({ where: { id: payment.id }, include: { booking: true } });
+  if (!current) return;
+  const bookingDead = ["CANCELLED", "REJECTED"].includes(current.booking.status);
+
+  if (reason === "payment_not_awaiting_capture") {
+    // Duplicate "succeeded" webhooks land here too: only act when we had
+    // written the payment off (FAILED) while Stripe captured it.
+    if (current.status !== "FAILED") return;
+    await prisma.payment.updateMany({
+      where: { id: payment.id, status: "FAILED" },
+      data: { status: "SUCCEEDED", capturedAt: new Date() },
+    });
+  } else if (!bookingDead) {
+    return;
+  }
+
+  logError({
+    event: "payment.orphan_capture_refunded",
+    error: new Error("Captured payment for a booking that is no longer live; refunding in full."),
+    payment_id: payment.id,
+    booking_id: payment.bookingId,
+    booking_status: current.booking.status,
+  });
+  await issueRefund({
+    paymentId: payment.id,
+    amountCents: payment.amountCents,
+    funding: "LANDLORD_AND_FEE",
+    reason: "Capture tardive sur une réservation annulée ou expirée",
+  });
 }
 
 /** E-mail context for a payment's booking — shared with the other booking

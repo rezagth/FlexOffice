@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/prisma";
 import { invoiceNumber } from "@/lib/format";
 import { withErrorHandling } from "@/server/lib/http";
 import { ForbiddenError } from "@/server/lib/errors";
+import { CAPTURED_PAYMENT_STATUSES, keptAmounts, settledRefundsSelect } from "@/server/domains/payments/settled-amounts";
 
 function csvEscape(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
@@ -31,10 +32,10 @@ export const GET = withErrorHandling(async (request: Request) => {
   const payments = await prisma.payment.findMany({
     where: {
       organizationId: ctx.activeOrgId,
-      status: "SUCCEEDED",
+      status: { in: [...CAPTURED_PAYMENT_STATUSES] },
       createdAt: { gte: fromDate, lte: toDate },
     },
-    include: { booking: { include: { space: true, clientUser: true } } },
+    include: { booking: { include: { space: true, clientUser: true } }, refunds: settledRefundsSelect },
     orderBy: { createdAt: "asc" },
   });
 
@@ -44,18 +45,25 @@ export const GET = withErrorHandling(async (request: Request) => {
     "Espace",
     "Client",
     "Montant (€)",
+    "Remboursé (€)",
     "Commission (€)",
     "Net reversé (€)",
   ];
-  const rows = payments.map((payment) => [
-    invoiceNumber(payment),
-    payment.createdAt.toISOString().slice(0, 10),
-    payment.booking.space.name,
-    payment.booking.clientUser.name,
-    centsToEuros(payment.amountCents),
-    centsToEuros(payment.commissionAmountCents),
-    centsToEuros(payment.netAmountCents),
-  ]);
+  // Amounts net of settled refunds (cancellations, disputes): what the
+  // landlord and the platform actually kept.
+  const rows = payments.map((payment) => {
+    const kept = keptAmounts(payment);
+    return [
+      invoiceNumber(payment),
+      payment.createdAt.toISOString().slice(0, 10),
+      payment.booking.space.name,
+      payment.booking.clientUser.name,
+      centsToEuros(payment.amountCents),
+      centsToEuros(kept.refundedCents),
+      centsToEuros(kept.commissionCents),
+      centsToEuros(kept.netCents),
+    ];
+  });
 
   const csv = [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
 

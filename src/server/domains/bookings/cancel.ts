@@ -77,11 +77,17 @@ export async function cancelBookingAsClient(clientUserId: string, bookingId: str
 
   // Not accepted yet: free, nothing was charged.
   if (booking.status === "AWAITING_PAYMENT" || booking.status === "PENDING") {
+    // respondedAt set = the landlord is accepting it right now (capture in
+    // flight, see accept-reject.ts): too late for a free cancellation.
     const claimed = await prisma.booking.updateMany({
-      where: { id: booking.id, status: booking.status },
+      where: { id: booking.id, status: booking.status, respondedAt: null },
       data: { status: "CANCELLED", cancelledAt: new Date(), cancelledBy: "CLIENT" },
     });
-    if (claimed.count === 0) throw new ConflictError("Cette réservation vient de changer d'état. Rechargez la page.");
+    if (claimed.count === 0) {
+      throw new ConflictError(
+        "Cette demande est en cours de traitement par l'hôte. Rechargez la page dans quelques instants."
+      );
+    }
     await releaseAuthorization(booking);
     await recordAudit({
       event: "booking.cancelled_by_client",

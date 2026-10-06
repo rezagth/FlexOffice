@@ -741,6 +741,8 @@ model Booking {
   purpose               String
   priceAmountCents      Int           @map("price_amount_cents")
   commissionAmountCents Int           @map("commission_amount_cents")
+  /// Set when the landlord accepts (claim before capture) or refuses.
+  respondedAt           DateTime?          @map("responded_at") @db.Timestamptz(3)
   cancelledAt           DateTime?          @map("cancelled_at") @db.Timestamptz(3)
   cancelledBy           CancellationActor? @map("cancelled_by")
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)

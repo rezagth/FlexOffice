@@ -3,12 +3,17 @@ import { requirePageAuth } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
-import { formatCents, formatDateTime } from "@/lib/format";
+import { formatCents, formatDateTime, PAYMENT_STATUS_LABELS } from "@/lib/format";
 
 export default async function ClientInvoicesPage() {
   const ctx = await requirePageAuth();
   const payments = await prisma.payment.findMany({
-    where: { booking: { clientUserId: ctx.userId } },
+    // Only money actually taken: an authorization that was released (refused,
+    // expired, cancelled) has no receipt to show.
+    where: {
+      booking: { clientUserId: ctx.userId },
+      status: { in: ["SUCCEEDED", "PARTIALLY_REFUNDED", "REFUNDED"] },
+    },
     include: { booking: { include: { space: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -35,7 +40,7 @@ export default async function ClientInvoicesPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium">{formatCents(payment.amountCents)}</p>
-                  <p className="text-xs text-muted-foreground">{payment.status}</p>
+                  <p className="text-xs text-muted-foreground">{PAYMENT_STATUS_LABELS[payment.status] ?? payment.status}</p>
                 </div>
               </Card>
             </Link>

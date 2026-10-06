@@ -63,7 +63,9 @@ export async function computeOrganizationOccupancy(
     prisma.booking.findMany({
       where: {
         spaceId: { in: spaceIds },
-        status: { in: ["PENDING", "CONFIRMED"] },
+        // COMPLETED counts: a finished booking occupied its slot (the status is
+        // written by the maintenance job since 06/10/2026).
+        status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] },
         startsAt: { lt: periodEnd },
         endsAt: { gt: periodStart },
       },

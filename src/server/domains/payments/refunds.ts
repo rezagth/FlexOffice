@@ -4,7 +4,7 @@ import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, NotFoundError, ServiceUnavailableError, ValidationError } from "@/server/lib/errors";
 import { logError } from "@/server/lib/logger";
 import { getPaymentProvider } from "./get-payment-provider";
-import type { RefundFunding } from "./provider";
+import { RefundDeclinedError, type RefundFunding } from "./provider";
 
 /**
  * The single way money goes back to a client (disputes, cancellations).
@@ -82,7 +82,7 @@ export async function issueRefund(params: {
         // required); never matches a real provider id.
         providerRefundId: `pending:${refundId}`,
         status: "PENDING",
-        landlordReversalCents: amountCents,
+        landlordReversalCents: landlordShareOf(amountCents, funding, payment.netAmountCents),
         applicationFeeRefunded: funding === "LANDLORD_AND_FEE",
       },
     });
@@ -98,22 +98,29 @@ export async function issueRefund(params: {
       idempotencyKey: refundId,
     });
   } catch (error) {
-    await prisma.refund.update({ where: { id: refundId }, data: { status: "FAILED" } });
-    logError({ event: "refund.provider_failed", error, payment_id: paymentId, refund_id: refundId });
-    throw new ServiceUnavailableError("Le remboursement n'a pas pu être émis. Réessayez plus tard.");
+    if (error instanceof RefundDeclinedError) {
+      // Definitive: no money moved. Callers undo what they claimed.
+      await prisma.refund.update({ where: { id: refundId }, data: { status: "FAILED" } });
+      logError({ event: "refund.provider_declined", error, payment_id: paymentId, refund_id: refundId });
+      throw new ServiceUnavailableError("Le remboursement n'a pas pu être émis. Réessayez plus tard.");
+    }
+    // Ambiguous (timeout, network, 5xx): Stripe may have refunded. The row
+    // stays PENDING — it still counts against the bounds, so a second
+    // attempt cannot refund twice — and is settled by the refund webhook
+    // (matched on our row id) or retried with the SAME idempotency key by
+    // the scheduled job (retryUnconfirmedRefunds). The caller proceeds as
+    // if the refund was issued.
+    logError({ event: "refund.provider_outcome_unknown", error, payment_id: paymentId, refund_id: refundId });
+    await recordAudit({
+      event: "refund.outcome_unknown",
+      actorUserId: params.actorUserId ?? null,
+      organizationId: payment.organizationId,
+      metadata: { paymentId, refundId, amountCents, funding },
+    });
+    return prisma.refund.findUniqueOrThrow({ where: { id: refundId } });
   }
 
-  const refund = await prisma.refund.update({
-    where: { id: refundId },
-    data: {
-      providerRefundId: outcome.providerRefundId,
-      landlordReversalCents: outcome.landlordReversalCents,
-      applicationFeeRefunded: outcome.applicationFeeRefunded,
-      ...(outcome.outcome === "succeeded" ? { status: "SUCCEEDED" as const } : {}),
-    },
-  });
-
-  if (outcome.outcome === "succeeded") await syncPaymentRefundStatus(paymentId);
+  const refund = await recordProviderAnswer(refundId, amountCents, funding, payment.netAmountCents, outcome);
 
   await recordAudit({
     event: "refund.issued",
@@ -124,12 +131,76 @@ export async function issueRefund(params: {
       refundId,
       amountCents,
       funding,
-      landlordReversalCents: outcome.landlordReversalCents,
-      applicationFeeRefunded: outcome.applicationFeeRefunded,
+      landlordReversalCents: refund.landlordReversalCents,
+      applicationFeeRefunded: refund.applicationFeeRefunded,
     },
   });
 
   return refund;
+}
+
+/** What the landlord gives back for a refund of `amountCents`: all of it
+ * when they bear it (LANDLORD); their whole share when the platform also
+ * refunds its commission (LANDLORD_AND_FEE, full refunds only). */
+function landlordShareOf(amountCents: number, funding: RefundFunding, netAmountCents: number): number {
+  return funding === "LANDLORD" ? amountCents : Math.min(netAmountCents, amountCents);
+}
+
+async function recordProviderAnswer(
+  refundId: string,
+  amountCents: number,
+  funding: RefundFunding,
+  netAmountCents: number,
+  outcome: Awaited<ReturnType<ReturnType<typeof getPaymentProvider>["refundPayment"]>>
+) {
+  const refund = await prisma.refund.update({
+    where: { id: refundId },
+    data: {
+      providerRefundId: outcome.providerRefundId,
+      landlordReversalCents: outcome.reversedFromLandlord ? landlordShareOf(amountCents, funding, netAmountCents) : 0,
+      applicationFeeRefunded: outcome.applicationFeeRefunded,
+      ...(outcome.outcome === "succeeded" ? { status: "SUCCEEDED" as const } : {}),
+    },
+  });
+  if (outcome.outcome === "succeeded") await syncPaymentRefundStatus(refund.paymentId);
+  return refund;
+}
+
+/** Refunds whose provider call ended in an ambiguous error and that no
+ * webhook has settled yet are retried with the same idempotency key —
+ * Stripe returns the refund it already made instead of a second one. Keys
+ * live 24 h at Stripe, hence the window. Run by the maintenance job. */
+export async function retryUnconfirmedRefunds() {
+  const now = Date.now();
+  const stuck = await prisma.refund.findMany({
+    where: {
+      status: "PENDING",
+      providerRefundId: { startsWith: "pending:" },
+      createdAt: { lt: new Date(now - 10 * 60_000), gt: new Date(now - 23 * 3_600_000) },
+    },
+    include: { payment: true },
+  });
+
+  let retried = 0;
+  for (const row of stuck) {
+    const funding: RefundFunding = row.applicationFeeRefunded ? "LANDLORD_AND_FEE" : "LANDLORD";
+    try {
+      const outcome = await getPaymentProvider().refundPayment({
+        providerPaymentIntentId: row.payment.providerPaymentIntentId,
+        amountCents: row.amountCents,
+        funding,
+        idempotencyKey: row.id,
+      });
+      await recordProviderAnswer(row.id, row.amountCents, funding, row.payment.netAmountCents, outcome);
+      retried += 1;
+    } catch (error) {
+      if (error instanceof RefundDeclinedError) {
+        await prisma.refund.update({ where: { id: row.id }, data: { status: "FAILED" } });
+      }
+      logError({ event: "refund.retry_failed", error, refund_id: row.id });
+    }
+  }
+  return { candidates: stuck.length, retried };
 }
 
 /** Payment.status follows its settled refunds: REFUNDED once they cover the

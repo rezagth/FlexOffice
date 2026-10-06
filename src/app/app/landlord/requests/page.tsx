@@ -36,7 +36,9 @@ export default async function PartnerRequestsPage() {
       orderBy: { createdAt: "asc" },
     }),
     prisma.booking.findMany({
-      where: { organizationId: ctx.activeOrgId, status: { in: [...DISPUTABLE_STATUSES] } },
+      // CANCELLED shown too (not disputable): a landlord must see that a
+      // confirmed booking was cancelled by the client.
+      where: { organizationId: ctx.activeOrgId, status: { in: [...DISPUTABLE_STATUSES, "CANCELLED"] }, NOT: { cancelledBy: "SYSTEM" } },
       include: {
         space: true,
         clientUser: { select: { name: true } },

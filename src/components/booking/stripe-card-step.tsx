@@ -18,15 +18,15 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   : null;
 
 /**
- * Authorizes the card for a booking request already created server-side
- * (PENDING booking + REQUIRES_CAPTURE payment — see create-booking.ts).
- * This step only confirms the PaymentIntent; it does not capture it and
- * does not itself change the booking's status. Under `capture_method:
- * "manual"`, a successful confirmation here moves the intent to
- * "requires_capture" (authorized, not charged) — the booking stays PENDING
- * until the landlord accepts or refuses (accept-reject.ts), exactly the
- * "vous ne serez débité qu'après acceptation" already promised in the
- * previous step.
+ * Authorizes the card for a booking created server-side as a short card
+ * hold (AWAITING_PAYMENT booking + AWAITING_AUTHORIZATION payment — see
+ * create-booking.ts and payment-holds.ts). This step only confirms the
+ * PaymentIntent; it does not capture it and does not itself change the
+ * booking's status. Under `capture_method: "manual"`, a successful
+ * confirmation moves the intent to "requires_capture" (authorized, not
+ * charged) and Stripe's webhook turns the hold into a request (PENDING)
+ * until the landlord accepts or refuses — the "vous ne serez débité
+ * qu'après acceptation" promised in the previous step.
  *
  * `redirect: "if_required"` resolves in-page for the common case; Stripe
  * still redirects to `returnUrl` when the card needs an extra step (3D

@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { ValidationError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
+import { CAPTURED_PAYMENT_STATUSES, keptAmounts, settledRefundsSelect } from "./settled-amounts";
 
 function getStripeClient(): Stripe {
   const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -63,21 +64,27 @@ export async function generateMonthlyCommissionStatement(
   const payments = await prisma.payment.findMany({
     where: {
       organizationId,
-      status: "SUCCEEDED",
+      status: { in: [...CAPTURED_PAYMENT_STATUSES] },
       capturedAt: { gte: periodStart, lt: periodEnd },
     },
-    include: { booking: { include: { space: true } } },
+    include: { booking: { include: { space: true } }, refunds: settledRefundsSelect },
   });
-  if (payments.length === 0) return null;
+  // The commission actually kept: 0 after a landlord cancellation or a full
+  // dispute refund (commission refunded), unchanged after a client
+  // cancellation (non-refundable service fee). Nothing to invoice at 0.
+  const billable = payments
+    .map((payment) => ({ payment, commissionCents: keptAmounts(payment).commissionCents }))
+    .filter(({ commissionCents }) => commissionCents > 0);
+  if (billable.length === 0) return null;
 
   const customerId = await getOrCreateCustomerId(organizationId);
   const stripe = getStripeClient();
 
-  for (const payment of payments) {
+  for (const { payment, commissionCents } of billable) {
     await stripe.invoiceItems.create({
       customer: customerId,
       currency: "eur",
-      amount: payment.commissionAmountCents,
+      amount: commissionCents,
       description: `Commission — ${payment.booking.space.name} — ${payment.capturedAt!.toLocaleDateString("fr-FR")}`,
     });
   }

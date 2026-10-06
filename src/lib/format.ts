@@ -76,6 +76,15 @@ export const BOOKING_STATUS_LABELS: Record<string, string> = {
   COMPLETED: "Terminée",
 };
 
+export const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  AWAITING_AUTHORIZATION: "Paiement en cours",
+  REQUIRES_CAPTURE: "Autorisé, en attente de l'hôte",
+  SUCCEEDED: "Payé",
+  PARTIALLY_REFUNDED: "Partiellement remboursé",
+  REFUNDED: "Remboursé",
+  FAILED: "Non débité",
+};
+
 export const VERIFICATION_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Brouillon",
   PENDING_REVIEW: "En attente de vérification",

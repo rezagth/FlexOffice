@@ -84,8 +84,10 @@ export function BookingFunnel({
         return;
       }
       if (body.clientSecret) {
-        // Real Stripe: the request already exists (PENDING), but the card
-        // still needs to be authorized before this is a genuine hold.
+        // Real Stripe: the booking exists as a short card hold
+        // (AWAITING_PAYMENT). It becomes a request sent to the landlord only
+        // when Stripe confirms the authorization (webhook); /app/bookings
+        // shows the real status ("Paiement en cours" until then).
         setClientSecret(body.clientSecret);
         return;
       }

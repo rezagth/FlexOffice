@@ -52,9 +52,12 @@ const PERIOD_END = new Date("2026-09-01T00:00:00Z");
 const PAYMENT = {
   id: "pay-1",
   organizationId: "org-1",
+  amountCents: 10000,
+  netAmountCents: 8500,
   commissionAmountCents: 1500,
   capturedAt: new Date("2026-08-10T10:00:00Z"),
   booking: { space: { name: "Salle Rivoli" } },
+  refunds: [] as { amountCents: number; landlordReversalCents: number }[],
 };
 
 beforeEach(() => {

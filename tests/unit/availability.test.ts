@@ -129,12 +129,14 @@ describe("computeDaySlots", () => {
     expect(slots?.fullDay.priceCents).toBe(15000);
   });
 
-  it("only queries bookings that block a slot (PENDING or CONFIRMED)", async () => {
+  it("only queries bookings that block a slot: live requests, confirmed or done, and recent card holds", async () => {
     await computeDaySlots(SPACE.id, MONDAY);
-    expect(bookingsFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ status: { in: ["PENDING", "CONFIRMED"] } }),
-      })
-    );
+    const where = bookingsFindMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual([
+      { status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] } },
+      { status: "AWAITING_PAYMENT", createdAt: { gte: expect.any(Date) } },
+    ]);
+    // A hold older than the hold window is not counted (released on the next booking).
+    expect(Date.now() - where.OR[1].createdAt.gte.getTime()).toBeGreaterThanOrEqual(15 * 60_000 - 1000);
   });
 });

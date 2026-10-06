@@ -4,6 +4,7 @@ import { recordAudit } from "@/server/lib/audit";
 import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
 import { applyPaymentOutcome } from "@/server/domains/payments/apply-outcome";
 import { releaseAbandonedPaymentHolds } from "./payment-holds";
+import { retryUnconfirmedRefunds } from "@/server/domains/payments/refunds";
 
 /**
  * A request the landlord has not answered expires after this delay, or at
@@ -35,6 +36,8 @@ export async function expireStaleBookingRequests() {
   const stale = await prisma.booking.findMany({
     where: {
       status: "PENDING",
+      // A request being accepted right now (capture in flight) is not stale.
+      respondedAt: null,
       OR: [{ createdAt: { lt: cutoff } }, { startsAt: { lte: now } }],
     },
     include: { payment: true },
@@ -45,11 +48,16 @@ export async function expireStaleBookingRequests() {
     try {
       if (!booking.payment) {
         const closed = await prisma.booking.updateMany({
-          where: { id: booking.id, status: "PENDING" },
+          where: { id: booking.id, status: "PENDING", respondedAt: null },
           data: { status: "REJECTED" },
         });
         if (closed.count > 0) expired += 1;
       } else {
+        // Not claimed on purpose (respondedAt feeds the response-time KPI,
+        // an expiry is not an answer). If a landlord accepts at the very
+        // same moment, Stripe refuses one of the two operations; should the
+        // capture still win after the booking left PENDING, the captured
+        // safety net in apply-outcome.ts refunds it.
         const provider = getPaymentProvider();
         const result = await provider.cancelPaymentIntent(booking.payment.providerPaymentIntentId, "abandoned");
         if (result.outcome === "succeeded") {
@@ -99,5 +107,9 @@ export async function runBookingMaintenance() {
     logError({ event: "booking.maintenance_complete_failed", error });
     return null;
   });
-  return { holds, requests, completed };
+  const refunds = await retryUnconfirmedRefunds().catch((error) => {
+    logError({ event: "booking.maintenance_refunds_failed", error });
+    return null;
+  });
+  return { holds, requests, completed, refunds };
 }

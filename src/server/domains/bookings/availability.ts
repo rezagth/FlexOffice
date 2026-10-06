@@ -148,7 +148,7 @@ export async function computeDaySlots(spaceId: string, dateStr: string): Promise
         // hold is released by createBooking() before inserting, so the slot
         // is effectively free.
         OR: [
-          { status: { in: ["PENDING", "CONFIRMED"] } },
+          { status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] } },
           {
             status: "AWAITING_PAYMENT",
             createdAt: { gte: new Date(Date.now() - PAYMENT_HOLD_MINUTES * 60 * 1000) },

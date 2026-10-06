@@ -10,6 +10,7 @@ import type {
   RefundParams,
   VerifiedWebhookEvent,
 } from "./provider";
+import { RefundDeclinedError } from "./provider";
 
 /** Shown to the client when the landlord cannot be paid yet. */
 const LANDLORD_NOT_PAYABLE =
@@ -122,7 +123,9 @@ export class StripePaymentProvider implements PaymentProvider {
     // landlord, so `reverse_transfer` takes back exactly the refunded
     // amount from them. `refund_application_fee` additionally gives the
     // commission back (landlord cancellation, full dispute refund).
-    const refund = await this.stripe.refunds.create(
+    let refund: Stripe.Refund;
+    try {
+      refund = await this.stripe.refunds.create(
       {
         payment_intent: params.providerPaymentIntentId,
         amount: params.amountCents,
@@ -133,14 +136,22 @@ export class StripePaymentProvider implements PaymentProvider {
         metadata: { funding: params.funding, refund_row_id: params.idempotencyKey },
       },
       { idempotencyKey: `refund:${params.idempotencyKey}` }
-    );
+      );
+    } catch (error) {
+      // A 4xx from Stripe is a definitive "no"; a network error or a 5xx
+      // is not — Stripe may have refunded — so it is rethrown as is.
+      if (error instanceof Stripe.errors.StripeInvalidRequestError || error instanceof Stripe.errors.StripeCardError) {
+        throw new RefundDeclinedError(error.message);
+      }
+      throw error;
+    }
     // Never trust the synchronous response as final — the Refund row only
     // moves to SUCCEEDED when a verified refund.updated webhook event
     // confirms it (see apply-refund-outcome.ts).
     return {
       providerRefundId: refund.id,
       outcome: "processing",
-      landlordReversalCents: hasTransfer ? params.amountCents : 0,
+      reversedFromLandlord: hasTransfer,
       applicationFeeRefunded: refundFee,
     };
   }

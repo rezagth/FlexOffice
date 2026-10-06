@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatCents, formatDateTime, invoiceNumber } from "@/lib/format";
 import { occupancyIncentiveMessage } from "@/lib/occupancy-incentive";
+import { CAPTURED_PAYMENT_STATUSES, keptAmounts, settledRefundsSelect, sumKeptAmounts } from "@/server/domains/payments/settled-amounts";
 
 function isoDateDaysAgo(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -29,13 +30,10 @@ export default async function PartnerRevenuePage() {
   const { from: monthStart, to: monthEnd } = currentMonthToDate();
 
   const [totals, payments, commissionStatements, occupancyBySpace, monthRevenue] = await Promise.all([
-    prisma.payment.aggregate({
-      where: { organizationId: ctx.activeOrgId, status: "SUCCEEDED" },
-      _sum: { amountCents: true, commissionAmountCents: true, netAmountCents: true },
-    }),
+    sumKeptAmounts({ organizationId: ctx.activeOrgId }),
     prisma.payment.findMany({
-      where: { organizationId: ctx.activeOrgId, status: "SUCCEEDED" },
-      include: { booking: { include: { space: true } } },
+      where: { organizationId: ctx.activeOrgId, status: { in: [...CAPTURED_PAYMENT_STATUSES] } },
+      include: { booking: { include: { space: true } }, refunds: settledRefundsSelect },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
@@ -44,10 +42,7 @@ export default async function PartnerRevenuePage() {
       orderBy: { periodStart: "desc" },
     }),
     computeOrganizationOccupancy(ctx.activeOrgId, monthStart, monthEnd),
-    prisma.payment.aggregate({
-      where: { organizationId: ctx.activeOrgId, status: "SUCCEEDED", createdAt: { gte: new Date(`${monthStart}T00:00:00Z`) } },
-      _sum: { amountCents: true },
-    }),
+    sumKeptAmounts({ organizationId: ctx.activeOrgId, createdAt: { gte: new Date(`${monthStart}T00:00:00Z`) } }),
   ]);
 
   const totalOpenSlots = occupancyBySpace.reduce((sum, o) => sum + o.openSlotCount, 0);
@@ -56,7 +51,7 @@ export default async function PartnerRevenuePage() {
     totalOpenSlots === 0 ? 0 : Math.round((totalBookedSlots / totalOpenSlots) * 100);
   const incentiveMessage = occupancyIncentiveMessage(
     overallOccupancyPercent,
-    monthRevenue._sum.amountCents ?? 0
+    monthRevenue.grossCents
   );
 
   return (
@@ -87,7 +82,7 @@ export default async function PartnerRevenuePage() {
             Revenu brut
           </p>
           <p className="mt-2 text-2xl font-semibold">
-            {formatCents(totals._sum.amountCents ?? 0)}
+            {formatCents(totals.grossCents)}
           </p>
         </Card>
         <Card className="p-5">
@@ -95,7 +90,7 @@ export default async function PartnerRevenuePage() {
             Commission OfficeFlex
           </p>
           <p className="mt-2 text-2xl font-semibold">
-            {formatCents(totals._sum.commissionAmountCents ?? 0)}
+            {formatCents(totals.commissionCents)}
           </p>
         </Card>
         <Card className="p-5">
@@ -103,7 +98,7 @@ export default async function PartnerRevenuePage() {
             Revenu net reversé
           </p>
           <p className="mt-2 text-2xl font-semibold">
-            {formatCents(totals._sum.netAmountCents ?? 0)}
+            {formatCents(totals.netCents)}
           </p>
         </Card>
       </div>
@@ -194,7 +189,7 @@ export default async function PartnerRevenuePage() {
                       {payment.booking.space.name} · {formatDateTime(payment.createdAt)}
                     </p>
                   </div>
-                  <p className="text-sm font-medium">{formatCents(payment.netAmountCents)}</p>
+                  <p className="text-sm font-medium">{formatCents(keptAmounts(payment).netCents)}</p>
                 </Card>
               </Link>
             ))}

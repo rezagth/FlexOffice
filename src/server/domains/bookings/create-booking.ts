@@ -12,7 +12,7 @@ import {
 import type { BookingEmailContext } from "@/server/domains/notifications/templates";
 import type { CreatePaymentIntentResult } from "@/server/domains/payments/provider";
 import { computeDaySlots } from "./availability";
-import { MAX_OPEN_REQUESTS_PER_CLIENT, releaseAbandonedPaymentHolds } from "./payment-holds";
+import { MAX_OPEN_REQUESTS_PER_CLIENT, PAYMENT_HOLD_MINUTES, releaseAbandonedPaymentHolds } from "./payment-holds";
 import { assertParticipantsFitCapacity } from "./booking-invariants";
 import type { CreateBookingInput } from "@/lib/validation/bookings";
 
@@ -106,11 +106,19 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   // away from is bookable right now rather than at the next scheduled run.
   await releaseAbandonedPaymentHolds({ spaceId: space.id });
 
+  // Expired card steps (older than the hold window, not yet released by
+  // the scheduled job) do not count against the client.
   const openRequests = await prisma.booking.count({
     where: {
       clientUserId,
-      status: { in: ["AWAITING_PAYMENT", "PENDING"] },
       startsAt: { gt: new Date() },
+      OR: [
+        { status: "PENDING" },
+        {
+          status: "AWAITING_PAYMENT",
+          createdAt: { gte: new Date(Date.now() - PAYMENT_HOLD_MINUTES * 60 * 1000) },
+        },
+      ],
     },
   });
   if (openRequests >= MAX_OPEN_REQUESTS_PER_CLIENT) {

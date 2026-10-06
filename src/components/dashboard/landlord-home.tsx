@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { ButtonLink } from "@/components/ui/button";
 import { formatCents } from "@/lib/format";
+import { sumKeptAmounts } from "@/server/domains/payments/settled-amounts";
 
 /**
  * Landlord home, rendered by `/app` when the active mode is LANDLORD.
@@ -31,24 +32,10 @@ export async function LandlordHome({
 
   const [monthRevenue, yearRevenue, bookingsCount, spacesCount] = await Promise.all([
     canSeeRevenue
-      ? prisma.payment.aggregate({
-          where: {
-            organizationId: ctx.activeOrgId,
-            status: "SUCCEEDED",
-            createdAt: { gte: startOfMonth },
-          },
-          _sum: { netAmountCents: true },
-        })
+      ? sumKeptAmounts({ organizationId: ctx.activeOrgId, createdAt: { gte: startOfMonth } })
       : Promise.resolve(null),
     canSeeRevenue
-      ? prisma.payment.aggregate({
-          where: {
-            organizationId: ctx.activeOrgId,
-            status: "SUCCEEDED",
-            createdAt: { gte: startOfYear },
-          },
-          _sum: { netAmountCents: true },
-        })
+      ? sumKeptAmounts({ organizationId: ctx.activeOrgId, createdAt: { gte: startOfYear } })
       : Promise.resolve(null),
     prisma.booking.count({
       where: { organizationId: ctx.activeOrgId, createdAt: { gte: startOfMonth } },
@@ -74,7 +61,7 @@ export async function LandlordHome({
               Revenus du mois
             </p>
             <p className="mt-2 text-2xl font-semibold">
-              {formatCents(monthRevenue._sum.netAmountCents ?? 0)}
+              {formatCents(monthRevenue.netCents)}
             </p>
           </Card>
         )}
@@ -84,7 +71,7 @@ export async function LandlordHome({
               Revenus de l&apos;année
             </p>
             <p className="mt-2 text-2xl font-semibold">
-              {formatCents(yearRevenue._sum.netAmountCents ?? 0)}
+              {formatCents(yearRevenue.netCents)}
             </p>
           </Card>
         )}

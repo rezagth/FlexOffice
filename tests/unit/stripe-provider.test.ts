@@ -90,7 +90,7 @@ describe("refundPayment", () => {
     expect(args).not.toHaveProperty("refund_application_fee");
     expect(args.metadata).toMatchObject({ refund_row_id: "row-1" });
     expect(options).toEqual({ idempotencyKey: "refund:row-1" });
-    expect(result).toMatchObject({ outcome: "processing", landlordReversalCents: 8500, applicationFeeRefunded: false });
+    expect(result).toMatchObject({ outcome: "processing", reversedFromLandlord: true, applicationFeeRefunded: false });
   });
 
   it("LANDLORD_AND_FEE: also refunds the platform's commission", async () => {
@@ -113,7 +113,7 @@ describe("refundPayment", () => {
       idempotencyKey: "row-3",
     });
     expect(refundCreate.mock.calls[0][0]).not.toHaveProperty("reverse_transfer");
-    expect(result.landlordReversalCents).toBe(0);
+    expect(result.reversedFromLandlord).toBe(false);
   });
 });
 
