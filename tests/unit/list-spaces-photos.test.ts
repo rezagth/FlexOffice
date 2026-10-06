@@ -49,11 +49,11 @@ describe("getPublishedSpaceBySlug — real photos", () => {
       "https://cdn.test/spaces/space-1/primary.jpg",
       "https://cdn.test/spaces/space-1/second.jpg",
     ]);
-    // The include, not an app-level sort, is what orders them — confirms
+    // The query, not an app-level sort, is what orders them — confirms
     // the query asked the database for primary-first ordering.
     expect(spaceFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        include: expect.objectContaining({
+        select: expect.objectContaining({
           spacePhotos: expect.objectContaining({
             orderBy: [{ isPrimary: "desc" }, { position: "asc" }],
           }),

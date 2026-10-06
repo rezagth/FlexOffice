@@ -39,6 +39,43 @@ function resolvePhotoUrls(legacyPhotos: string[], spacePhotos: { storagePath: st
   return spacePhotos.map((photo) => getPublicPhotoUrl(photo.storagePath));
 }
 
+/**
+ * The ONLY columns of a `Space` that may leave the server on a public read.
+ *
+ * Public reads used to `include` relations, which returns every scalar
+ * column of the row — including `accessInstructions` (door codes, key-box
+ * codes), which is meant to be shown only to a client with a CONFIRMED
+ * booking. These rows are serialized as-is into `GET /api/spaces` and into
+ * the RSC payload of `/` and `/search` (the result grid is a Client
+ * Component), so an anonymous visitor could read every listing's access
+ * codes without booking anything.
+ *
+ * An explicit allow-list rather than an omit: a column added to `Space`
+ * later stays private until someone decides it is public. Never add
+ * `accessInstructions`, `organizationId` or `propertyId` here — see
+ * tests/unit/list-spaces-public-fields.test.ts.
+ */
+function publicSpaceScalars() {
+  return {
+    id: true,
+    slug: true,
+    name: true,
+    type: true,
+    description: true,
+    address: true,
+    city: true,
+    postalCode: true,
+    capacity: true,
+    amenities: true,
+    photos: true,
+    halfDayPriceCents: true,
+    dayPriceCents: true,
+    discountPercent: true,
+    timezone: true,
+    status: true,
+  } as const;
+}
+
 // No DATABASE_URL configured yet (e.g. a demo deploy without Supabase
 // wired up): fall back to static demo data instead of erroring, so the
 // public pages stay browsable. Once DATABASE_URL is set this branch never
@@ -136,7 +173,8 @@ export async function listPublishedSpaces(
       ...(params.capacity ? { capacity: { gte: params.capacity } } : {}),
       ...(amenityFilter.length ? { amenities: { hasEvery: amenityFilter } } : {}),
     },
-    include: {
+    select: {
+      ...publicSpaceScalars(),
       organization: { select: { name: true, status: true } },
       property: { select: { latitude: true, longitude: true } },
       spacePhotos: spacePhotosInclude(),
@@ -200,9 +238,10 @@ export async function getPublishedSpaceBySlug(slug: string) {
       status: "PUBLISHED",
       organization: publiclyVisibleOrganization(),
     },
-    include: {
+    select: {
+      ...publicSpaceScalars(),
       organization: { select: { name: true, status: true } },
-      openingHours: true,
+      openingHours: { select: { weekday: true, opensAt: true, closesAt: true } },
       spacePhotos: spacePhotosInclude(),
     },
   });
@@ -210,4 +249,39 @@ export async function getPublishedSpaceBySlug(slug: string) {
 
   const { spacePhotos, ...rest } = space;
   return { ...rest, photos: resolvePhotoUrls(space.photos, spacePhotos) };
+}
+
+/**
+ * The signed-in visitor's favorites, as public space cards.
+ *
+ * Same allow-list as the public reads above: the result is handed to
+ * SearchResultsGrid, a Client Component, so the whole object is serialized
+ * to the browser. Favoriting a space is open to any account, so returning
+ * the full row here would leak `accessInstructions` to anyone who clicks
+ * the heart. Listings that were unpublished or whose organization was
+ * suspended since being favorited are dropped, like on /search.
+ */
+export async function listFavoriteSpaces(userId: string) {
+  const favorites = await prisma.favorite.findMany({
+    where: {
+      userId,
+      space: { status: "PUBLISHED", organization: publiclyVisibleOrganization() },
+    },
+    select: {
+      space: {
+        select: {
+          ...publicSpaceScalars(),
+          organization: { select: { name: true, status: true } },
+          spacePhotos: spacePhotosInclude(),
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return favorites.map(({ space: { spacePhotos, ...space } }) => ({
+    ...space,
+    photos: resolvePhotoUrls(space.photos, spacePhotos),
+    favorited: true as const,
+  }));
 }

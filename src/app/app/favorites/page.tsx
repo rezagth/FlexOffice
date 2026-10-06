@@ -1,16 +1,12 @@
 import { requirePageAuth } from "@/server/auth/page-guards";
-import { prisma } from "@/server/db/prisma";
+import { listFavoriteSpaces } from "@/server/domains/spaces/list-spaces";
 import { EmptyState } from "@/components/dashboard/states";
 import { SearchResultsGrid } from "@/components/marketing/search-results-grid";
 import { ButtonLink } from "@/components/ui/button";
 
 export default async function ClientFavoritesPage() {
   const ctx = await requirePageAuth();
-  const favorites = await prisma.favorite.findMany({
-    where: { userId: ctx.userId },
-    include: { space: { include: { organization: { select: { name: true } } } } },
-    orderBy: { createdAt: "desc" },
-  });
+  const favorites = await listFavoriteSpaces(ctx.userId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,7 +23,7 @@ export default async function ClientFavoritesPage() {
           }
         />
       ) : (
-        <SearchResultsGrid spaces={favorites.map(({ space }) => ({ ...space, favorited: true }))} />
+        <SearchResultsGrid spaces={favorites} />
       )}
     </div>
   );
