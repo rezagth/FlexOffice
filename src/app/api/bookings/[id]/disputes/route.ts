@@ -3,6 +3,7 @@ import { requireAuth } from "@/server/auth/rbac";
 import { raiseDisputeSchema } from "@/lib/validation/disputes";
 import { raiseDispute } from "@/server/domains/disputes/raise";
 import { withErrorHandling } from "@/server/lib/http";
+import { enforceRateLimit, RATE_LIMITS } from "@/server/auth/rate-limit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,6 +12,13 @@ type Ctx = { params: Promise<{ id: string }> };
 // may raise one; a booking outside both returns 404 (see raise.ts).
 export const POST = withErrorHandling(async (request: Request, { params }: Ctx) => {
   const ctx = await requireAuth();
+  await enforceRateLimit({
+    key: `dispute:raise:user:${ctx.userId}`,
+    config: RATE_LIMITS.disputeRaise,
+    endpoint: "POST /api/bookings/[id]/disputes",
+    scope: "user",
+    onStoreError: "allow",
+  });
   const { id } = await params;
   const input = raiseDisputeSchema.parse(await request.json());
 

@@ -1,3 +1,4 @@
+import { RateLimitedError } from "@/server/lib/errors";
 import { logError, logEvent } from "@/server/lib/logger";
 import { MemoryRateLimitStore } from "./memory-store";
 import type { RateLimitConfig, RateLimitStore, RateLimitVerdict } from "./store";
@@ -64,6 +65,23 @@ export const RATE_LIMITS = {
    * any other public write; loose enough that a real visitor retrying a
    * typo'd email never hits it. */
   supportTicket: { limit: 5, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /**
+   * Booking requests, per account. Each one creates a Stripe PaymentIntent
+   * and locks a slot until it expires, so an unlimited loop could hold the
+   * whole catalogue or card-test stolen cards. A real client books a few
+   * slots a day at most.
+   */
+  bookingCreate: { limit: 10, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Messages in a booking conversation, per account. */
+  messageSend: { limit: 60, windowSeconds: 600 } satisfies RateLimitConfig,
+  /** Opening a dispute, per account — rare by nature, and it alerts the admins. */
+  disputeRaise: { limit: 5, windowSeconds: 86400 } satisfies RateLimitConfig,
+  /** Adding / removing favorites, per account. */
+  favoriteToggle: { limit: 120, windowSeconds: 600 } satisfies RateLimitConfig,
+  /** Listing / property photo uploads, per account — each one fills Storage. */
+  photoUpload: { limit: 60, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Switching between tenant and landlord mode, per account. */
+  accountModeSwitch: { limit: 30, windowSeconds: 3600 } satisfies RateLimitConfig,
 } as const;
 
 type StoreErrorBehaviour = "deny" | "allow";
@@ -250,4 +268,32 @@ export function logRateLimitDenied(fields: {
   ipTrusted: boolean;
 }) {
   logEvent({ event: "rate_limit.denied", ...fields });
+}
+
+/**
+ * Applies `config` to `key` and throws a 429 when the limit is reached —
+ * the one-call form every route uses, so the deny path (log + error) cannot
+ * be forgotten.
+ *
+ * Prefer a per-account key (`user:<id>`) on authenticated routes: it does
+ * not depend on the client-IP header at all.
+ */
+export async function enforceRateLimit(params: {
+  key: string;
+  config: RateLimitConfig;
+  endpoint: string;
+  scope: "ip" | "user";
+  ipTrusted?: boolean;
+  onStoreError?: StoreErrorBehaviour;
+}): Promise<void> {
+  const verdict = await rateLimit(params.key, params.config, { onStoreError: params.onStoreError });
+  if (verdict.allowed) return;
+
+  logRateLimitDenied({
+    endpoint: params.endpoint,
+    scope: params.scope,
+    retryAfterSeconds: verdict.retryAfterSeconds,
+    ipTrusted: params.ipTrusted ?? false,
+  });
+  throw new RateLimitedError("Trop de tentatives. Réessayez plus tard.", verdict.retryAfterSeconds);
 }

@@ -3,6 +3,7 @@ import { requireOrg } from "@/server/auth/rbac";
 import { withErrorHandling } from "@/server/lib/http";
 import { ValidationError } from "@/server/lib/errors";
 import { addSpacePhoto, removeSpacePhoto } from "@/server/domains/organizations/photos";
+import { enforceRateLimit, RATE_LIMITS } from "@/server/auth/rate-limit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,6 +12,13 @@ type Ctx = { params: Promise<{ id: string }> };
 // never by the caller (see domains/organizations/photos.ts).
 export const POST = withErrorHandling(async (request: Request, { params }: Ctx) => {
   const ctx = await requireOrg();
+  await enforceRateLimit({
+    key: `photo:upload:user:${ctx.userId}`,
+    config: RATE_LIMITS.photoUpload,
+    endpoint: "POST /api/partner/spaces/[id]/photos",
+    scope: "user",
+    onStoreError: "deny",
+  });
   const { id } = await params;
 
   const formData = await request.formData();

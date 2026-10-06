@@ -4,6 +4,7 @@ import { requireAuth } from "@/server/auth/rbac";
 import { withErrorHandling } from "@/server/lib/http";
 import { createBookingSchema } from "@/lib/validation/bookings";
 import { createBooking } from "@/server/domains/bookings/create-booking";
+import { enforceRateLimit, RATE_LIMITS } from "@/server/auth/rate-limit";
 
 // GET /api/bookings — Auth: required (CLIENT). Returns only the caller's
 // own bookings, scoped by clientUserId from the verified session — never
@@ -24,6 +25,13 @@ export const GET = withErrorHandling(async () => {
 // always recomputed server-side from the space (see create-booking.ts).
 export const POST = withErrorHandling(async (request: Request) => {
   const ctx = await requireAuth();
+  await enforceRateLimit({
+    key: `booking:create:user:${ctx.userId}`,
+    config: RATE_LIMITS.bookingCreate,
+    endpoint: "POST /api/bookings",
+    scope: "user",
+    onStoreError: "allow",
+  });
   const input = createBookingSchema.parse(await request.json());
   const { booking, clientSecret } = await createBooking(ctx.userId, input);
   // clientSecret is only present for the real Stripe provider — the caller
