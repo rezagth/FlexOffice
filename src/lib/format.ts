@@ -68,7 +68,8 @@ export const SPACE_STATUS_LABELS: Record<string, string> = {
 };
 
 export const BOOKING_STATUS_LABELS: Record<string, string> = {
-  PENDING: "En attente",
+  AWAITING_PAYMENT: "Paiement en cours",
+  PENDING: "En attente de l'hôte",
   CONFIRMED: "Confirmée",
   CANCELLED: "Annulée",
   REJECTED: "Refusée",

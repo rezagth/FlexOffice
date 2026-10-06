@@ -70,8 +70,9 @@ export default function CgvPage() {
         <Sub title="3.4 Refus et absence de réponse">
           <p>
             En cas de refus, l&apos;autorisation est libérée et aucun montant
-            n&apos;est débité. Faute de réponse du Partenaire dans un délai de{" "}
-            <ToFill>délai retenu, par défaut 48 heures</ToFill>, la demande est
+            n&apos;est débité. Faute de réponse du Partenaire dans un délai de
+            quarante-huit (48) heures après la demande, ou au plus tard au début du
+            créneau demandé si celui-ci intervient avant, la demande est
             automatiquement annulée et l&apos;autorisation libérée, afin de ne pas
             immobiliser durablement le créneau ni les fonds du Client.
           </p>
@@ -95,7 +96,7 @@ export default function CgvPage() {
 
       <Section title="5. Commission">
         <p>
-          OfficeFlex perçoit une commission de <ToFill>taux retenu, par défaut 15 %</ToFill>{" "}
+          OfficeFlex perçoit une commission de quinze pour cent (15 %)
           du montant de chaque réservation confirmée, en rémunération du service
           d&apos;intermédiation, de la mise en relation, de la sécurisation du
           paiement et de la mise à disposition des outils de gestion.
@@ -133,18 +134,23 @@ export default function CgvPage() {
       <Section title="7. Annulation">
         <Sub title="7.1 Par le Client">
           <p>
-            Conditions applicables, sauf mention contraire sur la fiche de
-            l&apos;espace : annulation plus de{" "}
-            <ToFill>délai, ex. 48 heures</ToFill> avant le début du créneau,
-            remboursement intégral hors commission ; annulation moins de{" "}
-            <ToFill>délai, ex. 48 heures</ToFill> avant, aucun remboursement, le
+            Une demande non encore acceptée par le Partenaire peut être annulée
+            sans frais : l&apos;autorisation est libérée et aucun montant n&apos;est
+            débité. Pour une réservation confirmée, la commission d&apos;OfficeFlex
+            constitue des frais de service non remboursables, et le montant revenant
+            au Partenaire est remboursé selon le délai restant avant le début du
+            créneau : plus de quarante-huit (48) heures avant, remboursement
+            intégral de ce montant ; entre quarante-huit (48) et vingt-quatre (24)
+            heures avant, remboursement de cinquante pour cent (50 %) de ce montant ;
+            moins de vingt-quatre (24) heures avant, aucun remboursement, le
             créneau ayant été rendu indisponible pour d&apos;autres Clients.
           </p>
         </Sub>
         <Sub title="7.2 Par le Partenaire">
           <p>
             Le Partenaire qui annule une réservation confirmée expose son Client à un
-            remboursement intégral immédiat. Les annulations répétées peuvent entraîner
+            remboursement intégral immédiat, commission comprise ; le montant qui
+            avait été versé au Partenaire est repris sur son compte de paiement. Les annulations répétées peuvent entraîner
             le déréférencement des annonces concernées et la suspension du compte, dans
             les conditions de préavis prévues aux conditions générales
             d&apos;utilisation.
