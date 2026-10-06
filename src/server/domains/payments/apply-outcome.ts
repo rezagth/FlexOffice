@@ -4,9 +4,11 @@ import { recordAudit } from "@/server/lib/audit";
 import { logEvent } from "@/server/lib/logger";
 import {
   sendBookingConfirmed,
+  sendBookingExpired,
   sendBookingRejected,
 } from "@/server/domains/notifications/send-booking-emails";
 import type { BookingEmailContext } from "@/server/domains/notifications/templates";
+import type { CancellationReason } from "./provider";
 
 export type PaymentOutcome = "captured" | "canceled" | "failed";
 
@@ -31,7 +33,11 @@ type PaymentWithBooking = Prisma.PaymentGetPayload<typeof paymentWithBooking>;
  * a retried webhook delivery, a double-click — is a no-op the second time,
  * never a double email or a double audit entry.
  */
-export async function applyPaymentOutcome(providerPaymentIntentId: string, outcome: PaymentOutcome) {
+export async function applyPaymentOutcome(
+  providerPaymentIntentId: string,
+  outcome: PaymentOutcome,
+  cancellationReason?: CancellationReason | null
+) {
   const payment = await prisma.payment.findUnique({
     where: { providerPaymentIntentId },
     ...paymentWithBooking,
@@ -55,8 +61,13 @@ export async function applyPaymentOutcome(providerPaymentIntentId: string, outco
   }
 
   // "canceled" and "failed" both mean no capture happened — same terminal
-  // state for Booking/Payment, distinguished only in the audit metadata.
-  await finalize(payment, "FAILED", "REJECTED", () => sendBookingRejected(emailContext(payment)), outcome);
+  // state for Booking/Payment, distinguished only in the audit metadata and
+  // in the e-mail: an expiry ("abandoned") is not a landlord refusal.
+  const notify =
+    cancellationReason === "abandoned"
+      ? () => sendBookingExpired(emailContext(payment))
+      : () => sendBookingRejected(emailContext(payment));
+  await finalize(payment, "FAILED", "REJECTED", notify, cancellationReason ?? outcome);
 }
 
 async function finalize(
@@ -66,6 +77,10 @@ async function finalize(
   notify: () => Promise<void>,
   reason?: string
 ) {
+  // Only an authorized payment (REQUIRES_CAPTURE) is finalized here. A
+  // `payment_failed` during the card step (AWAITING_AUTHORIZATION) is not
+  // terminal — the client can retry with another card; abandoned card
+  // steps are released by bookings/payment-holds.ts.
   const paymentUpdate = await prisma.payment.updateMany({
     where: { id: payment.id, status: "REQUIRES_CAPTURE" },
     data: {
@@ -81,10 +96,19 @@ async function finalize(
     return;
   }
 
-  await prisma.booking.updateMany({
+  const bookingUpdate = await prisma.booking.updateMany({
     where: { id: payment.bookingId, status: "PENDING" },
     data: { status: bookingStatus },
   });
+
+  // The booking may already have left PENDING through another path — the
+  // client cancelled it (bookings/cancel.ts sends its own e-mails), or it
+  // was released. Then this event only settles the payment: no audit entry
+  // or e-mail claiming a transition that did not happen here.
+  if (bookingUpdate.count === 0) {
+    logEvent({ event: "payment.outcome_booking_already_left_pending", payment_id: payment.id, outcome: paymentStatus });
+    return;
+  }
 
   await recordAudit({
     event: bookingStatus === "CONFIRMED" ? "booking.confirmed" : "booking.rejected",
@@ -94,6 +118,15 @@ async function finalize(
 
   await notify();
 }
+
+/** E-mail context for a payment's booking — shared with the other booking
+ * lifecycle modules (payment holds, cancellation). */
+export function bookingEmailContextForPayment(payment: PaymentWithBooking): BookingEmailContext {
+  return emailContext(payment);
+}
+
+export { paymentWithBooking };
+export type { PaymentWithBooking };
 
 function emailContext(payment: PaymentWithBooking): BookingEmailContext {
   const { booking } = payment;

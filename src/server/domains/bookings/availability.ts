@@ -1,4 +1,5 @@
 import { prisma } from "@/server/db/prisma";
+import { PAYMENT_HOLD_MINUTES } from "./payment-holds";
 import { DEFAULT_TIMEZONE } from "@/lib/timezone";
 import { weekdayOf, zonedTimeToUtc } from "./timezone";
 
@@ -142,7 +143,17 @@ export async function computeDaySlots(spaceId: string, dateStr: string): Promise
     prisma.booking.findMany({
       where: {
         spaceId,
-        status: { in: ["PENDING", "CONFIRMED"] },
+        // A slot in the card step is taken too (bookings_no_overlap_excl
+        // covers it), unless the hold is older than the hold window: such a
+        // hold is released by createBooking() before inserting, so the slot
+        // is effectively free.
+        OR: [
+          { status: { in: ["PENDING", "CONFIRMED"] } },
+          {
+            status: "AWAITING_PAYMENT",
+            createdAt: { gte: new Date(Date.now() - PAYMENT_HOLD_MINUTES * 60 * 1000) },
+          },
+        ],
         startsAt: { lt: dayEnd },
         endsAt: { gt: dayStart },
       },

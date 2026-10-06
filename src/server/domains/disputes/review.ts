@@ -2,7 +2,7 @@ import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import { assertRefundFitsPayment } from "@/server/domains/payments/refund-invariants";
-import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
+import { disputeRefundFunding, issueRefund } from "@/server/domains/payments/refunds";
 
 const REVIEWABLE_STATUSES = ["OPEN", "INVESTIGATING"] as const;
 
@@ -84,42 +84,34 @@ export async function resolveDispute({
     }
 
     const amountCents = refundAmountCents ?? payment.amountCents;
+    // Validates the amount against the ledger and decides who funds it,
+    // before the dispute is claimed (so a refused amount changes nothing).
+    const funding = disputeRefundFunding(amountCents, payment);
     await assertRefundFitsPayment({ paymentId: payment.id, amountCents });
 
-    const provider = getPaymentProvider();
-
-    // Interactive transaction, not the array form: the updateMany's guard
-    // (status still OPEN/INVESTIGATING) must be checked, and committed to,
-    // BEFORE the provider is called — the updateMany takes the dispute
-    // row's lock immediately, so a concurrent second resolveDispute() call
-    // blocks on it and, once this transaction commits, sees the status
-    // already changed and never reaches the provider. Money moves at most
-    // once per dispute.
-    await prisma.$transaction(async (tx) => {
-      const updated = await tx.dispute.updateMany({
-        where: { id: disputeId, status: { in: [...REVIEWABLE_STATUSES] } },
-        data: { status: targetStatus, resolutionNotes: notes },
-      });
-      if (updated.count === 0) {
-        throw new ConflictError("Ce litige n'est pas en attente de décision.");
-      }
-
-      const refundResult = await provider.refundPaymentIntent(
-        payment.providerPaymentIntentId,
-        amountCents
-      );
-
-      await tx.refund.create({
-        data: {
-          paymentId: payment.id,
-          amountCents,
-          reason: notes,
-          providerRefundId: refundResult.providerRefundId,
-          status: refundResult.outcome === "succeeded" ? "SUCCEEDED" : "PENDING",
-        },
-      });
-      await tx.disputeEvent.create({ data: { disputeId, status: targetStatus, note: notes } });
+    // Claim the dispute first, in its own short transaction: a concurrent
+    // second resolution sees the status already changed and never reaches
+    // the refund. The money moves outside any transaction (issueRefund).
+    const claimed = await prisma.dispute.updateMany({
+      where: { id: disputeId, status: { in: [...REVIEWABLE_STATUSES] } },
+      data: { status: targetStatus, resolutionNotes: notes },
     });
+    if (claimed.count === 0) {
+      throw new ConflictError("Ce litige n'est pas en attente de décision.");
+    }
+
+    try {
+      await issueRefund({ paymentId: payment.id, amountCents, funding, reason: notes, actorUserId });
+    } catch (error) {
+      // No money moved (issueRefund marks its row FAILED): give the dispute
+      // back to the admin instead of leaving it "resolved" without refund.
+      await prisma.dispute.updateMany({
+        where: { id: disputeId, status: targetStatus },
+        data: { status: dispute.status, resolutionNotes: dispute.resolutionNotes ?? null },
+      });
+      throw error;
+    }
+    await prisma.disputeEvent.create({ data: { disputeId, status: targetStatus, note: notes } });
   }
 
   await recordAudit({

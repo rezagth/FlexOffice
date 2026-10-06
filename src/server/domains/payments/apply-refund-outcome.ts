@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { logEvent } from "@/server/lib/logger";
+import { syncPaymentRefundStatus } from "./refunds";
 
 const STATUS_MAP: Record<string, "SUCCEEDED" | "FAILED"> = {
   succeeded: "SUCCEEDED",
@@ -18,13 +19,27 @@ const STATUS_MAP: Record<string, "SUCCEEDED" | "FAILED"> = {
  * is still PENDING), same pattern as applyPaymentOutcome — a retried
  * webhook delivery is a safe no-op.
  */
-export async function applyRefundOutcome(providerRefundId: string, providerStatus: string) {
+export async function applyRefundOutcome(
+  providerRefundId: string,
+  providerStatus: string,
+  refundRowId?: string | null
+) {
   const status = STATUS_MAP[providerStatus];
   if (!status) {
     // "pending"/"canceled" and any other intermediate Stripe status: not
     // actionable yet, wait for a later event.
     logEvent({ event: "refund.outcome_unhandled_status", provider_refund_id: providerRefundId, status: providerStatus });
     return;
+  }
+
+  // Stripe often answers a card refund with refund.created already
+  // "succeeded" — possibly before issueRefund() stored the provider id. The
+  // row id we put in the refund's metadata finds it in that case.
+  if (refundRowId) {
+    await prisma.refund.updateMany({
+      where: { id: refundRowId, providerRefundId: `pending:${refundRowId}` },
+      data: { providerRefundId },
+    });
   }
 
   const updated = await prisma.refund.updateMany({
@@ -43,6 +58,8 @@ export async function applyRefundOutcome(providerRefundId: string, providerStatu
     where: { providerRefundId },
     include: { payment: true },
   });
+
+  if (refund && status === "SUCCEEDED") await syncPaymentRefundStatus(refund.paymentId);
 
   await recordAudit({
     event: "refund.outcome_applied",

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createMock = vi.fn();
 const applyPaymentOutcomeMock = vi.fn();
+const applyAuthorizationMock = vi.fn();
 
 vi.mock("@/server/db/prisma", () => ({
   prisma: { webhookEvent: { create: createMock } },
@@ -9,6 +10,10 @@ vi.mock("@/server/db/prisma", () => ({
 
 vi.mock("@/server/domains/payments/apply-outcome", () => ({
   applyPaymentOutcome: applyPaymentOutcomeMock,
+}));
+
+vi.mock("@/server/domains/bookings/payment-holds", () => ({
+  applyAuthorization: applyAuthorizationMock,
 }));
 
 process.env.PAYMENT_PROVIDER = "mock";
@@ -27,6 +32,7 @@ function webhookRequest(body: unknown, signature = "test-secret") {
 beforeEach(() => {
   createMock.mockReset();
   applyPaymentOutcomeMock.mockReset().mockResolvedValue(undefined);
+  applyAuthorizationMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe("POST /api/webhooks/stripe", () => {
@@ -75,7 +81,7 @@ describe("POST /api/webhooks/stripe", () => {
       })
     );
     expect(res.status).toBe(200);
-    expect(applyPaymentOutcomeMock).toHaveBeenCalledWith("pi_abc", "captured");
+    expect(applyPaymentOutcomeMock).toHaveBeenCalledWith("pi_abc", "captured", null);
   });
 
   it("maps payment_intent.canceled to a canceled outcome", async () => {
@@ -83,7 +89,29 @@ describe("POST /api/webhooks/stripe", () => {
     await POST(
       webhookRequest({ id: "evt_5", type: "payment_intent.canceled", data: { id: "pi_def" } })
     );
-    expect(applyPaymentOutcomeMock).toHaveBeenCalledWith("pi_def", "canceled");
+    // No cancellation_reason: a landlord refusal.
+    expect(applyPaymentOutcomeMock).toHaveBeenCalledWith("pi_def", "canceled", "declined");
+  });
+
+  it("passes the cancellation reason we set, so an expiry gets the expiry e-mail", async () => {
+    createMock.mockResolvedValue({});
+    await POST(
+      webhookRequest({
+        id: "evt_5b",
+        type: "payment_intent.canceled",
+        data: { id: "pi_exp", cancellation_reason: "abandoned" },
+      })
+    );
+    expect(applyPaymentOutcomeMock).toHaveBeenCalledWith("pi_exp", "canceled", "abandoned");
+  });
+
+  it("turns an authorized card (amount_capturable_updated) into a request, and only that", async () => {
+    createMock.mockResolvedValue({});
+    await POST(
+      webhookRequest({ id: "evt_7", type: "payment_intent.amount_capturable_updated", data: { id: "pi_auth" } })
+    );
+    expect(applyAuthorizationMock).toHaveBeenCalledWith("pi_auth");
+    expect(applyPaymentOutcomeMock).not.toHaveBeenCalled();
   });
 
   it("ignores an event type it does not handle", async () => {

@@ -1,12 +1,19 @@
 import Stripe from "stripe";
-import { ValidationError } from "@/server/lib/errors";
+import { ConflictError, ValidationError } from "@/server/lib/errors";
 import type {
+  CancellationReason,
   CapturePaymentOutcome,
   CreatePaymentIntentParams,
+  CreatePaymentIntentResult,
   PaymentProvider,
   RefundOutcome,
+  RefundParams,
   VerifiedWebhookEvent,
 } from "./provider";
+
+/** Shown to the client when the landlord cannot be paid yet. */
+const LANDLORD_NOT_PAYABLE =
+  "Cet espace ne peut pas encore être réservé : l'entreprise qui le propose n'a pas terminé son inscription au paiement.";
 
 export class StripePaymentProvider implements PaymentProvider {
   readonly name = "stripe";
@@ -27,30 +34,59 @@ export class StripePaymentProvider implements PaymentProvider {
     this.webhookSecret = webhookSecret;
   }
 
-  async createPaymentIntent(
-    params: CreatePaymentIntentParams
-  ): Promise<{ providerPaymentIntentId: string; clientSecret?: string }> {
+  async createPaymentIntent(params: CreatePaymentIntentParams): Promise<CreatePaymentIntentResult> {
+    // Defence in depth: createBooking() already called
+    // assertConnectedAccountCanBeCharged(). Without a destination the whole
+    // amount would stay on the platform with no payout planned.
+    if (!params.connectedAccountId) {
+      throw new ConflictError(LANDLORD_NOT_PAYABLE);
+    }
+    if (
+      !Number.isInteger(params.applicationFeeCents) ||
+      params.applicationFeeCents < 0 ||
+      params.applicationFeeCents > params.amountCents
+    ) {
+      throw new Error("applicationFeeCents must be an integer between 0 and amountCents");
+    }
+
     // capture_method: "manual" — authorize now, capture only once the
-    // partner accepts the request (see accept-reject.ts). Connect payout:
-    // when the organization has completed onboarding, the commission stays
-    // on the platform account and the rest transfers to the connected
-    // account directly on capture.
-    const intent = await this.stripe.paymentIntents.create({
-      amount: params.amountCents,
-      currency: "eur",
-      capture_method: "manual",
-      metadata: { bookingId: params.bookingId },
-      automatic_payment_methods: { enabled: true },
-      ...(params.connectedAccountId
-        ? { transfer_data: { destination: params.connectedAccountId } }
-        : {}),
-      ...(params.receiptEmail ? { receipt_email: params.receiptEmail } : {}),
-    });
-    // client_secret is only absent if Stripe created the intent without
-    // confirmation being possible at all, which does not happen for a
-    // freshly created intent — the `?? undefined` is type hygiene, not a
-    // real branch.
-    return { providerPaymentIntentId: intent.id, clientSecret: intent.client_secret ?? undefined };
+    // landlord accepts the request (see accept-reject.ts).
+    //
+    // Destination charge with an application fee: Stripe transfers the full
+    // amount to the landlord's connected account on capture, then collects
+    // `application_fee_amount` (our commission) back to the platform. The
+    // landlord nets `amount - fee`; the platform keeps the fee and pays the
+    // Stripe processing fees out of it. Without `application_fee_amount`
+    // (as before 06/10/2026) the landlord received 100% and the platform
+    // nothing — while our ledger recorded a 15% commission.
+    const intent = await this.stripe.paymentIntents.create(
+      {
+        amount: params.amountCents,
+        currency: "eur",
+        capture_method: "manual",
+        metadata: { bookingId: params.bookingId },
+        automatic_payment_methods: { enabled: true },
+        application_fee_amount: params.applicationFeeCents,
+        transfer_data: { destination: params.connectedAccountId },
+        ...(params.receiptEmail ? { receipt_email: params.receiptEmail } : {}),
+      },
+      // A retried POST /api/bookings for the same booking row must not
+      // create a second intent.
+      { idempotencyKey: `booking:${params.bookingId}:intent` }
+    );
+    return {
+      providerPaymentIntentId: intent.id,
+      clientSecret: intent.client_secret ?? undefined,
+      requiresClientConfirmation: true,
+    };
+  }
+
+  async assertConnectedAccountCanBeCharged(connectedAccountId: string | null): Promise<void> {
+    if (!connectedAccountId) throw new ConflictError(LANDLORD_NOT_PAYABLE);
+    const account = await this.stripe.accounts.retrieve(connectedAccountId);
+    if (!account.charges_enabled || !account.payouts_enabled) {
+      throw new ConflictError(LANDLORD_NOT_PAYABLE);
+    }
   }
 
   async capturePaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
@@ -61,24 +97,52 @@ export class StripePaymentProvider implements PaymentProvider {
     return { outcome: "processing" };
   }
 
-  async cancelPaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
-    await this.stripe.paymentIntents.cancel(providerPaymentIntentId);
+  async cancelPaymentIntent(
+    providerPaymentIntentId: string,
+    reason: CancellationReason
+  ): Promise<CapturePaymentOutcome> {
+    // Stripe has no "declined by the merchant" reason; leaving it unset is
+    // how the webhook tells a landlord refusal apart (see apply-outcome.ts).
+    await this.stripe.paymentIntents.cancel(
+      providerPaymentIntentId,
+      reason === "declined" ? {} : { cancellation_reason: reason }
+    );
     return { outcome: "processing" };
   }
 
-  async refundPaymentIntent(
-    providerPaymentIntentId: string,
-    amountCents: number
-  ): Promise<RefundOutcome> {
-    const refund = await this.stripe.refunds.create({
-      payment_intent: providerPaymentIntentId,
-      amount: amountCents,
-    });
-    // Never trust the synchronous response as final — same reasoning as
-    // capture/cancel above. The Refund row only moves to SUCCEEDED when a
-    // verified refund.updated webhook event confirms it (see
-    // apply-refund-outcome.ts).
-    return { providerRefundId: refund.id, outcome: "processing" };
+  async refundPayment(params: RefundParams): Promise<RefundOutcome> {
+    // A payment taken before Connect onboarding was enforced has no
+    // transfer to reverse — refunding with reverse_transfer would fail, so
+    // the platform bears that refund (and says so in the returned outcome).
+    const intent = await this.stripe.paymentIntents.retrieve(params.providerPaymentIntentId);
+    const hasTransfer = Boolean(intent.transfer_data?.destination);
+    const refundFee = params.funding === "LANDLORD_AND_FEE" && Boolean(intent.application_fee_amount);
+
+    // With a destination charge the full amount was transferred to the
+    // landlord, so `reverse_transfer` takes back exactly the refunded
+    // amount from them. `refund_application_fee` additionally gives the
+    // commission back (landlord cancellation, full dispute refund).
+    const refund = await this.stripe.refunds.create(
+      {
+        payment_intent: params.providerPaymentIntentId,
+        amount: params.amountCents,
+        ...(hasTransfer ? { reverse_transfer: true } : {}),
+        ...(refundFee ? { refund_application_fee: true } : {}),
+        // Lets the webhook find our Refund row even if refund.created arrives
+        // before the synchronous answer has been stored (apply-refund-outcome.ts).
+        metadata: { funding: params.funding, refund_row_id: params.idempotencyKey },
+      },
+      { idempotencyKey: `refund:${params.idempotencyKey}` }
+    );
+    // Never trust the synchronous response as final — the Refund row only
+    // moves to SUCCEEDED when a verified refund.updated webhook event
+    // confirms it (see apply-refund-outcome.ts).
+    return {
+      providerRefundId: refund.id,
+      outcome: "processing",
+      landlordReversalCents: hasTransfer ? params.amountCents : 0,
+      applicationFeeRefunded: refundFee,
+    };
   }
 
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent {

@@ -3,43 +3,67 @@ import { logError, logEvent } from "@/server/lib/logger";
 import { recordAudit } from "@/server/lib/audit";
 import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
 import { applyPaymentOutcome } from "@/server/domains/payments/apply-outcome";
+import { releaseAbandonedPaymentHolds } from "./payment-holds";
 
 /**
- * Not specified anywhere in the source cahier des charges or rapport
- * projet — a PENDING request blocks the slot (the EXCLUDE constraint
- * applies to PENDING and CONFIRMED alike) and, on real Stripe, holds the
- * client's card authorization indefinitely if a partner never responds.
- * 48h is a reasonable MVP default, not a validated product decision;
- * adjust this constant with the team rather than treating it as final.
+ * A request the landlord has not answered expires after this delay, or at
+ * the start of the slot if that comes first — decided with the product
+ * owner on 06/10/2026. A PENDING request blocks the slot (EXCLUDE
+ * constraint) and holds the client's card authorization.
  */
 export const BOOKING_EXPIRY_HOURS = 48;
 
-/** Cancels PENDING requests older than BOOKING_EXPIRY_HOURS. Reuses the
- * REJECTED status (no new BookingStatus enum value — see plan) with an
- * audit trail marking it as an automatic expiry rather than a partner
- * decision. */
+/** When a PENDING request created at `createdAt` for a slot starting at
+ * `startsAt` expires. */
+export function requestExpiresAt(createdAt: Date, startsAt: Date): Date {
+  const byDelay = new Date(createdAt.getTime() + BOOKING_EXPIRY_HOURS * 60 * 60 * 1000);
+  return byDelay < startsAt ? byDelay : startsAt;
+}
+
+/**
+ * Expires PENDING requests past requestExpiresAt(). Reuses the REJECTED
+ * status with an audit entry marking it as an automatic expiry, and the
+ * dedicated "expired" e-mail (cancellation reason "abandoned").
+ *
+ * A PENDING booking without a Payment row (left by a crash between the two
+ * inserts) used to be skipped forever, keeping its slot locked; it is now
+ * closed directly.
+ */
 export async function expireStaleBookingRequests() {
-  const cutoff = new Date(Date.now() - BOOKING_EXPIRY_HOURS * 60 * 60 * 1000);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - BOOKING_EXPIRY_HOURS * 60 * 60 * 1000);
   const stale = await prisma.booking.findMany({
-    where: { status: "PENDING", createdAt: { lt: cutoff } },
+    where: {
+      status: "PENDING",
+      OR: [{ createdAt: { lt: cutoff } }, { startsAt: { lte: now } }],
+    },
     include: { payment: true },
   });
 
   let expired = 0;
   for (const booking of stale) {
-    if (!booking.payment) continue;
     try {
-      const provider = getPaymentProvider();
-      const result = await provider.cancelPaymentIntent(booking.payment.providerPaymentIntentId);
-      if (result.outcome === "succeeded") {
-        await applyPaymentOutcome(booking.payment.providerPaymentIntentId, "canceled");
-        await recordAudit({
-          event: "booking.auto_expired",
-          organizationId: booking.organizationId,
-          metadata: { bookingId: booking.id, reason: "auto_expired" },
+      if (!booking.payment) {
+        const closed = await prisma.booking.updateMany({
+          where: { id: booking.id, status: "PENDING" },
+          data: { status: "REJECTED" },
         });
+        if (closed.count > 0) expired += 1;
+      } else {
+        const provider = getPaymentProvider();
+        const result = await provider.cancelPaymentIntent(booking.payment.providerPaymentIntentId, "abandoned");
+        if (result.outcome === "succeeded") {
+          await applyPaymentOutcome(booking.payment.providerPaymentIntentId, "canceled", "abandoned");
+        }
+        // Stripe: the booking moves when payment_intent.canceled arrives
+        // (with cancellation_reason "abandoned"); counted as expired here.
         expired += 1;
       }
+      await recordAudit({
+        event: "booking.auto_expired",
+        organizationId: booking.organizationId,
+        metadata: { bookingId: booking.id, reason: "auto_expired" },
+      });
     } catch (error) {
       logError({ event: "booking.expire_failed", error, booking_id: booking.id });
     }
@@ -47,4 +71,33 @@ export async function expireStaleBookingRequests() {
 
   logEvent({ event: "booking.expire_run", candidates: stale.length, expired });
   return { candidates: stale.length, expired };
+}
+
+/** CONFIRMED bookings whose slot has ended become COMPLETED — the status
+ * was read by the dashboards but never written. */
+export async function completeFinishedBookings() {
+  const result = await prisma.booking.updateMany({
+    where: { status: "CONFIRMED", endsAt: { lte: new Date() } },
+    data: { status: "COMPLETED" },
+  });
+  if (result.count > 0) logEvent({ event: "booking.completed_run", completed: result.count });
+  return { completed: result.count };
+}
+
+/** Everything the scheduled job does, in order. Each step is independent:
+ * one failing does not stop the others. */
+export async function runBookingMaintenance() {
+  const holds = await releaseAbandonedPaymentHolds().catch((error) => {
+    logError({ event: "booking.maintenance_holds_failed", error });
+    return null;
+  });
+  const requests = await expireStaleBookingRequests().catch((error) => {
+    logError({ event: "booking.maintenance_expire_failed", error });
+    return null;
+  });
+  const completed = await completeFinishedBookings().catch((error) => {
+    logError({ event: "booking.maintenance_complete_failed", error });
+    return null;
+  });
+  return { holds, requests, completed };
 }

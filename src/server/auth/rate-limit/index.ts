@@ -80,6 +80,8 @@ export const RATE_LIMITS = {
   favoriteToggle: { limit: 120, windowSeconds: 600 } satisfies RateLimitConfig,
   /** Listing / property photo uploads, per account — each one fills Storage. */
   photoUpload: { limit: 60, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Cancelling a booking, per account (client or landlord side). */
+  bookingCancel: { limit: 10, windowSeconds: 3600 } satisfies RateLimitConfig,
   /** Switching between tenant and landlord mode, per account. */
   accountModeSwitch: { limit: 30, windowSeconds: 3600 } satisfies RateLimitConfig,
 } as const;

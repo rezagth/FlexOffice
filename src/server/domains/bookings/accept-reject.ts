@@ -16,6 +16,11 @@ async function loadPendingRequest(organizationId: string, bookingId: string) {
   if (booking.status !== "PENDING" || !booking.payment) {
     throw new ConflictError("This booking request has already been handled");
   }
+  // PENDING implies an authorized card since 06/10/2026 (payment-holds.ts);
+  // checked anyway so a capture is never attempted on an unauthorized intent.
+  if (booking.payment.status !== "REQUIRES_CAPTURE") {
+    throw new ConflictError("Le paiement de cette demande n'est pas encore autorisé.");
+  }
   return booking;
 }
 
@@ -28,6 +33,11 @@ async function loadPendingRequest(organizationId: string, bookingId: string) {
  */
 export async function acceptBookingRequest(organizationId: string, bookingId: string) {
   const booking = await loadPendingRequest(organizationId, bookingId);
+  // Accepting after the slot has started would charge the client for time
+  // already gone; the request expires instead (expire-stale.ts).
+  if (booking.startsAt.getTime() <= Date.now()) {
+    throw new ConflictError("Ce créneau a déjà commencé : la demande ne peut plus être acceptée.");
+  }
   const provider = getPaymentProvider();
   const result = await provider.capturePaymentIntent(booking.payment!.providerPaymentIntentId);
   if (result.outcome === "succeeded") {
@@ -41,9 +51,9 @@ export async function acceptBookingRequest(organizationId: string, bookingId: st
 export async function rejectBookingRequest(organizationId: string, bookingId: string) {
   const booking = await loadPendingRequest(organizationId, bookingId);
   const provider = getPaymentProvider();
-  const result = await provider.cancelPaymentIntent(booking.payment!.providerPaymentIntentId);
+  const result = await provider.cancelPaymentIntent(booking.payment!.providerPaymentIntentId, "declined");
   if (result.outcome === "succeeded") {
-    await applyPaymentOutcome(booking.payment!.providerPaymentIntentId, "canceled");
+    await applyPaymentOutcome(booking.payment!.providerPaymentIntentId, "canceled", "declined");
   }
   return { pending: result.outcome === "processing" };
 }

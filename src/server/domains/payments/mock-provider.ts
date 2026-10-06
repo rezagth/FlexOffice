@@ -2,10 +2,13 @@ import { timingSafeEqual } from "node:crypto";
 import { getMockWebhookSecret } from "@/server/config/deployment-config";
 import { ValidationError } from "@/server/lib/errors";
 import type {
+  CancellationReason,
   CapturePaymentOutcome,
   CreatePaymentIntentParams,
+  CreatePaymentIntentResult,
   PaymentProvider,
   RefundOutcome,
+  RefundParams,
   VerifiedWebhookEvent,
 } from "./provider";
 
@@ -24,11 +27,16 @@ export class MockPaymentProvider implements PaymentProvider {
   readonly name = "mock";
   readonly signatureHeaderName = "x-mock-signature";
 
-  async createPaymentIntent(
-    params: CreatePaymentIntentParams
-  ): Promise<{ providerPaymentIntentId: string }> {
+  async createPaymentIntent(params: CreatePaymentIntentParams): Promise<CreatePaymentIntentResult> {
     void params;
-    return { providerPaymentIntentId: `mock_pi_${crypto.randomUUID()}` };
+    // No card step: the mock authorizes synchronously, so the booking goes
+    // straight to PENDING (see create-booking.ts).
+    return { providerPaymentIntentId: `mock_pi_${crypto.randomUUID()}`, requiresClientConfirmation: false };
+  }
+
+  async assertConnectedAccountCanBeCharged(connectedAccountId: string | null): Promise<void> {
+    // No Connect in the mock: every landlord is payable.
+    void connectedAccountId;
   }
 
   async capturePaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
@@ -36,18 +44,24 @@ export class MockPaymentProvider implements PaymentProvider {
     return { outcome: "succeeded" };
   }
 
-  async cancelPaymentIntent(providerPaymentIntentId: string): Promise<CapturePaymentOutcome> {
+  async cancelPaymentIntent(
+    providerPaymentIntentId: string,
+    reason: CancellationReason
+  ): Promise<CapturePaymentOutcome> {
     void providerPaymentIntentId;
+    void reason;
     return { outcome: "succeeded" };
   }
 
-  async refundPaymentIntent(
-    providerPaymentIntentId: string,
-    amountCents: number
-  ): Promise<RefundOutcome> {
-    void providerPaymentIntentId;
-    void amountCents;
-    return { providerRefundId: `mock_re_${crypto.randomUUID()}`, outcome: "succeeded" };
+  async refundPayment(params: RefundParams): Promise<RefundOutcome> {
+    // Same bookkeeping as Stripe (the landlord bears the refunded amount;
+    // the fee is refunded only for LANDLORD_AND_FEE), settled immediately.
+    return {
+      providerRefundId: `mock_re_${crypto.randomUUID()}`,
+      outcome: "succeeded",
+      landlordReversalCents: params.amountCents,
+      applicationFeeRefunded: params.funding === "LANDLORD_AND_FEE",
+    };
   }
 
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent {

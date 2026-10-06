@@ -1,11 +1,17 @@
 import { getEmailProvider } from "./get-email-provider";
 import { logError } from "@/server/lib/logger";
 import {
+  bookingCancelledByClientNoticeTemplate,
+  bookingCancelledByClientTemplate,
+  bookingCancelledByLandlordNoticeTemplate,
+  bookingCancelledByLandlordTemplate,
   bookingConfirmedTemplate,
+  bookingExpiredTemplate,
   bookingRejectedTemplate,
   bookingRequestedTemplate,
   bookingRequestReceivedTemplate,
   type BookingEmailContext,
+  type CancellationEmailContext,
 } from "./templates";
 
 /**
@@ -36,4 +42,18 @@ export function sendBookingConfirmed(ctx: BookingEmailContext) {
 
 export function sendBookingRejected(ctx: BookingEmailContext) {
   return sendSafely(() => bookingRejectedTemplate(ctx), "email.booking_rejected.failed");
+}
+
+export function sendBookingExpired(ctx: BookingEmailContext) {
+  return sendSafely(() => bookingExpiredTemplate(ctx), "email.booking_expired.failed");
+}
+
+export async function sendBookingCancelledByClient(ctx: CancellationEmailContext) {
+  await sendSafely(() => bookingCancelledByClientTemplate(ctx), "email.booking_cancelled_by_client.failed");
+  await sendSafely(() => bookingCancelledByClientNoticeTemplate(ctx), "email.booking_cancelled_by_client_notice.failed");
+}
+
+export async function sendBookingCancelledByLandlord(ctx: CancellationEmailContext) {
+  await sendSafely(() => bookingCancelledByLandlordTemplate(ctx), "email.booking_cancelled_by_landlord.failed");
+  await sendSafely(() => bookingCancelledByLandlordNoticeTemplate(ctx), "email.booking_cancelled_by_landlord_notice.failed");
 }
