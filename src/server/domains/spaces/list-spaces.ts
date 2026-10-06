@@ -6,6 +6,7 @@ import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import { isSpaceAvailableOnDate } from "@/server/domains/bookings/availability";
 import { SPACE_AMENITY_LABELS } from "@/lib/format";
 import { MOCK_SPACES } from "./mock-data";
+import { isProductionDeployment } from "@/server/auth/runtime-config";
 
 const VALID_AMENITIES = new Set(Object.keys(SPACE_AMENITY_LABELS));
 
@@ -80,7 +81,15 @@ function publicSpaceScalars() {
 // wired up): fall back to static demo data instead of erroring, so the
 // public pages stay browsable. Once DATABASE_URL is set this branch never
 // runs — see mock-data.ts.
-const useMockData = !process.env.DATABASE_URL;
+//
+// Except in a real production deployment (NODE_ENV=production without
+// OFFICEFLEX_DEMO_MODE=true): there, a missing DATABASE_URL is a
+// configuration mistake, and serving made-up listings to real visitors
+// would be worse than an empty catalogue. Pages still render (no outage),
+// with no results; runtime-config.ts already logs the misconfiguration.
+const noDatabase = !process.env.DATABASE_URL;
+const useMockData = noDatabase && !isProductionDeployment();
+const servesNothing = noDatabase && isProductionDeployment();
 
 /**
  * The organization side of "is this listing publicly visible".
@@ -154,6 +163,7 @@ export async function listPublishedSpaces(
     track?: boolean;
   } = {}
 ) {
+  if (servesNothing) return [];
   if (useMockData) {
     const city = params.city?.toLowerCase();
     return MOCK_SPACES.filter(
@@ -228,6 +238,7 @@ export async function listPublishedSpaces(
 }
 
 export async function getPublishedSpaceBySlug(slug: string) {
+  if (servesNothing) return null;
   if (useMockData) {
     return MOCK_SPACES.find((space) => space.slug === slug) ?? null;
   }

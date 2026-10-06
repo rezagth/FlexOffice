@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+import { getMockWebhookSecret } from "@/server/config/deployment-config";
 import { ValidationError } from "@/server/lib/errors";
 import type {
   CapturePaymentOutcome,
@@ -49,11 +51,11 @@ export class MockPaymentProvider implements PaymentProvider {
   }
 
   verifyWebhookEvent(rawBody: string, signatureHeader: string | null): VerifiedWebhookEvent {
-    // `||`, not `??` — an unset env var can arrive as "" rather than
-    // undefined depending on the environment (see logger.ts for the bug
-    // this caused elsewhere); `??` would silently accept that empty value.
-    const expected = process.env.PAYMENT_MOCK_WEBHOOK_SECRET || "mock-secret";
-    if (signatureHeader !== expected) {
+    // No hard-coded fallback in production: the old default ("mock-secret")
+    // was printed in this file and in .env.example, so anyone could forge a
+    // "payment succeeded" event. See getMockWebhookSecret().
+    const expected = getMockWebhookSecret();
+    if (!expected || !signatureHeader || !constantTimeEqual(signatureHeader, expected)) {
       throw new ValidationError("Invalid mock webhook signature");
     }
 
@@ -70,4 +72,10 @@ export class MockPaymentProvider implements PaymentProvider {
 
     return { id: parsed.id, type: parsed.type, data: parsed.data };
   }
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
 }
