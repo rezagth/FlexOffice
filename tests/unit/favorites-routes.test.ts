@@ -30,6 +30,7 @@ describe("POST /api/favorites — ownership comes from the session, never the bo
     const res = await POST(
       new Request("http://test.local/api/favorites", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ spaceId: SPACE_1, userId: "someone-else" }),
       })
     );
@@ -44,6 +45,7 @@ describe("POST /api/favorites — ownership comes from the session, never the bo
     const res = await POST(
       new Request("http://test.local/api/favorites", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ spaceId: SPACE_1 }),
       })
     );

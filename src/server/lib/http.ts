@@ -2,18 +2,24 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { AppError, RateLimitedError } from "./errors";
 import { logError } from "./logger";
+import { assertSameOriginRequest } from "./request-origin";
 
 /**
  * Wraps a Route Handler so thrown `AppError`s (unauthorized, forbidden,
  * not found, validation, conflict, rate-limited) become the matching HTTP
  * status with a safe JSON body, and any other error becomes a generic 500
  * — never a leaked stack trace or internal message.
+ *
+ * It also refuses cross-site state-changing requests before the handler
+ * runs (CSRF — see request-origin.ts), so every route gets the guard
+ * without having to remember it.
  */
 export function withErrorHandling<Args extends unknown[]>(
   handler: (request: Request, ...args: Args) => Promise<Response>
 ) {
   return async (request: Request, ...args: Args): Promise<Response> => {
     try {
+      assertSameOriginRequest(request);
       return await handler(request, ...args);
     } catch (error) {
       if (error instanceof AppError) {

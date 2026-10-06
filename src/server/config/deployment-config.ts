@@ -109,6 +109,15 @@ function otherProblems(): ConfigProblem[] {
     });
   }
 
+  if (!env("APP_URL")) {
+    problems.push({
+      key: "APP_URL",
+      area: "other",
+      message:
+        "APP_URL is not set: behind a reverse proxy, browser requests may be refused by the CSRF origin check, and links built for e-mails and Stripe have no reliable base URL.",
+    });
+  }
+
   if (!env("TRUSTED_CLIENT_IP_HEADER") && env("VERCEL") !== "1") {
     problems.push({
       key: "TRUSTED_CLIENT_IP_HEADER",
