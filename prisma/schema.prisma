@@ -701,7 +701,20 @@ model SpaceClosure {
 // ---------------------------------------------------------------------------
 // Bookings
 // ---------------------------------------------------------------------------
+/// Who cancelled a booking (status CANCELLED). SYSTEM = an abandoned card
+/// step released automatically.
+enum CancellationActor {
+  CLIENT
+  LANDLORD
+  SYSTEM
+}
+
 enum BookingStatus {
+  /// Created, slot held, card not authorized yet (real Stripe only — the
+  /// mock provider authorizes synchronously and goes straight to PENDING).
+  /// Held for a short time only: see bookings/payment-holds.ts. Covered by
+  /// bookings_no_overlap_excl like PENDING and CONFIRMED.
+  AWAITING_PAYMENT
   PENDING
   CONFIRMED
   CANCELLED
@@ -728,6 +741,8 @@ model Booking {
   purpose               String
   priceAmountCents      Int           @map("price_amount_cents")
   commissionAmountCents Int           @map("commission_amount_cents")
+  cancelledAt           DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  cancelledBy           CancellationActor? @map("cancelled_by")
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -749,6 +764,8 @@ model Booking {
 // Payments
 // ---------------------------------------------------------------------------
 enum PaymentStatus {
+  /// PaymentIntent created, the client has not confirmed a card yet.
+  AWAITING_AUTHORIZATION
   REQUIRES_CAPTURE
   SUCCEEDED
   FAILED
@@ -793,6 +810,11 @@ model Refund {
   reason           String
   providerRefundId String       @unique @map("provider_refund_id")
   status           RefundStatus @default(PENDING)
+  /// Part of this refund taken back from the landlord's connected account
+  /// (Stripe transfer reversal). The platform bears the rest.
+  landlordReversalCents  Int     @default(0) @map("landlord_reversal_cents")
+  /// True when the platform's commission (application fee) was refunded too.
+  applicationFeeRefunded Boolean @default(false) @map("application_fee_refunded")
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
