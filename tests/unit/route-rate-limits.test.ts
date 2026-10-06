@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -10,7 +9,19 @@ const requireAuthMock = vi.fn();
 const createBookingMock = vi.fn();
 const deleteProfileMock = vi.fn();
 
-vi.mock("@/server/auth/rbac", () => ({ requireAuth: requireAuthMock }));
+vi.mock("@/server/auth/rbac", () => ({ requireAuth: requireAuthMock, requireOrg: requireAuthMock }));
+vi.mock("@/server/domains/properties/access", () => ({
+  requirePropertyManageAccess: async () => ({ ctx: await requireAuthMock() }),
+}));
+// Domain calls are never reached past the limit; stubs keep earlier calls cheap.
+vi.mock("@/server/domains/messaging/conversation", () => ({ listMessages: vi.fn(), sendMessage: vi.fn() }));
+vi.mock("@/server/domains/disputes/raise", () => ({ raiseDispute: vi.fn() }));
+vi.mock("@/server/domains/favorites/favorites", () => ({ addFavorite: vi.fn(), removeFavorite: vi.fn() }));
+vi.mock("@/server/domains/organizations/photos", () => ({ addSpacePhoto: vi.fn(), removeSpacePhoto: vi.fn() }));
+vi.mock("@/server/domains/properties/photos", () => ({ addPropertyPhoto: vi.fn(), listPropertyPhotos: vi.fn() }));
+vi.mock("@/server/domains/properties/spaces", () => ({ getSpaceForProperty: vi.fn() }));
+vi.mock("@/server/domains/properties/space-photos", () => ({ addSpacePhoto: vi.fn(), listSpacePhotos: vi.fn() }));
+vi.mock("@/server/domains/users/switch-mode", () => ({ switchMode: vi.fn(async () => ({})) }));
 vi.mock("@/server/domains/bookings/create-booking", () => ({ createBooking: createBookingMock }));
 vi.mock("@/server/domains/users/gdpr", () => ({ deleteOrAnonymizeProfile: deleteProfileMock }));
 
@@ -65,21 +76,35 @@ describe("POST /api/client/gdpr/delete", () => {
   });
 });
 
-describe("every state-changing route listed in the audit is rate limited", () => {
-  // Cheap guard against a limit being dropped during a refactor.
-  const routes = [
-    "src/app/api/bookings/route.ts",
-    "src/app/api/bookings/[id]/messages/route.ts",
-    "src/app/api/bookings/[id]/disputes/route.ts",
-    "src/app/api/favorites/route.ts",
-    "src/app/api/favorites/[spaceId]/route.ts",
-    "src/app/api/partner/spaces/[id]/photos/route.ts",
-    "src/app/api/properties/[id]/photos/route.ts",
-    "src/app/api/properties/[id]/spaces/[spaceId]/photos/route.ts",
-    "src/app/api/account/mode/route.ts",
-    "src/app/api/client/gdpr/delete/route.ts",
+describe("every state-changing route listed in the audit answers 429 past its limit", () => {
+  // Behavioural, not a grep: each handler is called past its limit and must
+  // refuse. Requests before that may fail validation (empty bodies) — they
+  // still count, which is the point: the limit runs before any work.
+  type Handler = (request: Request, ctx: { params: Promise<Record<string, string>> }) => Promise<Response>;
+  const cases: { name: string; load: () => Promise<Handler>; method: string; limit: number }[] = [
+    { name: "POST /api/bookings/[id]/messages", load: async () => (await import("@/app/api/bookings/[id]/messages/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.messageSend.limit },
+    { name: "POST /api/bookings/[id]/disputes", load: async () => (await import("@/app/api/bookings/[id]/disputes/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.disputeRaise.limit },
+    { name: "POST /api/favorites", load: async () => (await import("@/app/api/favorites/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.favoriteToggle.limit },
+    { name: "DELETE /api/favorites/[spaceId]", load: async () => (await import("@/app/api/favorites/[spaceId]/route")).DELETE as Handler, method: "DELETE", limit: RATE_LIMITS.favoriteToggle.limit },
+    { name: "POST /api/partner/spaces/[id]/photos", load: async () => (await import("@/app/api/partner/spaces/[id]/photos/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.photoUpload.limit },
+    { name: "POST /api/properties/[id]/photos", load: async () => (await import("@/app/api/properties/[id]/photos/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.photoUpload.limit },
+    { name: "POST /api/properties/[id]/spaces/[spaceId]/photos", load: async () => (await import("@/app/api/properties/[id]/spaces/[spaceId]/photos/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.photoUpload.limit },
+    { name: "PUT /api/account/mode", load: async () => (await import("@/app/api/account/mode/route")).PUT as Handler, method: "PUT", limit: RATE_LIMITS.accountModeSwitch.limit },
   ];
-  it.each(routes)("%s calls enforceRateLimit", (path) => {
-    expect(readFileSync(path, "utf8")).toContain("enforceRateLimit(");
+
+  it.each(cases)("$name", async ({ load, method, limit }) => {
+    const handler = await load();
+    const params = Promise.resolve({ id: SPACE, spaceId: SPACE });
+    const call = () =>
+      handler(
+        new Request("http://test.local/api/x", {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: method === "DELETE" ? undefined : "{}",
+        }),
+        { params }
+      );
+    for (let i = 0; i < limit; i++) expect((await call()).status).not.toBe(429);
+    expect((await call()).status).toBe(429);
   });
 });

@@ -96,3 +96,22 @@ export function assertSameOriginRequest(request: Request): void {
     throw new ValidationError("Format de requête non pris en charge.");
   }
 }
+
+/**
+ * Absolute base URL for links that leave the app (Stripe Connect return
+ * URLs, e-mails). APP_URL when set: behind Traefik, `request.url` is the
+ * server's own listen address (http://localhost:3000), which Stripe would
+ * send the landlord back to. The request's origin is only a fallback for
+ * local development.
+ */
+export function getAppBaseUrl(request: Request): string {
+  const appUrl = process.env.APP_URL || undefined;
+  if (appUrl) {
+    try {
+      return new URL(appUrl).origin;
+    } catch {
+      // fall through to the request origin
+    }
+  }
+  return new URL(request.url).origin;
+}

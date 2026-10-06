@@ -78,6 +78,12 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   const priceAmountCents = slot.priceCents;
   const commissionAmountCents = computeCommissionCents(priceAmountCents);
 
+  // Resolved BEFORE the booking row exists: in a misconfigured production
+  // deployment getPaymentProvider() throws a 503, and a PENDING booking
+  // created first would keep the slot locked by the EXCLUDE constraint —
+  // with no Payment row, so expire-stale.ts would never release it.
+  const provider = getPaymentProvider();
+
   let booking;
   try {
     booking = await prisma.booking.create({
@@ -101,7 +107,6 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
     throw error;
   }
 
-  const provider = getPaymentProvider();
   let providerPaymentIntentId: string;
   let clientSecret: string | undefined;
   try {

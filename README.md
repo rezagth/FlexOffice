@@ -641,6 +641,22 @@ Sur un déploiement de démonstration en production, poser
 `OFFICEFLEX_DEMO_MODE=true` : sans ce drapeau, une configuration manquante en
 production est journalisée comme une erreur de déploiement — ce qu'elle est.
 
+**En production sans ce drapeau (déploiement réel), les replis de démo sont
+coupés** — ils y deviendraient des incidents (audit du 06/10/2026) :
+
+- `DATABASE_URL` absent → catalogue vide, jamais d'espaces fictifs montrés à
+  de vrais visiteurs (les pages restent servies) ;
+- `PAYMENT_PROVIDER` doit être posé explicitement ; `mock` n'est accepté
+  qu'avec `OFFICEFLEX_ALLOW_MOCK_PAYMENTS=true` (staging) et un
+  `PAYMENT_MOCK_WEBHOOK_SECRET` d'au moins 32 caractères. Sinon les routes de
+  réservation et de paiement répondent 503 ; le reste du site fonctionne ;
+- chaque variable manquante (e-mail, `CRON_SECRET`, `APP_URL`,
+  `TRUSTED_CLIENT_IP_HEADER`, `RATE_LIMIT_KEY_SALT`…) est journalisée en
+  erreur au démarrage par `src/instrumentation.ts`
+  (`src/server/config/deployment-config.ts`).
+
+En `pnpm dev` et dans les tests, rien ne change : zéro configuration.
+
 `getAuthContext()` distingue explicitement quatre situations : démo assumée,
 utilisateur non authentifié, configuration absente hors production, et panne
 réelle d'infrastructure. Seule la dernière lève une erreur (503, rendue par

@@ -17,9 +17,19 @@ import { logError } from "@/server/lib/logger";
 // with its own contract (200 / 503), not the generic error envelope.
 export async function GET(request: Request) {
   const { ip } = getClientIp(request);
-  const verdict = await rateLimit(`public:health:ip:${ip}`, RATE_LIMITS.publicRead, {
-    onStoreError: "allow",
-  });
+  // Requests without the trusted client-IP header (the container's own
+  // healthcheck, Coolify probing it locally) all share the "unknown" key.
+  // Limiting that shared bucket would let anyone reaching the proxy without
+  // going through Cloudflare exhaust it and get the container marked
+  // unhealthy and restarted in a loop. The edge must not be reachable that
+  // way anyway (see getTrustedClientIpHeader); this keeps the probe safe if
+  // it is.
+  const verdict =
+    ip === "unknown"
+      ? { allowed: true, retryAfterSeconds: 0 }
+      : await rateLimit(`public:health:ip:${ip}`, RATE_LIMITS.publicRead, {
+          onStoreError: "allow",
+        });
   if (!verdict.allowed) {
     return NextResponse.json(
       { status: "error", reason: "rate_limited" },

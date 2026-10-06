@@ -3,6 +3,7 @@ import { requireCapability } from "@/server/auth/rbac";
 import { createOnboardingLink } from "@/server/domains/payments/stripe-connect";
 import { withErrorHandling } from "@/server/lib/http";
 import { ForbiddenError } from "@/server/lib/errors";
+import { getAppBaseUrl } from "@/server/lib/request-origin";
 
 // POST /api/landlord/stripe/connect — starts (or resumes) hosted Stripe
 //   Connect onboarding for the caller's active organization. OWNER only:
@@ -13,7 +14,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     throw new ForbiddenError("Aucune organisation active pour ce compte.");
   }
 
-  const origin = new URL(request.url).origin;
+  const origin = getAppBaseUrl(request);
   const returnUrl = `${origin}/app/landlord/verification?stripe=return`;
   const refreshUrl = `${origin}/app/landlord/verification?stripe=refresh`;
 

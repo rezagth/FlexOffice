@@ -28,6 +28,7 @@ beforeEach(() => {
     "OFFICEFLEX_DEMO_MODE",
     "EMAIL_PROVIDER",
     "CRON_SECRET",
+    "OFFICEFLEX_ALLOW_MOCK_PAYMENTS",
   ]) {
     vi.stubEnv(key, "");
   }
@@ -82,8 +83,18 @@ describe("in a production deployment", () => {
     expect(() => getPaymentProvider()).toThrow(expect.objectContaining({ status: 503 }));
   });
 
-  it("accepts mock payments (staging) with a strong secret", async () => {
+  it("refuses mock payments without the explicit staging opt-in", async () => {
     vi.stubEnv("PAYMENT_PROVIDER", "mock");
+    vi.stubEnv("PAYMENT_MOCK_WEBHOOK_SECRET", STRONG_SECRET);
+    const { getPaymentProvider, collectPaymentConfigProblems } = await load();
+
+    expect(collectPaymentConfigProblems().map((p) => p.key)).toEqual(["OFFICEFLEX_ALLOW_MOCK_PAYMENTS"]);
+    expect(() => getPaymentProvider()).toThrow(expect.objectContaining({ status: 503 }));
+  });
+
+  it("accepts mock payments (staging) with the opt-in and a strong secret", async () => {
+    vi.stubEnv("PAYMENT_PROVIDER", "mock");
+    vi.stubEnv("OFFICEFLEX_ALLOW_MOCK_PAYMENTS", "true");
     vi.stubEnv("PAYMENT_MOCK_WEBHOOK_SECRET", STRONG_SECRET);
     const { getPaymentProvider } = await load();
 
@@ -115,6 +126,7 @@ describe("in a production deployment", () => {
 
   it("reports e-mail and cron gaps without blocking payments", async () => {
     vi.stubEnv("PAYMENT_PROVIDER", "mock");
+    vi.stubEnv("OFFICEFLEX_ALLOW_MOCK_PAYMENTS", "true");
     vi.stubEnv("PAYMENT_MOCK_WEBHOOK_SECRET", STRONG_SECRET);
     const { collectProductionConfigProblems, collectPaymentConfigProblems } = await load();
 
@@ -130,5 +142,35 @@ describe("in a production deployment", () => {
 
     expect(collectProductionConfigProblems()).toEqual([]);
     expect(getPaymentProvider().constructor.name).toBe("MockPaymentProvider");
+  });
+});
+
+describe("public listings without a database", () => {
+  async function loadListings() {
+    vi.resetModules();
+    return import("@/server/domains/spaces/list-spaces");
+  }
+
+  it("serve the demo listings outside production", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("DATABASE_URL", "");
+    const { listPublishedSpaces } = await loadListings();
+    expect((await listPublishedSpaces()).length).toBeGreaterThan(0);
+  });
+
+  it("serve the demo listings in a declared demo", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("OFFICEFLEX_DEMO_MODE", "true");
+    vi.stubEnv("DATABASE_URL", "");
+    const { listPublishedSpaces } = await loadListings();
+    expect((await listPublishedSpaces()).length).toBeGreaterThan(0);
+  });
+
+  it("serve nothing — never made-up listings — in a real production deployment", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DATABASE_URL", "");
+    const { listPublishedSpaces, getPublishedSpaceBySlug } = await loadListings();
+    expect(await listPublishedSpaces()).toEqual([]);
+    expect(await getPublishedSpaceBySlug("salle-rivoli-paris")).toBeNull();
   });
 });

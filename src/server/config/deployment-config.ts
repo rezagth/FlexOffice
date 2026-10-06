@@ -63,6 +63,17 @@ function paymentProblems(): ConfigProblem[] {
   }
 
   if (kind === "mock") {
+    // Mock payments confirm bookings without charging anyone. Legitimate on
+    // a staging environment, never on the real platform — so it takes an
+    // explicit opt-in, not just a copied .env.example (which ships "mock").
+    if (env("OFFICEFLEX_ALLOW_MOCK_PAYMENTS") !== "true") {
+      problems.push({
+        key: "OFFICEFLEX_ALLOW_MOCK_PAYMENTS",
+        area: "payment",
+        message:
+          "PAYMENT_PROVIDER=mock in production confirms bookings without charging anyone. Use \"stripe\", or set OFFICEFLEX_ALLOW_MOCK_PAYMENTS=true on a staging environment only.",
+      });
+    }
     const secret = env("PAYMENT_MOCK_WEBHOOK_SECRET");
     if (!secret || secret.length < MIN_WEBHOOK_SECRET_LENGTH) {
       problems.push({

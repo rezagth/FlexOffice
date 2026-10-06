@@ -37,10 +37,12 @@ const securityHeaders = [
     value: "strict-origin-when-cross-origin",
   },
   {
-    // Nothing in the product uses these, so deny them outright rather than
-    // leaving the browser defaults in place.
+    // Deny what the product does not use. Geolocation is allowed for our own
+    // pages ("around me" search, search-geolocation.tsx) — `geolocation=()`
+    // blocked it entirely. Payment is allowed for us and Stripe's iframe so
+    // Apple Pay / Google Pay can work in the Payment Element.
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    value: 'camera=(), microphone=(), geolocation=(self), payment=(self "https://js.stripe.com"), usb=()',
   },
   {
     // Two years, subdomains included. Vercel serves HTTPS only; this stops a
