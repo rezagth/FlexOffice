@@ -174,25 +174,50 @@ export async function rateLimit(
 }
 
 /**
+ * The one request header this deployment's edge sets and a client cannot
+ * forge, lower-cased — or null when none is known.
+ *
+ * It used to be a fixed list tried in order (x-vercel-forwarded-for, then
+ * cf-connecting-ip, then x-real-ip), all treated as trustworthy. That is
+ * only true on Vercel: behind Cloudflare + Traefik nothing strips an
+ * incoming `X-Vercel-Forwarded-For`, so a client sending a random value per
+ * request escaped every per-IP limit (login, signup, support, uploads).
+ * Which header is trustworthy depends on the hosting, so it is configured:
+ *
+ *   TRUSTED_CLIENT_IP_HEADER=cf-connecting-ip   behind a Cloudflare tunnel
+ *   (unset, on Vercel)                          x-vercel-forwarded-for
+ *
+ * Only that header is ever read as trusted; every other one is ignored.
+ * The edge must also be the only way in (Traefik reachable from cloudflared
+ * only), otherwise even the configured header can be sent directly.
+ */
+export function getTrustedClientIpHeader(): string | null {
+  const configured = readEnv("TRUSTED_CLIENT_IP_HEADER")?.trim().toLowerCase();
+  if (configured) return configured;
+  if (readEnv("VERCEL") === "1") return "x-vercel-forwarded-for";
+  return null;
+}
+
+/**
  * Client identifier for a rate-limit key.
  *
- * Reads the headers the hosting platform sets and a client cannot forge,
- * in preference order. `x-forwarded-for` is last and only its first element
- * is available, which the client itself controls — so it is a best-effort
- * fallback for local development, never the basis of a security decision on
- * its own. `trusted` says which case applied, so a log can show whether the
- * limit was keyed on something meaningful.
+ * Reads the trusted edge header (see getTrustedClientIpHeader). Without
+ * one, the first element of `x-forwarded-for` is used as a best-effort key
+ * for local development — the client controls it, so `trusted: false` says
+ * so, and a production deployment without TRUSTED_CLIENT_IP_HEADER is
+ * reported at boot (deployment-config.ts).
+ *
+ * When the trusted header is configured but missing from a request (an
+ * internal call, a health check), the request is keyed "unknown" rather
+ * than falling back to a header the client could forge.
  */
 export function getClientIp(request: Request): { ip: string; trusted: boolean } {
-  const platformHeaders = [
-    "x-vercel-forwarded-for", // Vercel, set at the edge
-    "cf-connecting-ip", // Cloudflare
-    "x-real-ip", // common reverse-proxy convention
-  ];
+  const trustedHeader = getTrustedClientIpHeader();
 
-  for (const header of platformHeaders) {
-    const value = request.headers.get(header)?.trim();
+  if (trustedHeader) {
+    const value = request.headers.get(trustedHeader)?.split(",")[0]?.trim();
     if (value) return { ip: value, trusted: true };
+    return { ip: "unknown", trusted: false };
   }
 
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();

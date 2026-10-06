@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   accountKey,
   getClientIp,
@@ -189,17 +189,63 @@ describe("MemoryRateLimitStore", () => {
 });
 
 describe("getClientIp", () => {
-  it("prefers a platform header the client cannot forge, and says so", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("reads only the configured trusted header, and says so", () => {
+    vi.stubEnv("TRUSTED_CLIENT_IP_HEADER", "CF-Connecting-IP");
     const request = new Request("http://test.local", {
       headers: {
-        "x-vercel-forwarded-for": "203.0.113.7",
+        "cf-connecting-ip": "203.0.113.7",
         "x-forwarded-for": "1.2.3.4, 203.0.113.7",
       },
     });
     expect(getClientIp(request)).toEqual({ ip: "203.0.113.7", trusted: true });
   });
 
-  it("falls back to x-forwarded-for but marks it untrusted", () => {
+  it("ignores a forged x-vercel-forwarded-for behind Cloudflare (audit B-08)", () => {
+    vi.stubEnv("TRUSTED_CLIENT_IP_HEADER", "cf-connecting-ip");
+    vi.stubEnv("VERCEL", "");
+    const request = new Request("http://test.local", {
+      headers: {
+        "cf-connecting-ip": "203.0.113.7",
+        "x-vercel-forwarded-for": "198.51.100.99",
+        "x-real-ip": "198.51.100.98",
+      },
+    });
+    expect(getClientIp(request).ip).toBe("203.0.113.7");
+  });
+
+  it("does not trust any platform header when none is configured", () => {
+    vi.stubEnv("TRUSTED_CLIENT_IP_HEADER", "");
+    vi.stubEnv("VERCEL", "");
+    const request = new Request("http://test.local", {
+      headers: { "x-vercel-forwarded-for": "198.51.100.99", "cf-connecting-ip": "198.51.100.98" },
+    });
+    expect(getClientIp(request)).toEqual({ ip: "unknown", trusted: false });
+  });
+
+  it("trusts x-vercel-forwarded-for only on Vercel", () => {
+    vi.stubEnv("TRUSTED_CLIENT_IP_HEADER", "");
+    vi.stubEnv("VERCEL", "1");
+    const request = new Request("http://test.local", {
+      headers: { "x-vercel-forwarded-for": "203.0.113.7" },
+    });
+    expect(getClientIp(request)).toEqual({ ip: "203.0.113.7", trusted: true });
+  });
+
+  it("keys a request missing the configured header as unknown, never on x-forwarded-for", () => {
+    vi.stubEnv("TRUSTED_CLIENT_IP_HEADER", "cf-connecting-ip");
+    const request = new Request("http://test.local", {
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+    expect(getClientIp(request)).toEqual({ ip: "unknown", trusted: false });
+  });
+
+  it("falls back to x-forwarded-for but marks it untrusted when nothing is configured", () => {
+    vi.stubEnv("TRUSTED_CLIENT_IP_HEADER", "");
+    vi.stubEnv("VERCEL", "");
     const request = new Request("http://test.local", {
       headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
     });
@@ -208,6 +254,8 @@ describe("getClientIp", () => {
   });
 
   it("returns a usable key when no header is present at all", () => {
+    vi.stubEnv("TRUSTED_CLIENT_IP_HEADER", "");
+    vi.stubEnv("VERCEL", "");
     expect(getClientIp(new Request("http://test.local"))).toEqual({
       ip: "unknown",
       trusted: false,

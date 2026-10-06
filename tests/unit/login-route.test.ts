@@ -29,7 +29,7 @@ function loginRequest(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-vercel-forwarded-for": ip,
+      "cf-connecting-ip": ip,
     },
     body: JSON.stringify(body),
   });
@@ -45,6 +45,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
   process.env.DATABASE_URL = "postgresql://test/test";
   delete process.env.OFFICEFLEX_DEMO_MODE;
+  process.env.TRUSTED_CLIENT_IP_HEADER = "cf-connecting-ip";
 });
 
 afterEach(() => {
@@ -52,6 +53,7 @@ afterEach(() => {
   delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   delete process.env.DATABASE_URL;
   delete process.env.OFFICEFLEX_DEMO_MODE;
+  delete process.env.TRUSTED_CLIENT_IP_HEADER;
 });
 
 describe("POST /api/auth/login", () => {

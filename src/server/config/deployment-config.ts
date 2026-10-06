@@ -109,6 +109,15 @@ function otherProblems(): ConfigProblem[] {
     });
   }
 
+  if (!env("TRUSTED_CLIENT_IP_HEADER") && env("VERCEL") !== "1") {
+    problems.push({
+      key: "TRUSTED_CLIENT_IP_HEADER",
+      area: "other",
+      message:
+        "TRUSTED_CLIENT_IP_HEADER is not set: per-IP rate limits are keyed on x-forwarded-for, which the client controls. Behind Cloudflare, set it to cf-connecting-ip.",
+    });
+  }
+
   if (!env("RATE_LIMIT_KEY_SALT")) {
     problems.push({
       key: "RATE_LIMIT_KEY_SALT",
