@@ -38,12 +38,14 @@ describe.skipIf(!hasServer)("POST /api/auth/register (real server + Supabase)", 
       email,
       password: "supersecret",
       name: "Test Client",
+      acceptTerms: true,
     });
 
     expect(res.status).toBe(201);
-    const body = await res.json();
-    const profile = await prisma.profile.findUnique({ where: { id: body.userId } });
+    // No user id in the response since SEC-15: look the profile up instead.
+    const profile = await prisma.profile.findUnique({ where: { email } });
     expect(profile?.role).toBe("CLIENT");
+    expect(profile?.termsAcceptedAt).not.toBeNull();
     expect(profile?.organizationId).toBeNull();
   });
 
@@ -57,6 +59,7 @@ describe.skipIf(!hasServer)("POST /api/auth/register (real server + Supabase)", 
       email,
       password: "supersecret",
       name: "Test Partner",
+      acceptTerms: true,
       organizationName: "Test Org",
       organizationSiret: siret,
       organizationAddress: "1 rue de Test",
@@ -65,8 +68,7 @@ describe.skipIf(!hasServer)("POST /api/auth/register (real server + Supabase)", 
     });
 
     expect(res.status).toBe(201);
-    const body = await res.json();
-    const profile = await prisma.profile.findUniqueOrThrow({ where: { id: body.userId } });
+    const profile = await prisma.profile.findUniqueOrThrow({ where: { email } });
     expect(profile.role).toBe("PARTNER");
     expect(profile.organizationId).not.toBeNull();
 
@@ -77,12 +79,17 @@ describe.skipIf(!hasServer)("POST /api/auth/register (real server + Supabase)", 
     expect(org.status).toBe("PENDING_VERIFICATION");
   });
 
-  it("rejects a duplicate email with 409, not a 500", async () => {
+  // Was "rejects a duplicate email with 409". SEC-15 makes that answer an
+  // enumeration oracle, so a known address now gets exactly the answer a new
+  // one gets — the stricter property, asserted on status AND body.
+  it("answers a duplicate email exactly like a new one (no enumeration), never a 500", async () => {
     const email = uniqueEmail("dup");
-    const payload = { role: "CLIENT", email, password: "supersecret", name: "Dup Client" };
+    const payload = { role: "CLIENT", email, password: "supersecret", name: "Dup Client", acceptTerms: true };
 
-    expect((await register(payload)).status).toBe(201);
-    expect((await register(payload)).status).toBe(409);
+    const first = await register(payload);
+    const second = await register(payload);
+    expect(second.status).toBe(first.status);
+    expect(await second.json()).toEqual(await first.json());
   });
 
   it("rejects an invalid payload with 400", async () => {

@@ -4,10 +4,19 @@ import { safeRedirectPath } from "@/lib/validation/redirect";
 
 export const metadata = { title: "Connexion — OfficeFlex" };
 
+// Messages for the `error` codes /auth/confirm redirects here with. A fixed
+// table: the query string only selects a message, it never supplies text.
+const NOTICES: Record<string, string> = {
+  link_invalid:
+    "Ce lien n'est plus valide : il a peut-être expiré ou déjà été utilisé. Connectez-vous, ou demandez un nouveau lien.",
+  auth_unavailable: "La connexion n'est pas disponible pour le moment. Réessayez plus tard.",
+};
+
 export default async function LoginPage({
   searchParams,
 }: PageProps<"/login">) {
-  const { redirectTo } = await searchParams;
+  const { redirectTo, error } = await searchParams;
+  const notice = typeof error === "string" && Object.hasOwn(NOTICES, error) ? NOTICES[error] : undefined;
   // Validated here as well as in the form: `redirectTo` is attacker-supplied,
   // and a link like /login?redirectTo=https://evil.example would otherwise
   // hand a freshly authenticated user to another origin.
@@ -23,7 +32,7 @@ export default async function LoginPage({
         Accédez à votre espace client ou entreprise.
       </p>
       <div className="mt-6">
-        <LoginForm redirectTo={redirect} />
+        <LoginForm redirectTo={redirect} notice={notice} />
       </div>
       <p className="mt-6 text-sm text-muted-foreground">
         Pas encore de compte ?{" "}
