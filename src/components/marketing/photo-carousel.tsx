@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
+import { canOptimizeImage } from "@/lib/images";
 import { cn } from "@/lib/utils";
 import {
   Carousel,
@@ -56,12 +58,19 @@ export function PhotoCarousel({ photos, spaceName }: { photos: string[]; spaceNa
         <CarouselContent>
           {photos.map((photo, i) => (
             <CarouselItem key={photo}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photo}
-                alt={`Photo ${i + 1} sur ${total} de ${spaceName}`}
-                className="h-full w-full object-cover"
-              />
+              <div className="relative h-64 sm:h-96">
+                <Image
+                  src={photo}
+                  alt={`Photo ${i + 1} sur ${total} de ${spaceName}`}
+                  fill
+                  sizes="(min-width: 1152px) 1104px, 100vw"
+                  // The first photo is the page's largest element (LCP).
+                  loading={i === 0 ? "eager" : "lazy"}
+                  fetchPriority={i === 0 ? "high" : undefined}
+                  unoptimized={!canOptimizeImage(photo)}
+                  className="object-cover"
+                />
+              </div>
             </CarouselItem>
           ))}
         </CarouselContent>
@@ -95,8 +104,14 @@ export function PhotoCarousel({ photos, spaceName }: { photos: string[]; spaceNa
                 i === index ? "border-accent" : "border-transparent"
               )}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" />
+              <Image
+                src={photo}
+                alt=""
+                width={80}
+                height={56}
+                unoptimized={!canOptimizeImage(photo)}
+                className="h-full w-full object-cover"
+              />
             </button>
           ))}
         </div>

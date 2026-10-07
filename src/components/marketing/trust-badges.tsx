@@ -8,6 +8,10 @@ import type { ComponentType } from "react";
  * in officeflex-context. Reworded to what the product actually does
  * (SIRET/email/address verification, a support team, no 24/7 guarantee)
  * rather than copying an unverified claim into production copy.
+ *
+ * Same rule for support (UX-27): "Support 7j/7" promised a weekend service
+ * nobody staffs; the badge now states a commitment the team can keep — an
+ * answer within 24 business hours.
  */
 const GUARANTEES: {
   icon: ComponentType<{ className?: string }>;
@@ -29,8 +33,9 @@ const GUARANTEES: {
   },
   {
     icon: LifeBuoy,
-    title: "Support 7j/7",
-    description: "Une équipe disponible pour vous accompagner en cas de question ou de litige.",
+    title: "Réponse sous 24 h ouvrées",
+    description:
+      "Une question ou un litige ? Notre équipe vous répond sous 24 heures ouvrées via le formulaire de contact.",
     badge: "dark",
   },
   {
@@ -66,7 +71,7 @@ export function TrustBadges() {
               >
                 <item.icon className="size-5" />
               </span>
-              <p className="font-medium text-foreground">{item.title}</p>
+              <h3 className="font-sans text-base font-medium text-foreground">{item.title}</h3>
               <p className="text-sm text-muted-foreground">{item.description}</p>
             </div>
           ))}

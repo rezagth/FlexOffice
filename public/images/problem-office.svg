@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="1200" height="480">
+  <defs>
+    <linearGradient id="win" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3e3bf"/>
+      <stop offset="1" stop-color="#c5a059"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="480" fill="#0c2d47"/>
+  <rect y="340" width="1200" height="140" fill="#041627"/>
+  <!-- glass wall -->
+  <rect x="720" y="40" width="430" height="280" rx="6" fill="url(#win)"/>
+  <g stroke="#0c2d47" stroke-width="10">
+    <line x1="863" y1="40" x2="863" y2="320"/>
+    <line x1="1006" y1="40" x2="1006" y2="320"/>
+  </g>
+  <!-- presentation screen -->
+  <rect x="90" y="60" width="440" height="240" rx="8" fill="#020b14" stroke="#3b5b7a" stroke-width="5"/>
+  <rect x="115" y="85" width="390" height="190" rx="4" fill="#123552"/>
+  <g fill="#c5a059">
+    <rect x="150" y="215" width="34" height="40"/>
+    <rect x="200" y="185" width="34" height="70"/>
+    <rect x="250" y="150" width="34" height="105"/>
+  </g>
+  <g fill="#e2e8f0" opacity="0.7">
+    <rect x="330" y="140" width="140" height="12" rx="6"/>
+    <rect x="330" y="170" width="110" height="12" rx="6"/>
+    <rect x="330" y="200" width="125" height="12" rx="6"/>
+  </g>
+  <!-- chairs -->
+  <g fill="#1b3a57">
+    <rect x="300" y="300" width="80" height="90" rx="16"/>
+    <rect x="450" y="300" width="80" height="90" rx="16"/>
+    <rect x="600" y="300" width="80" height="90" rx="16"/>
+    <rect x="750" y="300" width="80" height="90" rx="16"/>
+  </g>
+  <!-- table -->
+  <path d="M220 370 L900 370 L980 420 L140 420 Z" fill="#3b5b7a"/>
+  <rect x="140" y="420" width="840" height="14" fill="#123552"/>
+  <g fill="#e2e8f0" opacity="0.9">
+    <path d="M330 378 h70 l8 22 h-86 z"/>
+    <path d="M640 378 h70 l8 22 h-86 z"/>
+  </g>
+  <rect x="500" y="388" width="60" height="9" rx="3" fill="#c5a059"/>
+  <!-- pendant lights -->
+  <g stroke="#3b5b7a" stroke-width="3">
+    <line x1="420" y1="0" x2="420" y2="40"/>
+    <line x1="700" y1="0" x2="700" y2="40"/>
+  </g>
+  <g fill="#c5a059">
+    <path d="M390 40 h60 l-12 22 h-36 z"/>
+    <path d="M670 40 h60 l-12 22 h-36 z"/>
+  </g>
+</svg>

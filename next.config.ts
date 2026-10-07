@@ -54,9 +54,41 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * Remote images that next/image may optimize: only the public buckets of our
+ * own Supabase Storage (space and property photos). Derived from
+ * NEXT_PUBLIC_SUPABASE_URL, which is inlined at build time anyway; without
+ * it (demo mode) no remote host is allowed and every image is local.
+ *
+ * Any other URL (a legacy `Space.photos` entry pointing elsewhere) is not
+ * optimized: src/lib/images.ts renders it `unoptimized`, so our server never
+ * fetches arbitrary third-party URLs on a visitor's behalf.
+ */
+function supabaseStoragePattern(): NonNullable<NonNullable<NextConfig["images"]>["remotePatterns"]> {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!raw) return [];
+  try {
+    const url = new URL(raw);
+    return [
+      {
+        protocol: url.protocol === "http:" ? "http" : "https",
+        hostname: url.hostname,
+        port: url.port,
+        pathname: "/storage/v1/object/public/**",
+      },
+    ];
+  } catch {
+    return [];
+  }
+}
+
 const nextConfig: NextConfig = {
   // Removes `X-Powered-By: Next.js`. Free version disclosure otherwise.
   poweredByHeader: false,
+
+  images: {
+    remotePatterns: supabaseStoragePattern(),
+  },
 
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

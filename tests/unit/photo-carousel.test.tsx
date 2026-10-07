@@ -62,10 +62,12 @@ describe("PhotoCarousel", () => {
 
   it("renders every photo, a counter, prev/next controls, and one thumbnail per photo", () => {
     const photos = ["https://cdn.test/a.jpg", "https://cdn.test/b.jpg", "https://cdn.test/c.jpg"];
-    render(<PhotoCarousel photos={photos} spaceName="Salle Rivoli" />);
+    const { container } = render(<PhotoCarousel photos={photos} spaceName="Salle Rivoli" />);
 
-    // 3 full-size slides + 3 thumbnail images = 6 <img>.
-    expect(screen.getAllByRole("img")).toHaveLength(6);
+    // 3 full-size slides + 3 thumbnail images = 6 <img>. The thumbnails are
+    // decorative (alt="") — their button already says "Aller à la photo n".
+    expect(container.querySelectorAll("img")).toHaveLength(6);
+    expect(screen.getAllByRole("img")).toHaveLength(3);
     expect(screen.getByText("1 / 3")).toBeTruthy();
     expect(screen.getByLabelText("Photo suivante")).toBeTruthy();
     expect(screen.getByLabelText("Photo précédente")).toBeTruthy();

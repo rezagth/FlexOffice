@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Check, X } from "lucide-react";
 
 const BEFORE = [
@@ -13,9 +14,9 @@ const AFTER = [
 ];
 
 /**
- * Real photography (Unsplash License — free for commercial use), same
- * reasoning as Hero: no photo asset of this repo's own exists for either
- * scene, so these are sourced rather than left as flat color bands.
+ * Both scenes are local illustrations in public/images (UX-18) — they were
+ * hot-linked from images.unsplash.com. Below the fold, so lazy-loaded (the
+ * next/image default), with explicit dimensions to reserve their space.
  */
 export function ProblemSection() {
   return (
@@ -30,20 +31,21 @@ export function ProblemSection() {
         </p>
 
         <div className="mt-10 grid grid-cols-1 gap-6 text-left sm:grid-cols-2">
-          <div className="overflow-hidden rounded-2xl border border-border">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card">
             <div className="relative h-40">
-              {/* eslint-disable-next-line @next/next/no-img-element -- external decorative photo */}
-              <img
-                src="https://images.unsplash.com/photo-1745815607414-043458ad3bc0?auto=format&fit=crop&w=1200&q=80"
+              <Image
+                src="/images/problem-cafe.svg"
                 alt=""
-                className="h-full w-full grayscale object-cover"
+                width={1200}
+                height={480}
+                className="h-full w-full object-cover"
               />
               <span className="absolute left-4 top-4 rounded-full bg-foreground/85 px-3 py-1 text-xs font-medium uppercase tracking-wide text-background">
                 Bruyant &amp; public
               </span>
             </div>
             <div className="p-6">
-              <p className="font-medium text-foreground">Le café du coin</p>
+              <h3 className="font-sans text-base font-medium text-foreground">Le café du coin</h3>
               <ul className="mt-3 flex flex-col gap-2.5 text-sm text-foreground">
                 {BEFORE.map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
@@ -60,12 +62,13 @@ export function ProblemSection() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl bg-foreground">
+          <div className="surface-dark overflow-hidden rounded-2xl bg-foreground">
             <div className="relative h-40">
-              {/* eslint-disable-next-line @next/next/no-img-element -- external decorative photo */}
-              <img
-                src="https://images.unsplash.com/photo-1706074740295-d7a79c079562?auto=format&fit=crop&w=1200&q=80"
+              <Image
+                src="/images/problem-office.svg"
                 alt=""
+                width={1200}
+                height={480}
                 className="h-full w-full object-cover"
               />
               <span className="absolute left-4 top-4 rounded-full bg-accent px-3 py-1 text-xs font-medium uppercase tracking-wide text-accent-foreground">
@@ -73,15 +76,15 @@ export function ProblemSection() {
               </span>
             </div>
             <div className="p-6">
-              <p className="font-medium text-accent">Bureau OfficeFlex</p>
+              <h3 className="font-sans text-base font-medium text-accent">Bureau OfficeFlex</h3>
               <ul className="mt-3 flex flex-col gap-2.5 text-sm text-background/90">
                 {AFTER.map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
                     <span
                       aria-hidden="true"
-                      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary"
+                      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent"
                     >
-                      <Check className="size-3 text-primary-foreground" />
+                      <Check className="size-3 text-accent-foreground" />
                     </span>
                     {item}
                   </li>

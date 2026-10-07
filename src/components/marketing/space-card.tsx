@@ -1,30 +1,21 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { FavoriteButton } from "@/components/marketing/favorite-button";
 import { VerifiedBadge } from "@/components/marketing/verified-badge";
 import { formatCents, SPACE_TYPE_LABELS } from "@/lib/format";
+import { canOptimizeImage } from "@/lib/images";
 import { isOrganizationVerified } from "@/lib/verification";
 
-/**
- * Decorative star rating — there is no review/rating system in this repo
- * (OfficeFlex Score / avis clients are explicitly V2, see
- * officeflex-context §6.2 and §8). Kept here anyway per an explicit
- * product decision to match the Stitch mockup as-is despite that gap
- * (2026-09-09) — flagged, not silently fixed. Deterministic from the
- * space id (not random) so a given card shows a stable value across
- * reloads instead of flickering, and doesn't require a backing field.
+/*
+ * No rating on this card (B-14 / UX-02). A star score used to be derived from
+ * the space id — there is no review system — and shown on every result: a
+ * fake review in the sense of the Omnibus directive, i.e. a misleading
+ * commercial practice. Real reviews will come with their own data model.
  */
-function decorativeRating(spaceId: string): string {
-  let hash = 0;
-  for (let i = 0; i < spaceId.length; i++) {
-    hash = (hash * 31 + spaceId.charCodeAt(i)) >>> 0;
-  }
-  return (4.6 + (hash % 5) / 10).toFixed(1);
-}
 
 export type SpaceCardData = {
   id: string;
@@ -45,66 +36,87 @@ export type SpaceCardData = {
   favorited?: boolean;
 };
 
+/**
+ * A result card. The whole card is clickable through the title link's
+ * stretched `::after` overlay rather than by wrapping the card in a <Link>:
+ * the favorite button sits on top of it, and a <button> nested inside an
+ * <a> is invalid HTML that screen readers announce inconsistently.
+ */
 export function SpaceCard({
   space,
   href,
+  imagePriority = false,
 }: {
   space: SpaceCardData;
   href: string;
+  /** Load the photo eagerly — only for the first cards above the fold. */
+  imagePriority?: boolean;
 }) {
+  const photo = space.photos?.[0];
+
   return (
-    <Link href={href} className="block">
-      {/* A small lift on hover — spring physics rather than a linear CSS
-       * transition, and the only motion here: nothing on this card is
-       * hidden or delayed at load, this only ever runs in response to a
-       * real hover/focus. */}
-      <motion.div whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 400, damping: 25 }}>
-        <Card className="overflow-hidden shadow-sm transition-shadow hover:shadow-md">
-          <div className="relative">
-            {space.photos && space.photos.length > 0 ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={space.photos[0]} alt="" className="h-40 w-full object-cover" />
-            ) : (
-              <div className="flex h-40 items-center justify-center bg-muted text-sm text-muted-foreground">
-                Photo à venir
-              </div>
-            )}
-            {isOrganizationVerified(space.organization.status) && (
-              <div className="absolute left-2 top-2 rounded-full bg-background/90 backdrop-blur-sm">
-                <VerifiedBadge />
-              </div>
-            )}
-            {space.favorited !== undefined && (
-              <div className="absolute right-2 top-2">
-                <FavoriteButton spaceId={space.id} initialFavorited={space.favorited} variant="card" />
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col gap-1 p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              {SPACE_TYPE_LABELS[space.type] ?? space.type} · {space.city}
-              {space.distanceKm != null && ` · à ${space.distanceKm.toFixed(1)} km`}
-            </p>
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium text-foreground">{space.name}</p>
-              <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-foreground">
-                <Star aria-hidden="true" className="size-4 fill-accent text-accent" />
-                {decorativeRating(space.id)}
-              </span>
+    // A small lift on hover — spring physics, and the only motion here.
+    <motion.div
+      whileHover={{ y: -4 }}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      className="h-full"
+    >
+      <Card className="relative h-full overflow-hidden shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-ring hover:shadow-md">
+        <div className="relative h-40 bg-muted">
+          {photo ? (
+            <Image
+              src={photo}
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+              loading={imagePriority ? "eager" : "lazy"}
+              fetchPriority={imagePriority ? "high" : undefined}
+              unoptimized={!canOptimizeImage(photo)}
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Photo à venir
             </div>
-            <p className="text-sm text-muted-foreground">
-              {space.organization.name} · jusqu&apos;à {space.capacity} pers.
-            </p>
-            <div className="mt-1 flex items-baseline justify-between">
-              <p className="text-sm font-medium text-foreground">
-                {formatCents(space.dayPriceCents)}{" "}
-                <span className="font-normal text-muted-foreground">/ jour</span>
-              </p>
-              <span className="text-sm font-medium text-primary">Détails</span>
+          )}
+          {isOrganizationVerified(space.organization.status) && (
+            <div className="absolute left-2 top-2 rounded-full bg-background/90 backdrop-blur-sm">
+              <VerifiedBadge />
             </div>
+          )}
+          {space.favorited !== undefined && (
+            <div className="absolute right-2 top-2 z-10">
+              <FavoriteButton spaceId={space.id} initialFavorited={space.favorited} variant="card" />
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col gap-1 p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            {SPACE_TYPE_LABELS[space.type] ?? space.type} · {space.city}
+            {space.distanceKm != null && ` · à ${space.distanceKm.toFixed(1)} km`}
+          </p>
+          <h3 className="font-sans text-base font-medium text-foreground">
+            <Link
+              href={href}
+              className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+            >
+              {space.name}
+            </Link>
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {space.organization.name} · jusqu&apos;à {space.capacity} pers.
+          </p>
+          <div className="mt-1 flex items-baseline justify-between">
+            <p className="text-sm font-medium text-foreground">
+              {formatCents(space.dayPriceCents)}{" "}
+              <span className="font-normal text-muted-foreground">/ jour</span>
+            </p>
+            <span aria-hidden="true" className="text-sm font-medium text-primary">
+              Détails
+            </span>
           </div>
-        </Card>
-      </motion.div>
-    </Link>
+        </div>
+      </Card>
+    </motion.div>
   );
 }

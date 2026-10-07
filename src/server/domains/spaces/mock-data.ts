@@ -4,12 +4,15 @@
  * pages browsable for a demo deploy with zero infra. Never used once a
  * real DATABASE_URL is set; see list-spaces.ts.
  *
- * Photo URLs are real photography (Unsplash License — free for commercial
- * use, verified individually), one per demo listing. These are decorative
- * stand-ins for this fictional demo data itself, not photos attributed to
- * a real host — no different in kind from the rest of this file's made-up
- * names and addresses.
+ * Photos are local illustrations in public/images/demo/ (one per demo
+ * listing) — decorative stand-ins for this fictional data, served from our
+ * own origin rather than hot-linked from a third party (UX-18).
  */
+/** Monday–Friday, 09:00–19:00 — 0 = Sunday, like SpaceOpeningHours. */
+const WEEKDAY_HOURS: { weekday: number; opensAt: string; closesAt: string }[] = [1, 2, 3, 4, 5].map(
+  (weekday) => ({ weekday, opensAt: "09:00", closesAt: "19:00" })
+);
+
 export const MOCK_SPACES = [
   {
     id: "mock-1",
@@ -24,7 +27,7 @@ export const MOCK_SPACES = [
     capacity: 8,
     amenities: ["Wifi", "Écran", "Caméra", "Tableau blanc"],
     photos: [
-      "https://images.unsplash.com/photo-1697059361461-b81d0e98c3af?auto=format&fit=crop&w=1200&q=80",
+      "/images/demo/salle-de-reunion.svg",
     ] as string[],
     halfDayPriceCents: 12000,
     dayPriceCents: 20000,
@@ -32,7 +35,7 @@ export const MOCK_SPACES = [
     status: "PUBLISHED" as const,
     organization: { name: "Atelier Partners", status: "VERIFIED" as const },
     property: { latitude: null as number | null, longitude: null as number | null },
-    openingHours: [] as { weekday: number; opensAt: string; closesAt: string }[],
+    openingHours: WEEKDAY_HOURS,
   },
   {
     id: "mock-2",
@@ -46,7 +49,7 @@ export const MOCK_SPACES = [
     capacity: 2,
     amenities: ["Wifi", "Imprimante"],
     photos: [
-      "https://images.unsplash.com/photo-1694919123854-24b74b376da1?auto=format&fit=crop&w=1200&q=80",
+      "/images/demo/bureau.svg",
     ] as string[],
     halfDayPriceCents: 4000,
     dayPriceCents: 7000,
@@ -54,7 +57,7 @@ export const MOCK_SPACES = [
     status: "PUBLISHED" as const,
     organization: { name: "Atelier Partners", status: "VERIFIED" as const },
     property: { latitude: null as number | null, longitude: null as number | null },
-    openingHours: [] as { weekday: number; opensAt: string; closesAt: string }[],
+    openingHours: WEEKDAY_HOURS,
   },
   {
     id: "mock-3",
@@ -68,7 +71,7 @@ export const MOCK_SPACES = [
     capacity: 20,
     amenities: ["Wifi", "Vidéoprojecteur", "Paperboard", "Parking"],
     photos: [
-      "https://images.unsplash.com/photo-1762176263996-a0713a49ee4d?auto=format&fit=crop&w=1200&q=80",
+      "/images/demo/espace-de-formation.svg",
     ] as string[],
     halfDayPriceCents: 18000,
     dayPriceCents: 30000,
@@ -76,6 +79,6 @@ export const MOCK_SPACES = [
     status: "PUBLISHED" as const,
     organization: { name: "Confluence Bureaux", status: "PENDING_VERIFICATION" as const },
     property: { latitude: null as number | null, longitude: null as number | null },
-    openingHours: [] as { weekday: number; opensAt: string; closesAt: string }[],
+    openingHours: WEEKDAY_HOURS,
   },
 ];
