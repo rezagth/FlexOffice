@@ -17,7 +17,6 @@ vi.mock("@/server/domains/properties/access", () => ({
 vi.mock("@/server/domains/messaging/conversation", () => ({ listMessages: vi.fn(), sendMessage: vi.fn() }));
 vi.mock("@/server/domains/disputes/raise", () => ({ raiseDispute: vi.fn() }));
 vi.mock("@/server/domains/favorites/favorites", () => ({ addFavorite: vi.fn(), removeFavorite: vi.fn() }));
-vi.mock("@/server/domains/organizations/photos", () => ({ addSpacePhoto: vi.fn(), removeSpacePhoto: vi.fn() }));
 vi.mock("@/server/domains/properties/photos", () => ({ addPropertyPhoto: vi.fn(), listPropertyPhotos: vi.fn() }));
 vi.mock("@/server/domains/properties/spaces", () => ({ getSpaceForProperty: vi.fn() }));
 vi.mock("@/server/domains/properties/space-photos", () => ({ addSpacePhoto: vi.fn(), listSpacePhotos: vi.fn() }));
@@ -86,7 +85,6 @@ describe("every state-changing route listed in the audit answers 429 past its li
     { name: "POST /api/bookings/[id]/disputes", load: async () => (await import("@/app/api/bookings/[id]/disputes/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.disputeRaise.limit },
     { name: "POST /api/favorites", load: async () => (await import("@/app/api/favorites/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.favoriteToggle.limit },
     { name: "DELETE /api/favorites/[spaceId]", load: async () => (await import("@/app/api/favorites/[spaceId]/route")).DELETE as Handler, method: "DELETE", limit: RATE_LIMITS.favoriteToggle.limit },
-    { name: "POST /api/partner/spaces/[id]/photos", load: async () => (await import("@/app/api/partner/spaces/[id]/photos/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.photoUpload.limit },
     { name: "POST /api/properties/[id]/photos", load: async () => (await import("@/app/api/properties/[id]/photos/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.photoUpload.limit },
     { name: "POST /api/properties/[id]/spaces/[spaceId]/photos", load: async () => (await import("@/app/api/properties/[id]/spaces/[spaceId]/photos/route")).POST as Handler, method: "POST", limit: RATE_LIMITS.photoUpload.limit },
     { name: "PUT /api/account/mode", load: async () => (await import("@/app/api/account/mode/route")).PUT as Handler, method: "PUT", limit: RATE_LIMITS.accountModeSwitch.limit },

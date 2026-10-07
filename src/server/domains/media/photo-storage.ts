@@ -71,6 +71,11 @@ export function buildPhotoStoragePath(
   return `${scope}/${ownerId}/${photoId}.${extension}`;
 }
 
+/** Only what sniffFileType() accepts. Enforced by Storage itself as well,
+ * so the bucket refuses anything else even if a future code path forgets
+ * to sniff (SEC-16). */
+export const PHOTO_ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 let bucketEnsured: Promise<void> | null = null;
 
 /** Creates the bucket if missing, memoized — see the doc comment on
@@ -81,11 +86,25 @@ export function ensurePhotoBucketExists(): Promise<void> {
     bucketEnsured = (async () => {
       const supabase = createSupabaseAdminClient();
       const { data: existing } = await supabase.storage.getBucket(PHOTO_BUCKET);
-      if (existing) return;
+      if (existing) {
+        // A bucket created by hand (or before SEC-16) may lack the limits:
+        // bring it in line once per process. Best-effort — every upload
+        // path sniffs the real type and checks the size anyway.
+        if (!existing.allowed_mime_types?.length || !existing.file_size_limit) {
+          const { error } = await supabase.storage.updateBucket(PHOTO_BUCKET, {
+            public: true,
+            fileSizeLimit: MAX_PHOTO_BYTES,
+            allowedMimeTypes: PHOTO_ALLOWED_MIME_TYPES,
+          });
+          if (error) logError({ event: "storage.bucket_limits_update_failed", error, bucket: PHOTO_BUCKET });
+        }
+        return;
+      }
 
       const { error } = await supabase.storage.createBucket(PHOTO_BUCKET, {
         public: true,
         fileSizeLimit: MAX_PHOTO_BYTES,
+        allowedMimeTypes: PHOTO_ALLOWED_MIME_TYPES,
       });
       if (error && !/already exists/i.test(error.message)) {
         throw error;

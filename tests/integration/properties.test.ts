@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { hasDatabase } from "./helpers/should-run";
 import { createTestUser, deleteTestUser, uniqueSuffix } from "./helpers/test-fixtures";
+import type { Capability } from "@/server/auth/capabilities";
 
 /**
  * Same mocking approach as tests/integration/verification.test.ts: only the
@@ -106,10 +107,14 @@ describe.skipIf(!hasDatabase)("Property / PropertyOwner / PropertyOperator / Pro
     });
   }
 
-  async function requirePropertyManageAccessAs(userId: string, propertyId: string) {
+  async function requirePropertyManageAccessAs(
+    userId: string,
+    propertyId: string,
+    capability: Capability = "landlord:manage_properties"
+  ) {
     currentSessionUserId = userId;
     try {
-      return await requirePropertyManageAccess(propertyId);
+      return await requirePropertyManageAccess(propertyId, capability);
     } finally {
       currentSessionUserId = null;
     }
@@ -452,6 +457,41 @@ describe.skipIf(!hasDatabase)("Property / PropertyOwner / PropertyOperator / Pro
 
       await deleteTestUser(owner.id);
       await deleteTestUser(admin.id);
+    });
+
+    it("refuses (403) a member related to the property whose role lacks the capability (SEC-13)", async () => {
+      const owner = await createTestUser();
+      const org = await landlordOrgFor(owner.id);
+      const property = await createProperty(org.id, owner.id, {
+        label: "Viewer refused",
+        propertyType: "OFFICE",
+        addressLine1: "1 rue de Test",
+        city: "Paris",
+        postalCode: "75001",
+      });
+      const viewer = await createTestUser();
+      await prisma.profile.update({
+        where: { id: viewer.id },
+        data: { isLandlord: true, activeOrganizationId: org.id },
+      });
+      await prisma.organizationMember.create({
+        data: { organizationId: org.id, profileId: viewer.id, orgRole: "VIEWER" },
+      });
+
+      // Reading is allowed, editing is not.
+      const { ctx } = await requirePropertyManageAccessAs(viewer.id, property.id, "landlord:view_dashboard");
+      expect(ctx.userId).toBe(viewer.id);
+      const { ForbiddenError } = await import("@/server/lib/errors");
+      await expect(
+        requirePropertyManageAccessAs(viewer.id, property.id, "landlord:manage_properties")
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      await expect(
+        requirePropertyManageAccessAs(viewer.id, property.id, "landlord:manage_spaces")
+      ).rejects.toBeInstanceOf(ForbiddenError);
+
+      await prisma.organizationMember.deleteMany({ where: { profileId: viewer.id } });
+      await deleteTestUser(owner.id);
+      await deleteTestUser(viewer.id);
     });
 
     it("answers 404 for an unknown property id", async () => {

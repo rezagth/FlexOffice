@@ -7,7 +7,7 @@ type Ctx = { params: Promise<{ id: string; photoId: string }> };
 
 export const POST = withErrorHandling(async (_request: Request, { params }: Ctx) => {
   const { id, photoId } = await params;
-  const { ctx } = await requirePropertyManageAccess(id);
+  const { ctx } = await requirePropertyManageAccess(id, "landlord:manage_properties");
   await setPrimaryPropertyPhoto(id, photoId, ctx);
   return NextResponse.json({ ok: true });
 });

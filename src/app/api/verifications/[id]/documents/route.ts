@@ -8,8 +8,9 @@ import {
 } from "@/server/auth/rate-limit";
 import { requireVerificationOwnerAccess } from "@/server/domains/verification/access";
 import { uploadVerificationDocument } from "@/server/domains/verification/documents";
-import { RateLimitedError, ValidationError } from "@/server/lib/errors";
+import { RateLimitedError } from "@/server/lib/errors";
 import { withErrorHandling } from "@/server/lib/http";
+import { readMultipart, uploadedFile } from "@/server/domains/media/multipart";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -43,11 +44,8 @@ export const POST = withErrorHandling(async (request: Request, { params }: Ctx) 
     throw new RateLimitedError("Trop de tentatives. Réessayez plus tard.", verdict.retryAfterSeconds);
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    throw new ValidationError("Aucun fichier reçu.");
-  }
+  const formData = await readMultipart(request);
+  const file = uploadedFile(formData);
   const declaredType = verificationDocumentTypeSchema.parse(formData.get("type"));
 
   const document = await uploadVerificationDocument({

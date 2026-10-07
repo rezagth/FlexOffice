@@ -29,6 +29,12 @@ export const SIGNED_URL_TTL_SECONDS = 120;
 
 type SniffedType = { mimeType: "application/pdf" | "image/jpeg" | "image/png"; extension: string };
 
+export const VERIFICATION_ALLOWED_MIME_TYPES: SniffedType["mimeType"][] = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+];
+
 const MAGIC_SIGNATURES: Array<{ bytes: number[]; mimeType: SniffedType["mimeType"]; extension: string }> = [
   { bytes: [0x25, 0x50, 0x44, 0x46, 0x2d], mimeType: "application/pdf", extension: "pdf" },
   { bytes: [0xff, 0xd8, 0xff], mimeType: "image/jpeg", extension: "jpg" },
@@ -104,11 +110,26 @@ export function ensureVerificationBucketExists(): Promise<void> {
     bucketEnsured = (async () => {
       const supabase = createSupabaseAdminClient();
       const { data: existing } = await supabase.storage.getBucket(VERIFICATION_BUCKET);
-      if (existing) return;
+      if (existing) {
+        // A bucket created by hand (or before SEC-16) may lack the limits:
+        // bring it in line once per process. Best-effort — every upload
+        // path sniffs the real type and checks the size anyway.
+        if (!existing.allowed_mime_types?.length || !existing.file_size_limit) {
+          const { error } = await supabase.storage.updateBucket(VERIFICATION_BUCKET, {
+            public: false,
+            fileSizeLimit: MAX_DOCUMENT_BYTES,
+            allowedMimeTypes: VERIFICATION_ALLOWED_MIME_TYPES,
+          });
+          if (error) logError({ event: "storage.bucket_limits_update_failed", error, bucket: VERIFICATION_BUCKET });
+        }
+        return;
+      }
 
       const { error } = await supabase.storage.createBucket(VERIFICATION_BUCKET, {
         public: false,
         fileSizeLimit: MAX_DOCUMENT_BYTES,
+        // Same list as MAGIC_SIGNATURES: Storage refuses anything else too.
+        allowedMimeTypes: VERIFICATION_ALLOWED_MIME_TYPES,
       });
       // A concurrent request may have created it first; Storage reports that
       // as an error this module can safely ignore.

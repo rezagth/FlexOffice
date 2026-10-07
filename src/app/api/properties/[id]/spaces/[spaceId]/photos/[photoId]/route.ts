@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string; spaceId: string; photoId: string }> }
 
 export const DELETE = withErrorHandling(async (_request: Request, { params }: Ctx) => {
   const { id: propertyId, spaceId, photoId } = await params;
-  const { ctx } = await requirePropertyManageAccess(propertyId);
+  const { ctx } = await requirePropertyManageAccess(propertyId, "landlord:manage_spaces");
   await getSpaceForProperty(propertyId, spaceId);
   await removeSpacePhoto(spaceId, photoId, ctx);
   return NextResponse.json({ deleted: true });
