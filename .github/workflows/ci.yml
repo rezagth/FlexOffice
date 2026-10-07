@@ -33,6 +33,38 @@ env:
   CI: "true"
 
 jobs:
+  # Secrets and vulnerable dependencies, before anything is built. Blocking.
+  security:
+    name: Secret scan and dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the history of the pushed range
+
+      - name: Scan for committed secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # pnpm audit --prod --audit-level=high, minus the explicit, expiring
+      # exceptions in .github/audit-allowlist.json (Prisma CLI tooling that
+      # never reaches the runtime image). See scripts/audit-prod.mjs.
+      - name: Audit production dependencies
+        run: pnpm audit:prod
+
   quality:
     name: Lint, types, unit tests
     runs-on: ubuntu-latest
@@ -184,3 +216,59 @@ jobs:
             exit 1
           fi
           echo "anon and authenticated hold no table privileges in public."
+
+  # The same migrations, applied to the image the production database runs
+  # (Supabase self-hosted), not only to a bare PostgreSQL with a shim: the
+  # auth schema, the roles and the extensions are Supabase's own there.
+  # Keep the tag aligned with the `db` service of the self-hosted stack.
+  # Advisory (continue-on-error) until it has passed once on GitHub — it
+  # could not be run from the environment this job was written in.
+  migrations-supabase-image:
+    name: Migrations on supabase/postgres (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: supabase/postgres:15.8.1.060
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -h localhost"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      INTEGRATION: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Idempotent on this image (IF NOT EXISTS everywhere): it only fills
+      # what the image does not create by itself.
+      - name: Supabase schema shim (no-op where the image already has it)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/sql/auth-schema-shim.sql
+
+      - name: Apply migrations
+        run: pnpm db:deploy
+
+      - name: Integration tests
+        run: pnpm test:integration

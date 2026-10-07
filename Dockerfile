@@ -42,6 +42,9 @@ WORKDIR /app
 
 # Public, per-environment configuration baked into the browser bundle.
 ARG APP_VERSION=dev
+# Public URL of this environment: baked into metadata (canonical URLs,
+# OpenGraph) of statically prerendered pages, and read again at runtime.
+ARG APP_URL
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -58,6 +61,7 @@ ARG SENTRY_ORG
 ARG SENTRY_PROJECT
 
 ENV APP_VERSION=$APP_VERSION \
+    APP_URL=$APP_URL \
     NEXT_PUBLIC_APP_VERSION=$APP_VERSION \
     NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
