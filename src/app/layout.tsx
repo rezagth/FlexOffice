@@ -7,6 +7,7 @@ import { MotionProvider } from "@/components/motion-provider";
 import { ZodLocale } from "@/components/zod-locale";
 import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, getSiteUrl } from "@/lib/site";
 import { inter, jakarta } from "./fonts";
+import { ConsentAndAnalytics } from "@/components/consent";
 
 const DEFAULT_TITLE = "OfficeFlex — Réservez un espace professionnel à la demande";
 
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ZodLocale />
         <MotionProvider>{children}</MotionProvider>
+        <ConsentAndAnalytics />
       </body>
     </html>
   );
