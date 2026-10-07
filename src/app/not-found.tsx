@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/marketing/site-footer";
 import { ButtonLink } from "@/components/ui/button";
 
 export const metadata: Metadata = {
-  title: "Page introuvable — OfficeFlex",
+  title: "Page introuvable — MakomSpace",
   robots: { index: false, follow: false },
 };
 

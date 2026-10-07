@@ -82,7 +82,7 @@ describe("RegisterForm (B-11, UX-12, SEC-15)", () => {
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     expect(hrefs).toContain("/cgu");
     expect(hrefs).toContain("/confidentialite");
-    expect(screen.getByText(/OfficeFlex traite vos données/)).toBeTruthy();
+    expect(screen.getByText(/MakomSpace traite vos données/)).toBeTruthy();
   });
 
   it("sends acceptTerms and shows a message that does not say whether the address was new", async () => {
@@ -140,7 +140,7 @@ describe("BookingFunnel (B-11, UX-17)", () => {
     expect(screen.getByText("lundi 4 mars 2030")).toBeTruthy();
     expect(screen.getByText(/9 h 00 – 13 h 00/)).toBeTruthy();
     expect(screen.getByText("Conditions d'annulation")).toBeTruthy();
-    expect(screen.getByText(/frais de service OfficeFlex ne sont pas remboursables/)).toBeTruthy();
+    expect(screen.getByText(/frais de service MakomSpace ne sont pas remboursables/)).toBeTruthy();
   });
 
   it("does not send the request until the CGV are accepted, then sends acceptTerms", async () => {

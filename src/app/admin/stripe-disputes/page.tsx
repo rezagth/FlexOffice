@@ -63,7 +63,7 @@ export default async function AdminStripeDisputesPage() {
         <p className="mt-1 text-sm text-foreground">
           Tant qu&apos;aucun mécanisme de recouvrement auprès du partenaire
           n&apos;existe (pas de reprise automatique sur son compte Stripe
-          Connect), un chargeback perdu est une perte nette pour OfficeFlex,
+          Connect), un chargeback perdu est une perte nette pour MakomSpace,
           pas pour l&apos;entreprise partenaire.
         </p>
         <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">

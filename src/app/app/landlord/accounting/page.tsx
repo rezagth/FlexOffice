@@ -7,15 +7,15 @@ import { formatCents, INVOICE_KIND_LABELS } from "@/lib/format";
 import { formatIssueDate } from "@/server/domains/invoicing/view";
 import { formatParisMonth } from "@/server/domains/invoicing/paris-time";
 
-export const metadata = { title: "Pièces comptables — OfficeFlex" };
+export const metadata = { title: "Pièces comptables — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
 
 /**
  * Every invoicing document of the active organization: the invoices and
- * credit notes OfficeFlex issued in its name (billing mandate), and the
- * monthly commission invoices OfficeFlex addressed to it.
+ * credit notes MakomSpace issued in its name (billing mandate), and the
+ * monthly commission invoices MakomSpace addressed to it.
  */
 export default async function LandlordAccountingPage() {
   const ctx = await requirePageLandlordOrg("landlord:view_revenue");
@@ -50,7 +50,7 @@ export default async function LandlordAccountingPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">Factures et avoirs émis en votre nom</h2>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          OfficeFlex émet ces documents au nom et pour le compte de votre organisation, en vertu du
+          MakomSpace émet ces documents au nom et pour le compte de votre organisation, en vertu du
           mandat de facturation prévu aux conditions générales de vente. Ils sont numérotés dans une
           série propre à votre organisation, sans rupture.
         </p>
@@ -83,7 +83,7 @@ export default async function LandlordAccountingPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Factures de commission OfficeFlex</h2>
+        <h2 className="text-lg font-medium">Factures de commission MakomSpace</h2>
         {commissions.length === 0 ? (
           <EmptyState
             title="Aucune facture de commission pour l'instant"

@@ -30,7 +30,7 @@ export type InvoiceView = {
   creditedReference: string | null;
   lines: { description: string; detail: string | null; reference: string | null; amountLabel: string }[];
   totals: { label: string; value: string; strong?: boolean }[];
-  /** "dont frais de service OfficeFlex". */
+  /** "dont frais de service MakomSpace". */
   serviceFeeLabel: string | null;
   paymentMention: string;
   legalMentions: string[];

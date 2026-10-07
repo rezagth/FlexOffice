@@ -214,7 +214,7 @@ export async function getCommissionTaxRateId(stripe: Stripe, rateBp: number): Pr
       await stripe.taxRates.create(
         {
           display_name: "TVA",
-          description: "TVA sur la commission OfficeFlex",
+          description: "TVA sur la commission MakomSpace",
           percentage,
           inclusive: true,
           country: "FR",
@@ -289,7 +289,7 @@ export async function syncCommissionStatementToStripe(statementId: string): Prom
           // items just created above — confirmed against the real test API.
           pending_invoice_items_behavior: "include",
           description: `Relevé de commission — facture ${invoice.number}`,
-          footer: `Document de référence : facture ${invoice.number} émise par OfficeFlex. Commission déjà prélevée lors de l'encaissement des réservations.`,
+          footer: `Document de référence : facture ${invoice.number} émise par MakomSpace. Commission déjà prélevée lors de l'encaissement des réservations.`,
           metadata: { commissionStatementId: statement.id, invoiceNumber: invoice.number },
         },
         { idempotencyKey: `cs-${statement.id}-invoice` }

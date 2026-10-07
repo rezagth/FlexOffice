@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
-export const metadata = { title: "Mot de passe oublié — OfficeFlex" };
+export const metadata = { title: "Mot de passe oublié — MakomSpace" };
 
 export default async function ForgotPasswordPage({ searchParams }: PageProps<"/forgot-password">) {
   const { error } = await searchParams;
@@ -14,8 +15,8 @@ export default async function ForgotPasswordPage({ searchParams }: PageProps<"/f
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center px-6 py-16">
-      <Link href="/" className="mb-8 text-lg font-semibold text-foreground">
-        OfficeFlex
+      <Link href="/" className="mb-8 text-foreground" aria-label="MakomSpace — accueil">
+        <BrandLogo />
       </Link>
       <h1 className="text-xl font-semibold text-foreground">Mot de passe oublié</h1>
       <p className="mt-1 text-sm text-muted-foreground">

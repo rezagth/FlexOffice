@@ -4,13 +4,16 @@ import type { Metadata } from "next";
  * Public identity of the site, shared by metadata, sitemap, robots and
  * structured data. Isomorphic, no secrets.
  *
- * The brand name is written literally on purpose: the OfficeFlex →
- * MakomSpace rename is done in one pass across the repository later.
+ * SITE_NAME is the single source of the brand name for code: metadata, e-mail
+ * layout, invoice mentions and the logo read it. Long-form legal and
+ * marketing copy writes the name literally, like any other prose.
  */
-export const SITE_NAME = "OfficeFlex";
+export const SITE_NAME = "MakomSpace";
+
+export const SITE_TAGLINE = "L'espace qu'il vous faut, pour le temps qu'il vous faut.";
 
 export const SITE_DESCRIPTION =
-  "OfficeFlex connecte les entreprises qui ont des espaces sous-utilisés aux professionnels qui cherchent une salle de réunion, un bureau ou un espace de formation à la demi-journée ou à la journée.";
+  "MakomSpace connecte les entreprises qui ont des espaces sous-utilisés aux professionnels qui cherchent une salle de réunion, un bureau ou un espace de formation à la demi-journée ou à la journée.";
 
 /** Static 1200×630 image in public/ — deliberately not generated with
  * next/og (see the lot B report). */
@@ -18,7 +21,7 @@ export const DEFAULT_OG_IMAGE = {
   url: "/og-default.png",
   width: 1200,
   height: 630,
-  alt: "OfficeFlex — espaces professionnels à la demande",
+  alt: "MakomSpace — espaces professionnels à la demande",
 };
 
 /**

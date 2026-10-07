@@ -21,7 +21,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const space = await getPublishedSpaceBySlug(slug);
   return {
-    title: space ? `Réserver ${space.name} — OfficeFlex` : "Réservation — OfficeFlex",
+    title: space ? `Réserver ${space.name} — MakomSpace` : "Réservation — MakomSpace",
     robots: { index: false, follow: false },
   };
 }

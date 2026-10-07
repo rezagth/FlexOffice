@@ -2,8 +2,8 @@ import Link from "next/link";
 import { LegalPage, Section, ToFill } from "@/components/marketing/legal-page";
 
 export const metadata = {
-  title: "Mentions légales — OfficeFlex",
-  description: "Éditeur, hébergement et contacts du site OfficeFlex.",
+  title: "Mentions légales — MakomSpace",
+  description: "Éditeur, hébergement et contacts du site MakomSpace.",
 };
 
 export default function MentionsLegalesPage() {
@@ -13,7 +13,7 @@ export default function MentionsLegalesPage() {
       intro="Informations rendues obligatoires par la loi pour la confiance dans l'économie numérique (LCEN, article 6-III) et par le Code de commerce."
     >
       <Section title="1. Éditeur du site">
-        <p>Le site et la plateforme OfficeFlex sont édités par :</p>
+        <p>Le site et la plateforme MakomSpace sont édités par :</p>
         <ul className="list-disc pl-5">
           <li>
             Dénomination sociale : <ToFill>raison sociale</ToFill>
@@ -79,7 +79,7 @@ export default function MentionsLegalesPage() {
 
       <Section title="5. Propriété intellectuelle">
         <p>
-          La marque OfficeFlex, le nom de domaine, la charte graphique, les textes,
+          La marque MakomSpace, le nom de domaine, la charte graphique, les textes,
           la structure du site et les développements logiciels sont la propriété
           exclusive de l&apos;éditeur ou font l&apos;objet d&apos;une licence à son
           profit. Toute reproduction, représentation, adaptation ou extraction, totale

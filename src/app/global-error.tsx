@@ -28,9 +28,9 @@ export default function GlobalError({
   return (
     <html lang="fr" className={`${inter.variable} ${jakarta.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-background font-sans text-foreground">
-        <title>Erreur — OfficeFlex</title>
+        <title>Erreur — MakomSpace</title>
         <main className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-          <p className="text-lg font-semibold">OfficeFlex</p>
+          <p className="text-lg font-semibold">MakomSpace</p>
           <h1 className="text-2xl font-semibold">Le service est momentanément indisponible</h1>
           <p className="text-muted-foreground">
             Une erreur inattendue nous empêche d&apos;afficher le site. Réessayez dans quelques

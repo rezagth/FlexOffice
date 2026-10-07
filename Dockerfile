@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# OfficeFlex production image — one image PER ENVIRONMENT.
+# MakomSpace production image — one image PER ENVIRONMENT.
 #
 # Every NEXT_PUBLIC_* value is inlined into the browser bundle by `next build`,
 # so it is a build argument, not a runtime variable: the staging image and the

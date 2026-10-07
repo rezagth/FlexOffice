@@ -10,7 +10,7 @@ import { formatCents, formatDateTime } from "@/lib/format";
 import { formatParisMonth, previousParisMonth } from "@/server/domains/invoicing/paris-time";
 import { isStripeMirrorEnabled } from "@/server/domains/payments/commission-statements";
 
-export const metadata = { title: "Relevés de commission — Admin OfficeFlex" };
+export const metadata = { title: "Relevés de commission — Admin MakomSpace" };
 export const dynamic = "force-dynamic";
 
 function stripeStatus(statement: { stripeSyncedAt: Date | null; stripeSyncError: string | null }, stripeEnabled: boolean) {

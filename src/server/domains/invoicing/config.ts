@@ -1,3 +1,5 @@
+import { SITE_NAME } from "@/lib/site";
+
 /**
  * Invoicing settings — every business assumption the owner has not decided
  * yet lives here, behind an environment variable with a documented default,
@@ -9,7 +11,7 @@
  *       RENTAL_VAT_RATE (20 %) when the landlord has a VAT number,
  *       otherwise "TVA non applicable, art. 293 B du CGI". The platform
  *       commission is TTC at COMMISSION_VAT_RATE (20 %).
- *   H2  The client invoice is issued by OfficeFlex in the name and on
+ *   H2  The client invoice is issued by MakomSpace in the name and on
  *       behalf of the landlord (billing mandate), numbered in the
  *       landlord's own series: INVOICE_NUMBER_PREFIX-<org code>-<year>-<n>.
  *   H3  The landlord receives a monthly commission invoice from the
@@ -19,9 +21,8 @@
  * module without a guaranteed environment, and tests change it per case.
  */
 
-/** Name used in the billing-mandate mention. Literal "OfficeFlex" until the
- * global rebranding pass (brief rule 4). */
-export const PLATFORM_DISPLAY_NAME = "OfficeFlex";
+/** Name used in the billing-mandate mention. */
+export const PLATFORM_DISPLAY_NAME = SITE_NAME;
 
 /** H1 — prices are VAT included. Not switchable here: charging HT prices
  * would change the amount captured from the client (pricing, out of the

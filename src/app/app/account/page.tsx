@@ -9,7 +9,7 @@ import { AccountProfileForm } from "@/components/auth/account-profile-form";
 import { FormMessage } from "@/components/auth/form-field";
 import { getOwnProfile } from "@/server/domains/users/profile";
 
-export const metadata = { title: "Compte — OfficeFlex" };
+export const metadata = { title: "Compte — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 const ORG_ROLE_LABELS: Record<string, string> = {

@@ -51,7 +51,7 @@ export function ConsentBanner({
         Vos choix sur les traceurs
       </h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        OfficeFlex utilise les cookies nécessaires au fonctionnement du site. Avec votre accord, nous
+        MakomSpace utilise les cookies nécessaires au fonctionnement du site. Avec votre accord, nous
         mesurons aussi l&apos;utilisation du service pour l&apos;améliorer. Vous pouvez changer
         d&apos;avis à tout moment via « Gérer les cookies » en bas de page.{" "}
         <Link href="/cookies" className="underline">
@@ -86,7 +86,7 @@ export function ConsentBanner({
                   Mesure d&apos;audience anonyme
                 </label>
                 <p id="consent-audience-desc" className="text-muted-foreground">
-                  Statistiques de fréquentation agrégées, sans cookie, hébergées par OfficeFlex.
+                  Statistiques de fréquentation agrégées, sans cookie, hébergées par MakomSpace.
                 </p>
               </div>
             </div>

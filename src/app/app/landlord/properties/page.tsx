@@ -6,7 +6,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/states";
 import { PROPERTY_STATUS_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/format";
 
-export const metadata = { title: "Mes biens — OfficeFlex" };
+export const metadata = { title: "Mes biens — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 /**

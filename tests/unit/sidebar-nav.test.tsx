@@ -39,7 +39,7 @@ describe("SidebarNav", () => {
 describe("CollapsibleSidebar", () => {
   it("folds the menu behind a button that reports its state", () => {
     render(
-      <CollapsibleSidebar brand={<span>OfficeFlex</span>}>
+      <CollapsibleSidebar brand={<span>MakomSpace</span>}>
         <p>contenu du menu</p>
       </CollapsibleSidebar>
     );

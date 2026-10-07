@@ -7,7 +7,7 @@ import { buildInvoiceView } from "@/server/domains/invoicing/view";
 import { isUuid } from "@/server/domains/invoicing/pdf-response";
 import { formatParisMonth } from "@/server/domains/invoicing/paris-time";
 
-export const metadata = { title: "Facture de commission — OfficeFlex" };
+export const metadata = { title: "Facture de commission — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 /** The monthly commission invoice addressed to the organization. */

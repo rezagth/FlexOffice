@@ -11,7 +11,7 @@ import { absoluteUrl, pageMetadata, SITE_DESCRIPTION, SITE_NAME } from "@/lib/si
 import { jsonLd } from "@/lib/json-ld";
 
 export const metadata = pageMetadata({
-  title: "OfficeFlex — Réservez un espace professionnel à la demande",
+  title: "MakomSpace — Réservez un espace professionnel à la demande",
   description: SITE_DESCRIPTION,
   path: "/",
 });

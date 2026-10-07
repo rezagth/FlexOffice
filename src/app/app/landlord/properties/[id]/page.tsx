@@ -17,7 +17,7 @@ import {
   formatCents,
 } from "@/lib/format";
 
-export const metadata = { title: "Détail du bien — OfficeFlex" };
+export const metadata = { title: "Détail du bien — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 /**

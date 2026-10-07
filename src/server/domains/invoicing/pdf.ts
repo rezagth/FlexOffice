@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { InvoiceView } from "./view";
+import { PLATFORM_DISPLAY_NAME } from "./config";
 
 /**
  * Server-side PDF of an invoicing document, drawn with pdf-lib and the
@@ -141,8 +142,8 @@ export async function renderInvoicePdf(view: InvoiceView): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`${view.title} ${view.number}`);
   doc.setSubject(view.title);
-  doc.setProducer("OfficeFlex");
-  doc.setCreator("OfficeFlex");
+  doc.setProducer(PLATFORM_DISPLAY_NAME);
+  doc.setCreator(PLATFORM_DISPLAY_NAME);
   doc.setLanguage("fr-FR");
   const fonts = {
     regular: await doc.embedFont(StandardFonts.Helvetica),

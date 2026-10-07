@@ -9,7 +9,7 @@ import { AdminActionButton } from "@/components/dashboard/admin-action-button";
 import { parsePageParam, totalPageCount } from "@/lib/pagination";
 import { formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "Utilisateurs — Admin OfficeFlex" };
+export const metadata = { title: "Utilisateurs — Admin MakomSpace" };
 export const dynamic = "force-dynamic";
 
 function statusLabel(user: { deletedAt: Date | null; suspendedAt: Date | null }): string {

@@ -96,7 +96,7 @@ export default async function PartnerRevenuePage() {
         </Card>
         <Card className="p-5">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Commission OfficeFlex
+            Commission MakomSpace
           </p>
           <p className="mt-2 text-2xl font-semibold">
             {formatCents(totals.commissionCents)}

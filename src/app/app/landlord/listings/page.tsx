@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/dashboard/states";
 import { ButtonLink } from "@/components/ui/button";
 import { SPACE_TYPE_LABELS } from "@/lib/format";
 
-export const metadata = { title: "Publications — OfficeFlex" };
+export const metadata = { title: "Publications — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 const STATUS_LABELS: Record<string, string> = {

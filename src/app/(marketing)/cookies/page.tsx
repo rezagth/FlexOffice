@@ -4,8 +4,8 @@ import { ManageCookiesButton } from "@/components/consent/manage-cookies-button"
 import { buttonClasses } from "@/components/ui/button";
 
 export const metadata = {
-  title: "Gestion des cookies — OfficeFlex",
-  description: "Cookies et traceurs utilisés par OfficeFlex, et comment gérer votre consentement.",
+  title: "Gestion des cookies — MakomSpace",
+  description: "Cookies et traceurs utilisés par MakomSpace, et comment gérer votre consentement.",
 };
 
 const cell = "border-b border-border py-2 pr-4 align-top";

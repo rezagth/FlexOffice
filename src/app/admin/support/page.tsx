@@ -6,7 +6,7 @@ import { CloseTicketButton } from "@/components/dashboard/close-ticket-button";
 import { SupportReplyForm } from "@/components/dashboard/support-reply-form";
 import { formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "Support — Admin OfficeFlex" };
+export const metadata = { title: "Support — Admin MakomSpace" };
 export const dynamic = "force-dynamic";
 
 /**

@@ -40,7 +40,7 @@ export default async function AppHomePage() {
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Votre accès à l&apos;organisation concernée n&apos;est plus actif.
-              Vous continuez à utiliser OfficeFlex en tant que locataire.
+              Vous continuez à utiliser MakomSpace en tant que locataire.
             </p>
           </div>
           {!ctx.isLandlord && (

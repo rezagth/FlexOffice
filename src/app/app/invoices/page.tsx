@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/dashboard/states";
 import { formatCents, formatDateTime, invoiceNumber, PAYMENT_STATUS_LABELS } from "@/lib/format";
 import { CAPTURED_PAYMENT_STATUSES } from "@/server/domains/payments/settled-amounts";
 
-export const metadata = { title: "Factures — OfficeFlex" };
+export const metadata = { title: "Factures — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 export default async function ClientInvoicesPage() {

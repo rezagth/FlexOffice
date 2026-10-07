@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ManageCookiesButton } from "@/components/consent/manage-cookies-button";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { SITE_TAGLINE } from "@/lib/site";
 
 const COMPANY_LINKS = [
   { href: "/search", label: "Rechercher un espace" },
@@ -28,9 +30,10 @@ export function SiteFooter() {
     <footer className="surface-dark bg-foreground text-background/80">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-6 py-12 sm:grid-cols-[1.5fr_1fr_1fr]">
         <div>
-          <Link href="/" className="text-lg font-semibold text-accent">
-            OfficeFlex
+          <Link href="/" className="text-background" aria-label="MakomSpace — accueil">
+            <BrandLogo />
           </Link>
+          <p className="mt-3 max-w-xs text-sm font-medium text-accent">{SITE_TAGLINE}</p>
           <p className="mt-2 max-w-xs text-sm">
             La plateforme de réservation d&apos;espaces professionnels flexibles à la
             demande.
@@ -74,7 +77,7 @@ export function SiteFooter() {
 
       <div className="border-t border-background/10">
         <p className="mx-auto max-w-6xl px-6 py-6 text-xs">
-          © {new Date().getFullYear()} OfficeFlex. Tous droits réservés.
+          © {new Date().getFullYear()} MakomSpace. Tous droits réservés.
         </p>
       </div>
     </footer>

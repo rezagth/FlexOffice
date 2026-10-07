@@ -2,8 +2,9 @@ import Link from "next/link";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 import { ButtonLink } from "@/components/ui/button";
 import { getAuthContext } from "@/server/auth/rbac";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
-export const metadata = { title: "Nouveau mot de passe — OfficeFlex" };
+export const metadata = { title: "Nouveau mot de passe — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -18,8 +19,8 @@ export default async function ResetPasswordPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center px-6 py-16">
-      <Link href="/" className="mb-8 text-lg font-semibold text-foreground">
-        OfficeFlex
+      <Link href="/" className="mb-8 text-foreground" aria-label="MakomSpace — accueil">
+        <BrandLogo />
       </Link>
       <h1 className="text-xl font-semibold text-foreground">Nouveau mot de passe</h1>
       {ctx ? (

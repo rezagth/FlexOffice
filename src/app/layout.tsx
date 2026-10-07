@@ -9,7 +9,7 @@ import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, getSiteUrl } from "@/lib
 import { inter, jakarta } from "./fonts";
 import { ConsentAndAnalytics } from "@/components/consent";
 
-const DEFAULT_TITLE = "OfficeFlex — Réservez un espace professionnel à la demande";
+const DEFAULT_TITLE = "MakomSpace — Réservez un espace professionnel à la demande";
 
 /**
  * Site-wide metadata defaults (UX-10).

@@ -10,7 +10,9 @@
  * able to inject markup or links into a message sent under our name.
  */
 
-export const BRAND_NAME = "OfficeFlex";
+import { SITE_NAME } from "@/lib/site";
+
+export const BRAND_NAME = SITE_NAME;
 const NAVY = "#041627";
 const GOLD = "#C5A059";
 const PAGE_BACKGROUND = "#F4F1EA";

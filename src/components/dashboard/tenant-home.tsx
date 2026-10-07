@@ -40,7 +40,7 @@ export async function TenantHome({ ctx }: { ctx: AuthContext }) {
           Bonjour {ctx.name.split(" ")[0]}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Voici un aperçu de votre activité sur OfficeFlex.
+          Voici un aperçu de votre activité sur MakomSpace.
         </p>
       </div>
 

@@ -33,7 +33,7 @@ import { pageMetadata } from "@/lib/site";
 const AMENITY_VALUES = Object.keys(SPACE_AMENITY_LABELS).filter((value) => value !== "OTHER");
 
 export const metadata: Metadata = pageMetadata({
-  title: "Rechercher un espace — OfficeFlex",
+  title: "Rechercher un espace — MakomSpace",
   description:
     "Trouvez une salle de réunion, un bureau ou un espace de formation à réserver à la demi-journée ou à la journée, par ville, date, capacité et équipements.",
   path: "/search",

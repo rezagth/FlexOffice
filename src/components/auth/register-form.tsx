@@ -258,7 +258,7 @@ export function RegisterForm() {
       </Button>
 
       <p className="text-xs text-muted-foreground">
-        OfficeFlex traite vos données (identité, coordonnées, réservations) pour gérer
+        MakomSpace traite vos données (identité, coordonnées, réservations) pour gérer
         votre compte et vos réservations. Vous pouvez y accéder, les exporter ou les
         supprimer à tout moment depuis votre compte. En savoir plus dans notre{" "}
         <Link href="/confidentialite" className="underline underline-offset-2">

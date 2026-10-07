@@ -50,7 +50,7 @@ export default async function AdminDashboardPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Vue d&apos;ensemble</h1>
         <p className="text-sm text-muted-foreground">
-          Indicateurs globaux de la plateforme OfficeFlex.
+          Indicateurs globaux de la plateforme MakomSpace.
         </p>
       </div>
 

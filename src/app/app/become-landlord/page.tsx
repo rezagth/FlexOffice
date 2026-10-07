@@ -3,7 +3,7 @@ import { requirePageAuth } from "@/server/auth/page-guards";
 import { BecomeLandlordForm } from "@/components/dashboard/become-landlord-form";
 import { Card } from "@/components/ui/card";
 
-export const metadata = { title: "Devenir bailleur — OfficeFlex" };
+export const metadata = { title: "Devenir bailleur — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 /**

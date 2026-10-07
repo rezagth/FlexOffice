@@ -1,16 +1,16 @@
 import { LegalPage, Section, Sub, ToFill } from "@/components/marketing/legal-page";
 
 export const metadata = {
-  title: "Conditions générales de vente — OfficeFlex",
+  title: "Conditions générales de vente — MakomSpace",
   description:
-    "Réservation, prix, commission, paiement, annulation et litiges sur OfficeFlex.",
+    "Réservation, prix, commission, paiement, annulation et litiges sur MakomSpace.",
 };
 
 export default function CgvPage() {
   return (
     <LegalPage
       title="Conditions générales de vente"
-      intro="Elles régissent les réservations conclues via la plateforme ainsi que le service d'intermédiation facturé par OfficeFlex."
+      intro="Elles régissent les réservations conclues via la plateforme ainsi que le service d'intermédiation facturé par MakomSpace."
     >
       <Section title="1. Champ d'application">
         <p>
@@ -31,14 +31,14 @@ export default function CgvPage() {
         <ul className="list-disc pl-5">
           <li>
             <strong>Le contrat de mise à disposition</strong>, conclu directement entre
-            le Client et le Partenaire. OfficeFlex n&apos;y est pas partie. Il porte
+            le Client et le Partenaire. MakomSpace n&apos;y est pas partie. Il porte
             sur la mise à disposition temporaire d&apos;un espace, à l&apos;exclusion
             de tout bail commercial, professionnel ou d&apos;habitation, et
             n&apos;ouvre aucun droit au maintien dans les lieux ni à la propriété
             commerciale.
           </li>
           <li>
-            <strong>Le contrat d&apos;intermédiation</strong>, conclu entre OfficeFlex
+            <strong>Le contrat d&apos;intermédiation</strong>, conclu entre MakomSpace
             et le Partenaire, rémunéré par la commission définie à l&apos;article 5.
           </li>
         </ul>
@@ -93,19 +93,19 @@ export default function CgvPage() {
           applicable, art. 293 B du CGI ». Le Partenaire est seul responsable de
           l&apos;exactitude des informations fiscales qu&apos;il déclare (SIRET, numéro de
           TVA, régime) et de leur mise à jour, ainsi que de la déclaration et du reversement
-          de la TVA facturée en son nom. Il garantit OfficeFlex contre toute conséquence
+          de la TVA facturée en son nom. Il garantit MakomSpace contre toute conséquence
           d&apos;un manquement à ces obligations.
         </p>
       </Section>
 
       <Section title="5. Commission">
         <p>
-          OfficeFlex perçoit une commission de quinze pour cent (15 %) du montant TTC de
+          MakomSpace perçoit une commission de quinze pour cent (15 %) du montant TTC de
           chaque réservation confirmée, en rémunération du service d&apos;intermédiation, de
           la mise en relation, de la sécurisation du paiement et de la mise à disposition
           des outils de gestion. Ce montant s&apos;entend TVA incluse, au taux de vingt pour
           cent (20 %). Il figure sur la facture remise au Client sous la mention « dont frais
-          de service OfficeFlex ».
+          de service MakomSpace ».
         </p>
         <p>
           La commission est déduite du montant reversé au Partenaire. Elle est acquise
@@ -113,7 +113,7 @@ export default function CgvPage() {
           imputable au Client ; elle est remboursée en cas d&apos;annulation par le
           Partenaire ou de force majeure (article 8). Le premier jour de chaque mois, une
           facture de commission récapitulant les commissions conservées au titre du mois
-          précédent, remboursements déduits, est émise par OfficeFlex et mise à disposition
+          précédent, remboursements déduits, est émise par MakomSpace et mise à disposition
           du Partenaire dans son espace. Elle est acquittée, la commission ayant été
           prélevée lors de l&apos;encaissement de chaque réservation.
         </p>
@@ -121,7 +121,7 @@ export default function CgvPage() {
 
       <Section title="6. Facturation — mandat de facturation">
         <p>
-          En acceptant les présentes conditions, le Partenaire donne mandat à OfficeFlex,
+          En acceptant les présentes conditions, le Partenaire donne mandat à MakomSpace,
           qui l&apos;accepte, d&apos;établir et de délivrer en son nom et pour son compte
           les factures relatives aux mises à disposition conclues via la plateforme, ainsi
           que les avoirs correspondants, conformément à l&apos;article 289, I-2 du Code
@@ -130,7 +130,7 @@ export default function CgvPage() {
         <ul className="list-disc pl-5">
           <li>
             Chaque facture est émise au moment de l&apos;encaissement du paiement du Client.
-            Elle porte la mention « Facture émise par OfficeFlex au nom et pour le compte de
+            Elle porte la mention « Facture émise par MakomSpace au nom et pour le compte de
             [raison sociale du Partenaire] en vertu d&apos;un mandat de facturation »,
             l&apos;identité complète du Partenaire et du Client, la désignation de la
             prestation, les montants hors taxes, de TVA et toutes taxes comprises.
@@ -152,7 +152,7 @@ export default function CgvPage() {
           </li>
           <li>
             Le mandat prend fin avec la relation contractuelle entre le Partenaire et
-            OfficeFlex ; les factures relatives aux réservations antérieures restent émises
+            MakomSpace ; les factures relatives aux réservations antérieures restent émises
             dans les mêmes conditions.
           </li>
         </ul>
@@ -161,7 +161,7 @@ export default function CgvPage() {
       <Section title="7. Paiement et reversement">
         <p>
           Les paiements sont traités par un prestataire de services de paiement agréé.
-          OfficeFlex ne collecte ni ne conserve aucune donnée de carte bancaire.
+          MakomSpace ne collecte ni ne conserve aucune donnée de carte bancaire.
         </p>
         <p>
           Le reversement au Partenaire intervient après déduction de la commission,
@@ -171,7 +171,7 @@ export default function CgvPage() {
           blanchiment.
         </p>
         <p>
-          En cas de retard de paiement d&apos;une somme due à OfficeFlex par un
+          En cas de retard de paiement d&apos;une somme due à MakomSpace par un
           professionnel, sont exigibles de plein droit des pénalités calculées au taux
           d&apos;intérêt de la Banque centrale européenne majoré de dix points, ainsi
           qu&apos;une indemnité forfaitaire de recouvrement de quarante euros, sans
@@ -185,7 +185,7 @@ export default function CgvPage() {
           <p>
             Une demande non encore acceptée par le Partenaire peut être annulée
             sans frais : l&apos;autorisation est libérée et aucun montant n&apos;est
-            débité. Pour une réservation confirmée, la commission d&apos;OfficeFlex
+            débité. Pour une réservation confirmée, la commission de MakomSpace
             constitue des frais de service non remboursables, et le montant revenant
             au Partenaire est remboursé selon le délai restant avant le début du
             créneau : plus de quarante-huit (48) heures avant, remboursement
@@ -218,19 +218,19 @@ export default function CgvPage() {
         <p>
           Le Client qui constate une non-conformité substantielle entre
           l&apos;annonce et l&apos;espace mis à disposition doit la signaler à
-          OfficeFlex dans un délai de vingt-quatre (24) heures suivant la fin du créneau
+          MakomSpace dans un délai de vingt-quatre (24) heures suivant la fin du créneau
           réservé, en produisant les éléments justificatifs utiles (photographies,
           échanges avec le Partenaire). Passé ce délai, la prestation est réputée conforme.
         </p>
         <p>
-          OfficeFlex instruit le signalement auprès des deux parties et peut, sans y
+          MakomSpace instruit le signalement auprès des deux parties et peut, sans y
           être tenue et sans que cela vaille reconnaissance de responsabilité, décider
           d&apos;un remboursement total ou partiel prélevé sur les sommes dues au
           Partenaire. Chaque étape de l&apos;instruction est horodatée et conservée.
         </p>
         <p>
           Les dommages causés à l&apos;espace ou aux tiers relèvent des assurances
-          respectives du Client et du Partenaire. OfficeFlex n&apos;est ni assureur, ni
+          respectives du Client et du Partenaire. MakomSpace n&apos;est ni assureur, ni
           garant, ni séquestre de ces sommes.
         </p>
       </Section>
@@ -240,13 +240,13 @@ export default function CgvPage() {
           Le Partenaire et le Client déclarent être assurés au titre de leur
           responsabilité civile professionnelle pour les activités exercées à
           l&apos;occasion de la mise à disposition. Chacun s&apos;engage à en
-          justifier sur simple demande d&apos;OfficeFlex.
+          justifier sur simple demande de MakomSpace.
         </p>
       </Section>
 
       <Section title="11. Lutte contre la fraude">
         <p>
-          OfficeFlex peut suspendre une réservation, un reversement ou un compte en cas
+          MakomSpace peut suspendre une réservation, un reversement ou un compte en cas
           de suspicion sérieuse de fraude, d&apos;usurpation d&apos;identité ou
           d&apos;opération contraire aux obligations de lutte contre le blanchiment,
           le temps des vérifications nécessaires.
@@ -255,7 +255,7 @@ export default function CgvPage() {
 
       <Section title="12. Preuve">
         <p>
-          Les registres informatisés d&apos;OfficeFlex, ses journaux d&apos;audit et
+          Les registres informatisés de MakomSpace, ses journaux d&apos;audit et
           les données de connexion sont conservés dans des conditions de nature à en
           garantir l&apos;intégrité et sont admis comme mode de preuve entre les
           parties, conformément à l&apos;article 1366 du Code civil.

@@ -3,7 +3,7 @@ import { SiteFooter } from "@/components/marketing/site-footer";
 import { ContactForm } from "@/components/marketing/contact-form";
 
 export const metadata = {
-  title: "Nous contacter — OfficeFlex",
+  title: "Nous contacter — MakomSpace",
   description: "Une question, un problème avec une réservation ? Écrivez-nous.",
 };
 

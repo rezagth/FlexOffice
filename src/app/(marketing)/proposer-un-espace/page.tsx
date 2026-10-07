@@ -8,9 +8,9 @@ import { ButtonLink } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Proposer un espace — OfficeFlex",
+  title: "Proposer un espace — MakomSpace",
   description:
-    "Vos bureaux, salles de réunion ou de formation sont sous-utilisés ? Publiez-les sur OfficeFlex et louez-les à la demi-journée ou à la journée à des professionnels.",
+    "Vos bureaux, salles de réunion ou de formation sont sous-utilisés ? Publiez-les sur MakomSpace et louez-les à la demi-journée ou à la journée à des professionnels.",
   path: "/proposer-un-espace",
 });
 
@@ -63,7 +63,7 @@ const STEPS: Item[] = [
     icon: Coins,
     title: "Recevez vos paiements",
     description:
-      "Le client paie en ligne ; le montant vous est reversé sur votre compte, commission OfficeFlex déduite.",
+      "Le client paie en ligne ; le montant vous est reversé sur votre compte, commission MakomSpace déduite.",
   },
 ];
 
@@ -143,7 +143,7 @@ export default async function ProposeSpacePage() {
         <section aria-labelledby="benefits-heading" className="border-b border-border">
           <div className="mx-auto max-w-6xl px-6 py-16">
             <h2 id="benefits-heading" className="text-2xl font-semibold text-foreground">
-              Pourquoi publier sur OfficeFlex ?
+              Pourquoi publier sur MakomSpace ?
             </h2>
             <div className="mt-8">
               <ul className="grid grid-cols-1 gap-6 md:grid-cols-3">

@@ -11,7 +11,7 @@ import { isUuid } from "@/server/domains/invoicing/pdf-response";
 import { CAPTURED_PAYMENT_STATUSES } from "@/server/domains/payments/settled-amounts";
 import { logError } from "@/server/lib/logger";
 
-export const metadata = { title: "Facture — OfficeFlex" };
+export const metadata = { title: "Facture — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 export default async function ClientInvoiceDetailPage({

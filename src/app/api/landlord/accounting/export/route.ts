@@ -116,7 +116,7 @@ export const GET = withErrorHandling(async (request: Request) => {
   return new Response(toCsv([header, ...rows]), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="officeflex-comptabilite.csv"`,
+      "Content-Disposition": `attachment; filename="makomspace-comptabilite.csv"`,
       "Cache-Control": "private, no-store",
     },
   });

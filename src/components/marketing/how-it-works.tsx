@@ -28,7 +28,7 @@ const PARTNER_STEPS: Step[] = [
     icon: Building2,
   },
   {
-    title: "Validation OfficeFlex",
+    title: "Validation MakomSpace",
     description: "Nous vérifions chaque espace avant publication.",
     icon: ShieldCheck,
   },

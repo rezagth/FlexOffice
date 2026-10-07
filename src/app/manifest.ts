@@ -1,8 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site";
 
-/** Web app manifest — brand colours, French, provisional "OF" icons until
- * the rebrand ships the final logo. */
+/** Web app manifest — brand colours, French, MakomSpace icons. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: `${SITE_NAME} — espaces professionnels à la demande`,

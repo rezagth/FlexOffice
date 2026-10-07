@@ -266,7 +266,7 @@ export function BookingFunnel({
                   {FULL_REFUND_MIN_HOURS} h et {PARTIAL_REFUND_MIN_HOURS} h, aucun remboursement
                   à moins de {PARTIAL_REFUND_MIN_HOURS} h.
                 </li>
-                <li>Les frais de service OfficeFlex ne sont pas remboursables.</li>
+                <li>Les frais de service MakomSpace ne sont pas remboursables.</li>
               </ul>
             </div>
           </>

@@ -42,12 +42,12 @@ function truncate(text: string, max: number): string {
 export async function generateMetadata({ params }: PageProps<"/spaces/[slug]">): Promise<Metadata> {
   const { slug } = await params;
   const space = await getSpace(slug);
-  if (!space) return { title: "Espace introuvable — OfficeFlex", robots: { index: false } };
+  if (!space) return { title: "Espace introuvable — MakomSpace", robots: { index: false } };
 
   const type = SPACE_TYPE_LABELS[space.type] ?? space.type;
   const photo = space.photos[0];
   return pageMetadata({
-    title: `${space.name} — ${type} à ${space.city} | OfficeFlex`,
+    title: `${space.name} — ${type} à ${space.city} | MakomSpace`,
     description: truncate(
       `${type} à ${space.city}, jusqu'à ${space.capacity} personnes, à partir de ${formatCents(space.halfDayPriceCents)} la demi-journée. ${space.description}`,
       DESCRIPTION_MAX
@@ -67,7 +67,7 @@ function cancellationSummary(): string[] {
     `Plus de ${FULL_REFUND_MIN_HOURS} h avant le début : la location est remboursée intégralement.`,
     `Entre ${FULL_REFUND_MIN_HOURS} h et ${PARTIAL_REFUND_MIN_HOURS} h avant : ${PARTIAL_REFUND_PERCENT} % de la location est remboursé.`,
     `Moins de ${PARTIAL_REFUND_MIN_HOURS} h avant : aucun remboursement.`,
-    "Les frais de service OfficeFlex ne sont pas remboursables, sauf annulation par l'entreprise.",
+    "Les frais de service MakomSpace ne sont pas remboursables, sauf annulation par l'entreprise.",
   ];
 }
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CollapsibleSidebar, SidebarNav, type SidebarNavItem } from "@/components/ui/sidebar-nav";
 import { SignOutButton } from "./sign-out-button";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 /** Shell of the admin back office: same collapsible sidebar and active-page
  * marking as the account space (AppShell). */
@@ -23,8 +24,8 @@ export function DashboardShell({
       </a>
       <CollapsibleSidebar
         brand={
-          <Link href="/" className="text-lg font-semibold text-foreground">
-            OfficeFlex
+          <Link href="/" className="text-foreground" aria-label="MakomSpace — accueil">
+            <BrandLogo />
           </Link>
         }
       >

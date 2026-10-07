@@ -3,6 +3,7 @@ import { Bell, HelpCircle, Search } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { getAuthContext } from "@/server/auth/rbac";
 import { MobileMenu, type HeaderLink } from "./mobile-menu";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 /**
  * The public header, shared by every public page.
@@ -50,8 +51,8 @@ export async function SiteHeader() {
         Aller au contenu
       </a>
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
-        <Link href="/" className="text-lg font-semibold text-foreground">
-          OfficeFlex
+        <Link href="/" className="text-foreground" aria-label="MakomSpace — accueil">
+          <BrandLogo />
         </Link>
 
         <nav aria-label="Navigation principale" className="hidden items-center gap-6 sm:flex">

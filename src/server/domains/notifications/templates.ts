@@ -2,7 +2,7 @@ import { formatCents, formatDateTime } from "@/lib/format";
 import { renderEmail, type EmailDetailRow, type RenderedEmail } from "./layout";
 
 /**
- * Every transactional e-mail OfficeFlex sends. Each template returns the
+ * Every transactional e-mail MakomSpace sends. Each template returns the
  * envelope plus a text AND an HTML body, both produced by layout.ts from
  * the same structured content — templates never build markup, so every
  * value interpolated here (names, space names, reasons) is escaped there.
@@ -225,7 +225,7 @@ export function verificationApprovedTemplate(ctx: { to: string; organizationName
   return renderEmail(ctx.to, "Votre dossier bailleur est validé", {
     greeting: "Bonjour,",
     paragraphs: [
-      `Le dossier de vérification de ${ctx.organizationName} a été validé par l'équipe OfficeFlex.`,
+      `Le dossier de vérification de ${ctx.organizationName} a été validé par l'équipe MakomSpace.`,
       "Vos annonces peuvent désormais être soumises à la publication.",
     ],
     action: { label: "Gérer mes annonces", path: "/app/landlord/listings" },
@@ -289,7 +289,7 @@ export function organizationSuspendedTemplate(ctx: {
   return renderEmail(ctx.to, "Votre compte bailleur est suspendu", {
     greeting: "Bonjour,",
     paragraphs: [
-      `Le compte bailleur de ${ctx.organizationName} a été suspendu par l'équipe OfficeFlex. Vos annonces ne sont plus visibles ni réservables.`,
+      `Le compte bailleur de ${ctx.organizationName} a été suspendu par l'équipe MakomSpace. Vos annonces ne sont plus visibles ni réservables.`,
     ],
     details: [{ label: "Motif", value: ctx.reason }],
     closing: ["Pour toute question, répondez via le formulaire de contact."],
@@ -328,7 +328,7 @@ export function disputeOpenedTemplate(
       `Un litige a été signalé par ${ctx.raisedByLabel} sur la réservation « ${ctx.spaceName} » ${slot(ctx)}.`,
       ctx.audience === "admin"
         ? "Il attend une prise en charge dans le back-office."
-        : "L'équipe OfficeFlex va l'examiner et reviendra vers vous. Vous pouvez échanger avec l'autre partie depuis la messagerie de la réservation.",
+        : "L'équipe MakomSpace va l'examiner et reviendra vers vous. Vous pouvez échanger avec l'autre partie depuis la messagerie de la réservation.",
     ],
     action:
       ctx.audience === "admin"
@@ -350,7 +350,7 @@ export function disputeResolvedTemplate(ctx: {
       : "Décision : clôture sans remboursement.";
   return renderEmail(ctx.to, `Litige résolu — ${ctx.spaceName}`, {
     greeting: "Bonjour,",
-    paragraphs: [`Le litige concernant la réservation « ${ctx.spaceName} » a été traité par l'équipe OfficeFlex.`, decision],
+    paragraphs: [`Le litige concernant la réservation « ${ctx.spaceName} » a été traité par l'équipe MakomSpace.`, decision],
     details: [{ label: "Commentaire", value: ctx.notes }],
     action: { label: "Mes réservations", path: CLIENT_BOOKINGS_PATH },
   });
@@ -406,7 +406,7 @@ export function chargebackReceivedTemplate(ctx: {
         : `Le titulaire de la carte a contesté auprès de sa banque un paiement pour votre espace « ${ctx.spaceName} ».`,
       ctx.audience === "admin"
         ? "Les justificatifs doivent être déposés dans le tableau de bord Stripe avant l'échéance indiquée par Stripe."
-        : "L'équipe OfficeFlex traite la contestation ; elle pourra vous demander des justificatifs (échanges, preuve de présence).",
+        : "L'équipe MakomSpace traite la contestation ; elle pourra vous demander des justificatifs (échanges, preuve de présence).",
     ],
     details: [
       { label: "Espace", value: ctx.spaceName },
@@ -434,7 +434,7 @@ export function supportTicketAckTemplate(ctx: { to: string; ticketId: string }):
   return renderEmail(ctx.to, "Nous avons bien reçu votre message", {
     greeting: "Bonjour,",
     paragraphs: [
-      "Votre message a bien été transmis à l'équipe OfficeFlex. Nous vous répondrons par e-mail dans les meilleurs délais.",
+      "Votre message a bien été transmis à l'équipe MakomSpace. Nous vous répondrons par e-mail dans les meilleurs délais.",
     ],
     details: [{ label: "Référence", value: ctx.ticketId.slice(0, 8).toUpperCase() }],
     closing: ["Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail."],

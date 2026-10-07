@@ -5,6 +5,7 @@ import type { MembershipSummary } from "@/server/auth/active-context";
 import { ModeSwitcher } from "./mode-switcher";
 import { SignOutButton } from "./sign-out-button";
 import { CollapsibleSidebar, SidebarNav } from "@/components/ui/sidebar-nav";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 /**
  * The shell for the unified `/app` space.
@@ -88,8 +89,8 @@ export function AppShell({
 
       <CollapsibleSidebar
         brand={
-          <Link href="/" className="text-lg font-semibold text-foreground">
-            OfficeFlex
+          <Link href="/" className="text-foreground" aria-label="MakomSpace — accueil">
+            <BrandLogo />
           </Link>
         }
       >

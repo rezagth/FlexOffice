@@ -50,7 +50,7 @@ export function TrustBadges() {
   return (
     <section className="border-b border-border bg-card">
       <div className="mx-auto max-w-6xl px-6 py-16 text-center">
-        <h2 className="text-2xl font-semibold text-foreground">La garantie OfficeFlex</h2>
+        <h2 className="text-2xl font-semibold text-foreground">La garantie MakomSpace</h2>
         <p className="mt-2 text-muted-foreground">
           Réservez en toute sérénité grâce à nos standards de qualité élevés.
         </p>

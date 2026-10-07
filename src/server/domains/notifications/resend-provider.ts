@@ -23,7 +23,7 @@ export class ResendEmailProvider implements EmailProvider {
     // Resend's own shared test sender — works with zero domain setup, but
     // Resend restricts it to the account's own verified email addresses.
     // Set EMAIL_FROM once a real sending domain is verified.
-    this.from = process.env.EMAIL_FROM || "OfficeFlex <onboarding@resend.dev>";
+    this.from = process.env.EMAIL_FROM || "MakomSpace <onboarding@resend.dev>";
     this.client = new Resend(apiKey);
   }
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LegalPage, Section, Sub, ToFill } from "@/components/marketing/legal-page";
 
 export const metadata = {
-  title: "Politique de confidentialité — OfficeFlex",
+  title: "Politique de confidentialité — MakomSpace",
   description:
     "Données collectées, finalités, durées de conservation et droits des personnes.",
 };
@@ -11,7 +11,7 @@ export default function ConfidentialitePage() {
   return (
     <LegalPage
       title="Politique de confidentialité"
-      intro="Elle décrit les traitements de données personnelles mis en œuvre par OfficeFlex, conformément au règlement général sur la protection des données."
+      intro="Elle décrit les traitements de données personnelles mis en œuvre par MakomSpace, conformément au règlement général sur la protection des données."
     >
       <Section title="1. Responsable du traitement">
         <p>
@@ -30,7 +30,7 @@ export default function ConfidentialitePage() {
           <p>
             Nom, adresse électronique, numéro de téléphone lorsqu&apos;il est fourni,
             rôle sur la plateforme, date de création du compte, identifiant technique.
-            Le mot de passe n&apos;est jamais accessible à OfficeFlex : il est traité
+            Le mot de passe n&apos;est jamais accessible à MakomSpace : il est traité
             sous forme chiffrée par le service d&apos;authentification.
           </p>
         </Sub>
@@ -54,7 +54,7 @@ export default function ConfidentialitePage() {
             Montants, commissions, statuts et identifiants de transaction.{" "}
             <strong>
               Aucune donnée de carte bancaire n&apos;est collectée ni conservée par
-              OfficeFlex
+              MakomSpace
             </strong>{" "}
             : la saisie et le traitement relèvent exclusivement d&apos;un prestataire
             agréé et certifié PCI-DSS.
@@ -234,7 +234,7 @@ export default function ConfidentialitePage() {
 
       <Section title="5. Destinataires et sous-traitants">
         <p>
-          Les données sont accessibles aux seules personnes habilitées d&apos;OfficeFlex.
+          Les données sont accessibles aux seules personnes habilitées de MakomSpace.
           L&apos;hébergement est assuré en France sur un serveur dédié exploité par
           l&apos;éditeur lui-même : la base de données, l&apos;authentification et le
           stockage des fichiers (logiciel libre Supabase, installé et exploité par nos

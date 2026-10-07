@@ -35,7 +35,7 @@ export async function geocodeAddress(address: {
       headers: {
         // Required by Nominatim's usage policy — a generic fetch UA gets
         // blocked outright.
-        "User-Agent": "OfficeFlex/1.0 (property geocoding; contact via /contact)",
+        "User-Agent": "MakomSpace/1.0 (property geocoding; contact via /contact)",
       },
       // Never let a slow/unreachable geocoder hold up creating a property.
       signal: AbortSignal.timeout(5000),

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LoadingState } from "@/components/dashboard/states";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 /**
  * Shown while /search renders (UX-23): the same frame as the page — header
@@ -13,8 +14,8 @@ export default function SearchLoading() {
     <div className="flex min-h-screen flex-col">
       <div className="border-b border-border bg-background">
         <div className="mx-auto flex max-w-6xl items-center px-4 py-3 sm:px-6 sm:py-4">
-          <Link href="/" className="text-lg font-semibold text-foreground">
-            OfficeFlex
+          <Link href="/" className="text-foreground" aria-label="MakomSpace — accueil">
+            <BrandLogo />
           </Link>
         </div>
       </div>

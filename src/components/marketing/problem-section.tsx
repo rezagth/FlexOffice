@@ -72,11 +72,11 @@ export function ProblemSection() {
                 className="h-full w-full object-cover"
               />
               <span className="absolute left-4 top-4 rounded-full bg-accent px-3 py-1 text-xs font-medium uppercase tracking-wide text-accent-foreground">
-                Précision OfficeFlex
+                Précision MakomSpace
               </span>
             </div>
             <div className="p-6">
-              <h3 className="font-sans text-base font-medium text-accent">Bureau OfficeFlex</h3>
+              <h3 className="font-sans text-base font-medium text-accent">Bureau MakomSpace</h3>
               <ul className="mt-3 flex flex-col gap-2.5 text-sm text-background/90">
                 {AFTER.map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
