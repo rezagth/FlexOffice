@@ -12,14 +12,14 @@ type Ctx = { params: Promise<{ id: string; spaceId: string }> };
 //   Space.organizationId's doc comment in prisma/schema.prisma.
 export const GET = withErrorHandling(async (_request: Request, { params }: Ctx) => {
   const { id: propertyId, spaceId } = await params;
-  await requirePropertyManageAccess(propertyId);
+  await requirePropertyManageAccess(propertyId, "landlord:view_dashboard");
   const space = await getSpaceForProperty(propertyId, spaceId);
   return NextResponse.json({ space });
 });
 
 export const PATCH = withErrorHandling(async (request: Request, { params }: Ctx) => {
   const { id: propertyId, spaceId } = await params;
-  const { ctx } = await requirePropertyManageAccess(propertyId);
+  const { ctx } = await requirePropertyManageAccess(propertyId, "landlord:manage_spaces");
   // Confirms spaceId actually belongs to propertyId before writing.
   await getSpaceForProperty(propertyId, spaceId);
   const input = updateSpaceSchema.parse(await request.json());

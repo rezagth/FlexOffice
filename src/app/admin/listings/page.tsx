@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { EmptyState } from "@/components/dashboard/states";
 import { SpaceModerationActions } from "@/components/dashboard/space-moderation-actions";
+import { AdminActionButton } from "@/components/dashboard/admin-action-button";
 import { PaginationControls } from "@/components/dashboard/pagination-controls";
 import { SortLink } from "@/components/dashboard/sort-link";
 import { parsePageParam, paginationOffsets, totalPageCount } from "@/lib/pagination";
@@ -70,6 +71,12 @@ export default async function AdminListingsPage({
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold text-foreground">Annonces</h1>
+
+      <p className="max-w-2xl text-sm text-muted-foreground">
+        Une annonce publiée dont le bailleur modifie un champ visible (nom,
+        description, type, adresse, capacité, prix ou remise) revient ici en
+        attente de validation et quitte le catalogue jusqu&apos;à votre décision.
+      </p>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">
@@ -148,6 +155,9 @@ export default async function AdminListingsPage({
                       searchParams={activeParams}
                     />
                   </TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -161,6 +171,18 @@ export default async function AdminListingsPage({
                       {SPACE_STATUS_LABELS[space.status] ?? space.status}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{formatDateTime(space.createdAt)}</TableCell>
+                    <TableCell>
+                      {space.status === "PUBLISHED" ? (
+                        <AdminActionButton
+                          url={`/api/admin/spaces/${space.id}/unpublish`}
+                          label="Dépublier"
+                          confirmLabel="Retirer du catalogue"
+                          reason="required"
+                          reasonLabel="Motif du retrait"
+                          warning="L'annonce quitte le catalogue immédiatement. Les réservations existantes ne sont pas annulées."
+                        />
+                      ) : null}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

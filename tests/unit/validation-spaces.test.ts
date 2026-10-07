@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   closureSchema,
   createSpaceSchema,
+  discountedPriceCents,
   openingHoursWeekSchema,
+  pricingViolation,
+  updateSpaceSchema,
 } from "@/lib/validation/spaces";
 
 const validSpace = {
@@ -29,10 +32,9 @@ describe("createSpaceSchema", () => {
     expect(() => createSpaceSchema.parse({ ...validSpace, postalCode: "750" })).toThrow();
   });
 
-  it("rejects a photo entry that is not a URL", () => {
-    expect(() =>
-      createSpaceSchema.parse({ ...validSpace, photos: ["../../etc/passwd"] })
-    ).toThrow();
+  it("never accepts photos from the payload — they only come from the upload routes (SEC-09)", () => {
+    const parsed = createSpaceSchema.parse({ ...validSpace, photos: ["https://tracker.example/pixel.gif"] });
+    expect(parsed).not.toHaveProperty("photos");
   });
 
   it("rejects a negative price", () => {
@@ -88,5 +90,45 @@ describe("closureSchema", () => {
         reason: "Travaux",
       })
     ).toThrow();
+  });
+});
+
+describe("pricing rules (FCT-22 / SEC-18)", () => {
+  it("refuses a price under 1,00 €", () => {
+    const result = createSpaceSchema.safeParse({ ...validSpace, halfDayPriceCents: 99 });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe("Le prix après remise doit être d'au moins 1,00 €.");
+  });
+
+  it("refuses a discount above 90 %", () => {
+    const result = createSpaceSchema.safeParse({ ...validSpace, discountPercent: 91 });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toMatch(/90 %/);
+  });
+
+  it("accepts 90 % when the discounted price stays at 1,00 € or more", () => {
+    expect(createSpaceSchema.safeParse({ ...validSpace, halfDayPriceCents: 1000, discountPercent: 90 }).success).toBe(true);
+  });
+
+  it("refuses a discount that brings a slot under 1,00 €", () => {
+    const result = createSpaceSchema.safeParse({ ...validSpace, halfDayPriceCents: 500, discountPercent: 90 });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["halfDayPriceCents"]);
+  });
+
+  it("checks a partial update carrying the three pricing fields", () => {
+    expect(
+      updateSpaceSchema.safeParse({ halfDayPriceCents: 150, dayPriceCents: 150, discountPercent: 50 }).success
+    ).toBe(false);
+    // A partial payload without both prices is checked in the service layer.
+    expect(updateSpaceSchema.safeParse({ discountPercent: 50 }).success).toBe(true);
+  });
+
+  it("pricingViolation and discountedPriceCents round down like the booking computation", () => {
+    expect(discountedPriceCents(999, 33)).toBe(669);
+    expect(pricingViolation({ halfDayPriceCents: 112, dayPriceCents: 1000, discountPercent: 10 })).toBeNull();
+    expect(pricingViolation({ halfDayPriceCents: 111, dayPriceCents: 1000, discountPercent: 10 })?.field).toBe(
+      "halfDayPriceCents"
+    );
   });
 });
