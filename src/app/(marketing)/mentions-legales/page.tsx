@@ -1,21 +1,19 @@
+import Link from "next/link";
 import { LegalPage, Section, ToFill } from "@/components/marketing/legal-page";
 
 export const metadata = {
   title: "Mentions légales — OfficeFlex",
-  description: "Éditeur, hébergeur et contacts du site OfficeFlex.",
+  description: "Éditeur, hébergement et contacts du site OfficeFlex.",
 };
 
 export default function MentionsLegalesPage() {
   return (
     <LegalPage
       title="Mentions légales"
-      intro="Informations rendues obligatoires par la loi pour la confiance dans l'économie numérique (LCEN, article 6-III)."
+      intro="Informations rendues obligatoires par la loi pour la confiance dans l'économie numérique (LCEN, article 6-III) et par le Code de commerce."
     >
       <Section title="1. Éditeur du site">
-        <p>
-          Le site OfficeFlex, accessible à l&apos;adresse <ToFill>adresse du site</ToFill>,
-          est édité par :
-        </p>
+        <p>Le site et la plateforme OfficeFlex sont édités par :</p>
         <ul className="list-disc pl-5">
           <li>
             Dénomination sociale : <ToFill>raison sociale</ToFill>
@@ -27,10 +25,10 @@ export default function MentionsLegalesPage() {
             Capital social : <ToFill>montant</ToFill>
           </li>
           <li>
-            Siège social : <ToFill>adresse complète</ToFill>
+            Siège social : <ToFill>adresse complète du siège</ToFill>
           </li>
           <li>
-            Immatriculation : RCS de <ToFill>ville</ToFill> sous le numéro{" "}
+            Immatriculation : RCS de <ToFill>ville du greffe</ToFill> sous le numéro{" "}
             <ToFill>numéro RCS</ToFill>
           </li>
           <li>
@@ -47,20 +45,26 @@ export default function MentionsLegalesPage() {
 
       <Section title="2. Direction de la publication">
         <p>
-          Directeur de la publication : <ToFill>nom du représentant légal</ToFill>, en
-          qualité de <ToFill>fonction</ToFill>.
+          Directeur de la publication : <ToFill>nom et fonction du représentant légal</ToFill>.
         </p>
       </Section>
 
       <Section title="3. Hébergement">
         <p>
-          Le site est hébergé par <ToFill>hébergeur, ex. Vercel Inc.</ToFill>,{" "}
-          <ToFill>adresse de l&apos;hébergeur</ToFill>.
+          Le site et l&apos;ensemble des données de la plateforme (comptes, réservations,
+          fichiers, journaux) sont hébergés en France, sur un serveur dédié exploité par
+          l&apos;éditeur lui-même, <ToFill>raison sociale</ToFill>, dont les coordonnées
+          figurent à l&apos;article 1. Les logiciels de base de données,
+          d&apos;authentification, de stockage de fichiers, de mesure d&apos;audience et de
+          suivi des erreurs sont installés et exploités par l&apos;éditeur sur ce serveur :
+          aucun prestataire d&apos;hébergement tiers n&apos;y a accès.
         </p>
         <p>
-          Les données de la plateforme sont hébergées au sein de l&apos;Union
-          européenne par <ToFill>fournisseur de base de données</ToFill>, région{" "}
-          <ToFill>région d&apos;hébergement</ToFill>.
+          Le trafic entre les visiteurs et le serveur transite par le réseau de diffusion
+          de contenu et de protection de <strong>Cloudflare, Inc.</strong>, 101 Townsend
+          Street, San Francisco, CA 94107, États-Unis (téléphone : +1 888 993 5273), qui
+          assure la mise en cache des contenus publics, la protection contre les attaques
+          et l&apos;acheminement chiffré des requêtes vers le serveur.
         </p>
       </Section>
 
@@ -100,6 +104,20 @@ export default function MentionsLegalesPage() {
           Chaque signalement fait l&apos;objet d&apos;un accusé de réception et
           d&apos;une décision motivée, conformément aux articles 16 et 17 du règlement
           sur les services numériques.
+        </p>
+      </Section>
+
+      <Section title="7. Données personnelles et cookies">
+        <p>
+          Le traitement des données personnelles est décrit dans la{" "}
+          <Link href="/confidentialite" className="underline">
+            politique de confidentialité
+          </Link>
+          , et les traceurs déposés sur la page{" "}
+          <Link href="/cookies" className="underline">
+            gestion des cookies
+          </Link>
+          .
         </p>
       </Section>
     </LegalPage>

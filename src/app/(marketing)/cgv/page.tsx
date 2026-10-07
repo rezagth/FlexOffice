@@ -79,37 +79,86 @@ export default function CgvPage() {
         </Sub>
       </Section>
 
-      <Section title="4. Prix">
+      <Section title="4. Prix et TVA">
         <p>
-          Les prix sont exprimés en euros et fixés librement par le Partenaire pour la
-          demi-journée et pour la journée. Le prix applicable est celui affiché au
-          moment de la demande ; il est calculé par la plateforme à partir de la fiche
-          de l&apos;espace et ne peut être modifié par le Client.
+          Les prix sont exprimés en euros, toutes taxes comprises (TTC), et fixés librement
+          par le Partenaire pour la demi-journée et pour la journée. Le prix applicable est
+          celui affiché au moment de la demande ; il est calculé par la plateforme à partir
+          de la fiche de l&apos;espace et ne peut être modifié par le Client.
         </p>
         <p>
-          Le Partenaire est seul responsable de la détermination de ses prix, de leur
-          régime de TVA et de la facturation de la mise à disposition au Client. Il
-          garantit OfficeFlex contre toute conséquence d&apos;un manquement à ses
-          obligations fiscales.
+          La TVA applicable à la mise à disposition est celle du régime du Partenaire : au
+          taux normal de vingt pour cent (20 %), inclus dans le prix affiché, lorsque le
+          Partenaire est identifié à la TVA ; à défaut, la facture porte la mention « TVA non
+          applicable, art. 293 B du CGI ». Le Partenaire est seul responsable de
+          l&apos;exactitude des informations fiscales qu&apos;il déclare (SIRET, numéro de
+          TVA, régime) et de leur mise à jour, ainsi que de la déclaration et du reversement
+          de la TVA facturée en son nom. Il garantit OfficeFlex contre toute conséquence
+          d&apos;un manquement à ces obligations.
         </p>
       </Section>
 
       <Section title="5. Commission">
         <p>
-          OfficeFlex perçoit une commission de quinze pour cent (15 %)
-          du montant de chaque réservation confirmée, en rémunération du service
-          d&apos;intermédiation, de la mise en relation, de la sécurisation du
-          paiement et de la mise à disposition des outils de gestion.
+          OfficeFlex perçoit une commission de quinze pour cent (15 %) du montant TTC de
+          chaque réservation confirmée, en rémunération du service d&apos;intermédiation, de
+          la mise en relation, de la sécurisation du paiement et de la mise à disposition
+          des outils de gestion. Ce montant s&apos;entend TVA incluse, au taux de vingt pour
+          cent (20 %). Il figure sur la facture remise au Client sous la mention « dont frais
+          de service OfficeFlex ».
         </p>
         <p>
           La commission est déduite du montant reversé au Partenaire. Elle est acquise
           dès la confirmation de la réservation et reste due en cas d&apos;annulation
-          imputable au Partenaire. Une facture de commission est mise à disposition du
-          Partenaire dans son espace.
+          imputable au Client ; elle est remboursée en cas d&apos;annulation par le
+          Partenaire ou de force majeure (article 8). Le premier jour de chaque mois, une
+          facture de commission récapitulant les commissions conservées au titre du mois
+          précédent, remboursements déduits, est émise par OfficeFlex et mise à disposition
+          du Partenaire dans son espace. Elle est acquittée, la commission ayant été
+          prélevée lors de l&apos;encaissement de chaque réservation.
         </p>
       </Section>
 
-      <Section title="6. Paiement et reversement">
+      <Section title="6. Facturation — mandat de facturation">
+        <p>
+          En acceptant les présentes conditions, le Partenaire donne mandat à OfficeFlex,
+          qui l&apos;accepte, d&apos;établir et de délivrer en son nom et pour son compte
+          les factures relatives aux mises à disposition conclues via la plateforme, ainsi
+          que les avoirs correspondants, conformément à l&apos;article 289, I-2 du Code
+          général des impôts.
+        </p>
+        <ul className="list-disc pl-5">
+          <li>
+            Chaque facture est émise au moment de l&apos;encaissement du paiement du Client.
+            Elle porte la mention « Facture émise par OfficeFlex au nom et pour le compte de
+            [raison sociale du Partenaire] en vertu d&apos;un mandat de facturation »,
+            l&apos;identité complète du Partenaire et du Client, la désignation de la
+            prestation, les montants hors taxes, de TVA et toutes taxes comprises.
+          </li>
+          <li>
+            Les factures sont numérotées dans une série chronologique et continue, propre à
+            chaque Partenaire. Tout remboursement donne lieu à un avoir numéroté dans la
+            même série et rattaché à la facture qu&apos;il corrige.
+          </li>
+          <li>
+            Les factures et avoirs sont mis à la disposition du Client et du Partenaire dans
+            leur espace respectif, en ligne et au format PDF, et conservés dix ans.
+          </li>
+          <li>
+            Le Partenaire dispose d&apos;un délai de quinze (15) jours à compter de la mise à
+            disposition d&apos;une facture pour en contester le contenu ; à défaut, elle est
+            réputée acceptée. Le Partenaire demeure seul redevable de la TVA mentionnée sur
+            les factures émises en son nom.
+          </li>
+          <li>
+            Le mandat prend fin avec la relation contractuelle entre le Partenaire et
+            OfficeFlex ; les factures relatives aux réservations antérieures restent émises
+            dans les mêmes conditions.
+          </li>
+        </ul>
+      </Section>
+
+      <Section title="7. Paiement et reversement">
         <p>
           Les paiements sont traités par un prestataire de services de paiement agréé.
           OfficeFlex ne collecte ni ne conserve aucune donnée de carte bancaire.
@@ -131,8 +180,8 @@ export default function CgvPage() {
         </p>
       </Section>
 
-      <Section title="7. Annulation">
-        <Sub title="7.1 Par le Client">
+      <Section title="8. Annulation">
+        <Sub title="8.1 Par le Client">
           <p>
             Une demande non encore acceptée par le Partenaire peut être annulée
             sans frais : l&apos;autorisation est libérée et aucun montant n&apos;est
@@ -146,7 +195,7 @@ export default function CgvPage() {
             créneau ayant été rendu indisponible pour d&apos;autres Clients.
           </p>
         </Sub>
-        <Sub title="7.2 Par le Partenaire">
+        <Sub title="8.2 Par le Partenaire">
           <p>
             Le Partenaire qui annule une réservation confirmée expose son Client à un
             remboursement intégral immédiat, commission comprise ; le montant qui
@@ -156,7 +205,7 @@ export default function CgvPage() {
             d&apos;utilisation.
           </p>
         </Sub>
-        <Sub title="7.3 Force majeure">
+        <Sub title="8.3 Force majeure">
           <p>
             En cas d&apos;événement de force majeure rendant l&apos;occupation
             impossible, la réservation est annulée et intégralement remboursée au
@@ -165,12 +214,13 @@ export default function CgvPage() {
         </Sub>
       </Section>
 
-      <Section title="8. Non-conformité et litiges">
+      <Section title="9. Non-conformité et litiges">
         <p>
           Le Client qui constate une non-conformité substantielle entre
           l&apos;annonce et l&apos;espace mis à disposition doit la signaler à
-          OfficeFlex dans un délai de <ToFill>délai, ex. 48 heures</ToFill> suivant le
-          début du créneau, en produisant les éléments justificatifs utiles.
+          OfficeFlex dans un délai de vingt-quatre (24) heures suivant la fin du créneau
+          réservé, en produisant les éléments justificatifs utiles (photographies,
+          échanges avec le Partenaire). Passé ce délai, la prestation est réputée conforme.
         </p>
         <p>
           OfficeFlex instruit le signalement auprès des deux parties et peut, sans y
@@ -185,7 +235,7 @@ export default function CgvPage() {
         </p>
       </Section>
 
-      <Section title="9. Assurances">
+      <Section title="10. Assurances">
         <p>
           Le Partenaire et le Client déclarent être assurés au titre de leur
           responsabilité civile professionnelle pour les activités exercées à
@@ -194,7 +244,7 @@ export default function CgvPage() {
         </p>
       </Section>
 
-      <Section title="10. Lutte contre la fraude">
+      <Section title="11. Lutte contre la fraude">
         <p>
           OfficeFlex peut suspendre une réservation, un reversement ou un compte en cas
           de suspicion sérieuse de fraude, d&apos;usurpation d&apos;identité ou
@@ -203,7 +253,7 @@ export default function CgvPage() {
         </p>
       </Section>
 
-      <Section title="11. Preuve">
+      <Section title="12. Preuve">
         <p>
           Les registres informatisés d&apos;OfficeFlex, ses journaux d&apos;audit et
           les données de connexion sont conservés dans des conditions de nature à en
@@ -212,7 +262,7 @@ export default function CgvPage() {
         </p>
       </Section>
 
-      <Section title="12. Droit applicable et juridiction">
+      <Section title="13. Droit applicable et juridiction">
         <p>
           Les présentes conditions sont soumises au droit français. Tout litige relève
           de la compétence exclusive des tribunaux du ressort de{" "}
