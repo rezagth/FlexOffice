@@ -3,6 +3,7 @@ import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import { assertRefundFitsPayment } from "@/server/domains/payments/refund-invariants";
 import { disputeRefundFunding, issueRefund } from "@/server/domains/payments/refunds";
+import { notifyDisputeResolved, notifyRefundIssued } from "@/server/domains/notifications/send-notifications";
 
 const REVIEWABLE_STATUSES = ["OPEN", "INVESTIGATING"] as const;
 
@@ -65,6 +66,7 @@ export async function resolveDispute({
   }
 
   const targetStatus = outcome === "REFUND" ? "RESOLVED_REFUND" : "RESOLVED_NO_ACTION";
+  let refunded: { paymentId: string; amountCents: number } | null = null;
 
   if (outcome === "NO_ACTION") {
     const updated = await prisma.$transaction([
@@ -112,6 +114,7 @@ export async function resolveDispute({
       throw error;
     }
     await prisma.disputeEvent.create({ data: { disputeId, status: targetStatus, note: notes } });
+    refunded = { paymentId: payment.id, amountCents };
   }
 
   await recordAudit({
@@ -119,6 +122,13 @@ export async function resolveDispute({
     actorUserId,
     metadata: { disputeId, outcome },
   });
+
+  await notifyDisputeResolved(disputeId, {
+    outcome,
+    notes,
+    refundAmountCents: refunded?.amountCents ?? null,
+  });
+  if (refunded) await notifyRefundIssued(refunded.paymentId, refunded.amountCents);
 
   return { status: targetStatus };
 }

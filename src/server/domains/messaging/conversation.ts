@@ -1,5 +1,6 @@
 import { prisma } from "@/server/db/prisma";
 import { NotFoundError } from "@/server/lib/errors";
+import { notifyNewMessage } from "@/server/domains/notifications/send-notifications";
 
 /**
  * Every function here re-derives the same authorization: the caller is
@@ -75,10 +76,13 @@ export async function sendMessage(params: {
   await loadAuthorizedBooking(params);
 
   const conversation = await getOrCreateConversation(params);
-  return prisma.message.create({
+  const message = await prisma.message.create({
     data: { conversationId: conversation.id, senderUserId: params.userId, body: params.body },
     include: { sender: { select: { name: true } } },
   });
+  // The other side is told there is a message — never what it says.
+  await notifyNewMessage(message.id);
+  return message;
 }
 
 /**

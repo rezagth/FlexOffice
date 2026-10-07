@@ -2,6 +2,7 @@ import type { VerificationStatus } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/server/lib/errors";
+import { notifyVerificationDecision } from "@/server/domains/notifications/send-notifications";
 
 /**
  * Admin review of a submitted dossier.
@@ -80,8 +81,11 @@ export async function approveVerification(verificationId: string, actorUserId: s
         rejectionReason: null,
       },
     }),
-    prisma.organization.update({
-      where: { id: verification.organizationId },
+    // Never lifts a suspension: approving a dossier is not the back-office
+    // "reactivate" decision (organizations/suspension.ts), which reads this
+    // approval when it is taken.
+    prisma.organization.updateMany({
+      where: { id: verification.organizationId, status: { not: "SUSPENDED" } },
       data: { status: "VERIFIED" },
     }),
   ]);
@@ -92,6 +96,7 @@ export async function approveVerification(verificationId: string, actorUserId: s
     organizationId: verification.organizationId,
     metadata: { verificationId },
   });
+  await notifyVerificationDecision(verificationId, { kind: "APPROVED" });
 }
 
 /**
@@ -133,4 +138,5 @@ export async function rejectVerification(
     organizationId: verification.organizationId,
     metadata: { verificationId, reason },
   });
+  await notifyVerificationDecision(verificationId, { kind: "REJECTED", reason });
 }
