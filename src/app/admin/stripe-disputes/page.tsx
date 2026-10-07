@@ -3,11 +3,13 @@ import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatCents, formatDateTime } from "@/lib/format";
+import { stripeDashboardDisputeUrl } from "@/server/domains/payments/disputes";
 
 // Real Stripe chargebacks — distinct from /admin/disputes, which lists
 // app-level booking complaints (client vs. partner). The platform absorbs
-// chargeback losses (confirmed business decision): this page is visibility
-// only, no action buttons — see src/server/domains/payments/disputes.ts.
+// chargeback losses (confirmed business decision). Evidence is submitted in
+// the Stripe dashboard, which each row links to — see
+// src/server/domains/payments/disputes.ts.
 const STRIPE_DISPUTE_STATUS_LABELS: Record<string, string> = {
   WARNING_NEEDS_RESPONSE: "Avertissement — réponse attendue",
   WARNING_UNDER_REVIEW: "Avertissement — en cours d'examen",
@@ -102,6 +104,14 @@ export default async function AdminStripeDisputesPage() {
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {STRIPE_DISPUTE_STATUS_LABELS[dispute.status] ?? dispute.status}
                 </p>
+                <a
+                  href={stripeDashboardDisputeUrl(dispute.providerDisputeId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary underline hover:no-underline"
+                >
+                  Ouvrir dans Stripe<span className="sr-only"> (nouvel onglet)</span>
+                </a>
               </div>
             </Card>
           ))}

@@ -10,6 +10,10 @@ import {
   recordDisputeEvent,
   type StripeDisputeEventData,
 } from "@/server/domains/payments/disputes";
+import {
+  isConnectAccountEventData,
+  recordConnectAccountUpdate,
+} from "@/server/domains/payments/stripe-connect";
 import { logEvent } from "@/server/lib/logger";
 import { withErrorHandling } from "@/server/lib/http";
 
@@ -63,6 +67,10 @@ export const POST = withErrorHandling(async (request: Request) => {
     await dispatchDispute(event.data);
   } else if (event.type === "refund.updated" || event.type === "refund.created") {
     await dispatchRefund(event.data);
+  } else if (event.type === "account.updated") {
+    // Connect account state, journaled only (see stripe-connect.ts).
+    if (isConnectAccountEventData(event.data)) await recordConnectAccountUpdate(event.data);
+    else logEvent({ event: "webhook.malformed_account_payload" });
   } else {
     await dispatchOutcome(event.type, event.data);
   }
