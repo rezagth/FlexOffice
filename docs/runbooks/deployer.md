@@ -1,12 +1,12 @@
 # Déployer
 
 ## Chaîne
-1. Push sur `develop` ou `main` → **CI** (`.github/workflows/ci.yml`) : gitleaks, audit des dépendances, lint, build, typecheck, tests unitaires, tests d'intégration sur PostgreSQL, et (indicatif) migrations sur l'image `supabase/postgres`.
-2. CI verte → **Deploy** (`.github/workflows/deploy.yml`) :
+1. Push sur `develop` ou `main` → **CI** (`.github/workflows/ci.yml`) : gitleaks, audit des dépendances, lint, build, typecheck, tests unitaires, tests e2e Playwright, tests d'intégration sur PostgreSQL, et (indicatif) migrations sur l'image `supabase/postgres`.
+2. CI verte **sur un push** de ce dépôt (jamais sur une PR, ni depuis un fork) → **Deploy** (`.github/workflows/deploy.yml`) :
    - construit l'image de l'environnement (`ghcr.io/rezagth/flexoffice:<sha>-staging` ou `-production`, plus le tag mobile `:staging` / `:production`) ;
    - la scanne avec Trivy (CRITICAL/HIGH bloquants) puis la pousse ;
    - applique les migrations depuis le runner auto-hébergé (`self-hosted, officeflex`) ;
-   - déclenche Coolify (webhook) ;
+   - déclenche Coolify (webhook) et attend que Coolify annonce le déploiement terminé (API `/api/v1/deployments/<id>`, 10 minutes max) ;
    - vérifie `APP_URL/api/health/ready` pendant 5 minutes.
 3. Production : l'environnement GitHub `production` exige un relecteur. Rien ne part en prod sans clic.
 

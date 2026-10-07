@@ -1,0 +1,14 @@
+# gitleaks configuration — default rules, plus the fake credentials that the
+# log/Sentry scrubbing tests feed in on purpose to prove they are redacted.
+# Allowlist entries are exact test values, never a whole path: a real key
+# committed under tests/ must still fail the scan.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake secrets used by the scrubbing unit tests"
+regexTarget = "match"
+regexes = [
+  '''sk_live_1234567890abcdef''',
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.abcdefghijklmnop''',
+]

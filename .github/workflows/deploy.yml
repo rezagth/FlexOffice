@@ -46,7 +46,15 @@ concurrency:
 jobs:
   target:
     name: Resolve target
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # Only a green CI run on a PUSH to this repository deploys. A pull
+    # request's CI run also reports head_branch (a fork can name its branch
+    # "main"), and deploying it would build fork code with this repository's
+    # environment secrets and packages:write.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.resolve.outputs.environment }}
@@ -175,12 +183,31 @@ jobs:
     environment: ${{ needs.target.outputs.environment }}
     timeout-minutes: 15
     steps:
-      - name: Trigger Coolify deployment
+      # The webhook queues a deployment and returns its id; wait for Coolify
+      # to report it finished, otherwise the smoke test below could pass
+      # against the PREVIOUS container, still serving during the rollout.
+      - name: Trigger Coolify deployment and wait for it
         env:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
-          curl -fsS -X GET "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN"
+          response=$(curl -fsS -X GET "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN")
+          deployment=$(echo "$response" | jq -r '.deployments[0].deployment_uuid // empty')
+          if [ -z "$deployment" ]; then
+            echo "::warning::Coolify returned no deployment id; waiting 90 s instead"
+            sleep 90; exit 0
+          fi
+          api="${COOLIFY_WEBHOOK_URL%%/api/*}/api/v1/deployments/$deployment"
+          for i in $(seq 1 60); do
+            status=$(curl -fsS "$api" -H "Authorization: Bearer $COOLIFY_TOKEN" | jq -r '.status // empty')
+            case "$status" in
+              finished) echo "Coolify deployment $deployment finished"; exit 0 ;;
+              failed|cancelled*) echo "::error::Coolify deployment $deployment: $status"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Coolify deployment $deployment still '$status' after 10 minutes"
+          exit 1
 
       # Readiness, not liveness: the database and Supabase Auth must answer
       # through the real public URL (Cloudflare -> tunnel -> Traefik).
