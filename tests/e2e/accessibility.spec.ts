@@ -3,7 +3,18 @@ import { test, expect } from "./fixtures";
 
 /** Serious and critical WCAG 2.1 A/AA violations fail the build; minor ones
  * are left to the regular design review. */
-for (const path of ["/", "/search", "/login", "/register", "/proposer-un-espace", "/contact"]) {
+for (const path of [
+  "/",
+  "/search",
+  "/login",
+  "/register",
+  "/proposer-un-espace",
+  "/contact",
+  "/comment-ca-marche",
+  "/faq",
+  "/a-propos",
+  "/spaces/salle-rivoli-paris",
+]) {
   test(`accessibilité ${path}`, async ({ decidedVisitor: page }) => {
     await page.goto(path);
     // Result cards fade in (opacity 0 → 1, ≤ 0.6 s): measuring contrast

@@ -56,6 +56,9 @@ test.describe("parcours publics (mode démo)", () => {
       ["/cookies", /cookies/i],
       ["/contact", /contacter/i],
       ["/proposer-un-espace", /Proposer un espace/],
+      ["/comment-ca-marche", /Comment ça marche/],
+      ["/faq", /Questions fréquentes/],
+      ["/a-propos", /À propos/],
     ] as const) {
       const res = await page.goto(path);
       expect(res?.status(), path).toBe(200);
@@ -65,6 +68,31 @@ test.describe("parcours publics (mode démo)", () => {
     const footer = page.locator("footer");
     await footer.getByRole("link", { name: "CGV" }).click();
     await expect(page).toHaveURL(/\/cgv$/);
+  });
+
+  test("FAQ : rubriques, réponses dépliables et données structurées", async ({ decidedVisitor: page }) => {
+    await page.goto("/faq");
+    const first = page.locator("details").first();
+    await expect(first).not.toHaveAttribute("open", "");
+    await first.locator("summary").click();
+    await expect(first).toHaveAttribute("open", "");
+    await expect(first.locator("p").first()).toBeVisible();
+
+    const ld = await page.locator('script[type="application/ld+json"]').first().textContent();
+    const data = JSON.parse(ld!);
+    expect(data["@type"]).toBe("FAQPage");
+    expect(data.mainEntity.length).toBeGreaterThan(10);
+    // Figures come from the server constants, not from copy.
+    expect(ld).toContain("15 %");
+    expect(ld).toContain("48 h");
+  });
+
+  test("le pied de page mène aux pages d'aide", async ({ decidedVisitor: page }) => {
+    await page.goto("/");
+    await page.locator("footer").getByRole("link", { name: "Comment ça marche" }).click();
+    await expect(page).toHaveURL(/\/comment-ca-marche$/);
+    await page.locator("footer").getByRole("link", { name: "Questions fréquentes" }).click();
+    await expect(page).toHaveURL(/\/faq$/);
   });
 
   test("page introuvable : 404 avec un chemin de retour", async ({ decidedVisitor: page }) => {

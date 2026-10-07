@@ -43,7 +43,12 @@ export async function SiteHeader() {
         { href: "/login", label: "Connexion" },
         { href: "/register", label: "Inscription" },
       ];
-  const mobileLinks: HeaderLink[] = [...links, { href: "/contact", label: "Aide et contact" }];
+  const mobileLinks: HeaderLink[] = [
+    ...links,
+    { href: "/comment-ca-marche", label: "Comment ça marche" },
+    { href: "/faq", label: "Aide" },
+    { href: "/contact", label: "Nous contacter" },
+  ];
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
@@ -85,8 +90,8 @@ export async function SiteHeader() {
             </Link>
           )}
           <Link
-            href="/contact"
-            aria-label="Aide et contact"
+            href="/faq"
+            aria-label="Aide"
             className="hidden rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground sm:block"
           >
             <HelpCircle aria-hidden="true" className="size-5" />

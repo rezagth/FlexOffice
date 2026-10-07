@@ -5,6 +5,7 @@ import { ConflictError, NotFoundError } from "@/server/lib/errors";
 import { logError, logEvent } from "@/server/lib/logger";
 import { notifyReviewInvitation, notifyReviewReceived } from "@/server/domains/notifications/send-notifications";
 import type { CreateReviewInput } from "@/lib/validation/reviews";
+import { REVIEW_WINDOW_DAYS } from "@/lib/review-policy";
 
 /**
  * Reviews — one per booking, by the client who made it.
@@ -24,7 +25,7 @@ import type { CreateReviewInput } from "@/lib/validation/reviews";
  * review is a 404, never a 403 that would confirm it exists.
  */
 
-export const REVIEW_WINDOW_DAYS = 30;
+export { REVIEW_WINDOW_DAYS };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Invitations go out for bookings that ended at most this long ago, so

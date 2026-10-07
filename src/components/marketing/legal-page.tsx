@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 
 /** Date the legal texts were last edited. Update it whenever any of them
  * changes: users must be able to tell which version they agreed to. */
-export const LEGAL_LAST_UPDATED = "6 octobre 2026";
+export const LEGAL_LAST_UPDATED = "7 octobre 2026";
 
 /**
  * Whether a legal text still contains a <ToFill> placeholder anywhere in its

@@ -6,6 +6,9 @@ import { SITE_TAGLINE } from "@/lib/site";
 const COMPANY_LINKS = [
   { href: "/search", label: "Rechercher un espace" },
   { href: "/proposer-un-espace", label: "Proposer un espace" },
+  { href: "/comment-ca-marche", label: "Comment ça marche" },
+  { href: "/faq", label: "Questions fréquentes" },
+  { href: "/a-propos", label: "À propos" },
   { href: "/contact", label: "Nous contacter" },
 ];
 
@@ -18,12 +21,9 @@ const LEGAL_LINKS = [
 ];
 
 /**
- * No "À propos" / "Carrières" links: those pages don't exist in this repo
- * (only contact + the legal pages under (marketing) do), and a footer link
- * to a page that 404s is worse than a shorter column. Same reasoning for the
- * absence of a newsletter form and social icons — no email-capture backend
- * and no real social profiles exist yet; adding either here would be a
- * control that pretends to work. Both are flagged separately as follow-ups.
+ * Only links to pages that exist. No newsletter form and no social icons:
+ * there is no email-capture backend and no real social profile yet, and a
+ * control that pretends to work is worse than none.
  */
 export function SiteFooter() {
   return (

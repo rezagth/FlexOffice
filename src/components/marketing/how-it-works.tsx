@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Building2, CalendarCheck, Coins, Search, ShieldCheck } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -94,6 +95,15 @@ export function HowItWorks() {
             <StepList steps={PARTNER_STEPS} iconClassName="bg-accent text-accent-foreground" />
           </div>
         </div>
+        <p className="mt-8 text-sm">
+          <Link href="/comment-ca-marche" className="font-medium text-primary underline-offset-4 hover:underline">
+            Tout le fonctionnement, étape par étape →
+          </Link>
+          <span className="mx-3 text-muted-foreground" aria-hidden="true">·</span>
+          <Link href="/faq" className="font-medium text-primary underline-offset-4 hover:underline">
+            Questions fréquentes
+          </Link>
+        </p>
       </div>
     </section>
   );
