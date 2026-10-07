@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/admin/organizations", label: "Entreprises" },
   { href: "/admin/verifications", label: "Vérifications" },
   { href: "/admin/listings", label: "Annonces" },
+  { href: "/admin/reviews", label: "Avis" },
   { href: "/admin/payments", label: "Paiements" },
   { href: "/admin/commission-statements", label: "Relevés de commission" },
   { href: "/admin/disputes", label: "Litiges" },

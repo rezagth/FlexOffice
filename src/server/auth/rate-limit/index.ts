@@ -82,6 +82,9 @@ export const RATE_LIMITS = {
   photoUpload: { limit: 60, windowSeconds: 3600 } satisfies RateLimitConfig,
   /** Cancelling a booking, per account (client or landlord side). */
   bookingCancel: { limit: 10, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Writing a review or a landlord reply, per account — one per booking by
+   * construction, this only bounds a scripted loop. */
+  reviewWrite: { limit: 20, windowSeconds: 3600 } satisfies RateLimitConfig,
   /** Switching between tenant and landlord mode, per account. */
   accountModeSwitch: { limit: 30, windowSeconds: 3600 } satisfies RateLimitConfig,
 } as const;

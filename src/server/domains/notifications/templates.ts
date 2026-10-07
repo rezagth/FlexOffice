@@ -455,3 +455,42 @@ export function supportReplyTemplate(ctx: {
     action: { label: "Nous contacter", path: "/contact" },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Reviews
+// ---------------------------------------------------------------------------
+
+export function reviewInvitationTemplate(ctx: {
+  to: string;
+  clientName: string;
+  spaceName: string;
+  windowDays: number;
+}): RenderedEmail {
+  return renderEmail(ctx.to, `Comment s'est passée votre réservation à ${ctx.spaceName} ?`, {
+    greeting: `Bonjour ${ctx.clientName},`,
+    paragraphs: [
+      `Votre réservation de « ${ctx.spaceName} » est terminée. Votre avis aide les autres professionnels à choisir, et l'entreprise qui vous a accueilli à s'améliorer.`,
+      "Une note et quelques mots suffisent : cela prend moins d'une minute.",
+    ],
+    closing: [`Vous pouvez laisser votre avis pendant ${ctx.windowDays} jours après la fin de la réservation.`],
+    action: { label: "Donner mon avis", path: CLIENT_BOOKINGS_PATH },
+  });
+}
+
+export function reviewReceivedTemplate(ctx: {
+  to: string;
+  organizationName: string;
+  spaceName: string;
+  rating: number;
+}): RenderedEmail {
+  return renderEmail(ctx.to, `Nouvel avis sur ${ctx.spaceName}`, {
+    greeting: `Bonjour ${ctx.organizationName},`,
+    paragraphs: [`Un client a laissé un avis sur « ${ctx.spaceName} ».`],
+    details: [
+      { label: "Espace", value: ctx.spaceName },
+      { label: "Note", value: `${ctx.rating} / 5` },
+    ],
+    closing: ["Vous pouvez y répondre une fois, publiquement, depuis votre espace bailleur."],
+    action: { label: "Voir et répondre", path: "/app/landlord/reviews" },
+  });
+}

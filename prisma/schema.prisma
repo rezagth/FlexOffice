@@ -111,6 +111,7 @@ model Profile {
 
   messagesSent   Message[]
   supportTickets SupportTicket[]
+  spaceReviews   SpaceReview[]
   supportReplies SupportTicketReply[]
 
   @@index([organizationId])
@@ -356,6 +357,7 @@ model Organization {
   verifications     LandlordVerification[]
   spaces            Space[]
   bookings          Booking[]
+  spaceReviews      SpaceReview[]
   payments          Payment[]
   auditLogs         AuditLog[]
 
@@ -655,6 +657,7 @@ model Space {
   bookings     Booking[]
   favorites    Favorite[]
   spacePhotos  SpacePhoto[]
+  reviews      SpaceReview[]
 
   @@unique([id, organizationId])
   @@index([organizationId])
@@ -770,12 +773,16 @@ model Booking {
   /// Claimed (set) just before the day-before reminder is sent — at most one
   /// reminder per booking. See notifications/booking-reminders.ts.
   reminderSentAt        DateTime?          @map("reminder_sent_at") @db.Timestamptz(3)
+  /// Claimed (set) just before the "leave a review" e-mail is sent — at most
+  /// one invitation per booking. See reviews/reviews.ts.
+  reviewInvitedAt       DateTime?          @map("review_invited_at") @db.Timestamptz(3)
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   payment      Payment?
   disputes     Dispute[]
   conversation Conversation?
+  review       SpaceReview?
 
   // Referenced side of the composite foreign keys that keep the
   // denormalised organizationId in step with the space's and the
@@ -1118,6 +1125,39 @@ model SupportTicketReply {
 // ---------------------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------------------
+/// A client's review of a space, one per booking, written once the booking
+/// is over (rules in src/server/domains/reviews/reviews.ts). The landlord may
+/// answer once; an administrator may hide it (hiddenAt), never delete it.
+/// organizationId is the booking's landlord organization, kept consistent by
+/// the composite foreign key to bookings(id, organization_id).
+model SpaceReview {
+  id                String       @id @default(uuid()) @db.Uuid
+  bookingId         String       @unique @map("booking_id") @db.Uuid
+  booking           Booking      @relation(fields: [bookingId, organizationId], references: [id, organizationId], map: "space_reviews_booking_org_fkey")
+  spaceId           String       @map("space_id") @db.Uuid
+  space             Space        @relation(fields: [spaceId], references: [id])
+  organizationId    String       @map("organization_id") @db.Uuid
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  authorProfileId   String       @map("author_profile_id") @db.Uuid
+  author            Profile      @relation(fields: [authorProfileId], references: [id])
+  /// 1 to 5, CHECK space_reviews_rating_check.
+  rating            Int          @db.SmallInt
+  comment           String?
+  landlordReply     String?      @map("landlord_reply")
+  landlordRepliedAt DateTime?    @map("landlord_replied_at") @db.Timestamptz(3)
+  hiddenAt          DateTime?    @map("hidden_at") @db.Timestamptz(3)
+  hiddenReason      String?      @map("hidden_reason")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  /// Required by Prisma for the one-to-one composite relation; bookingId is
+  /// already unique on its own.
+  @@unique([bookingId, organizationId])
+  @@index([spaceId, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("space_reviews")
+}
+
 model Favorite {
   userId    String   @map("user_id") @db.Uuid
   user      Profile  @relation(fields: [userId], references: [id])

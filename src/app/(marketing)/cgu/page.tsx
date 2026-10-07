@@ -186,6 +186,19 @@ export default function CguPage() {
           MakomSpace peut retirer sans préavis un contenu manifestement illicite et en
           informe l&apos;auteur avec les motifs et les voies de recours.
         </p>
+        <p>
+          <strong>Avis.</strong> Conformément à l&apos;article L. 111-7-2 du Code de la
+          consommation, MakomSpace indique que les avis publiés sont contrôlés : seul le
+          Client d&apos;une réservation qui a eu lieu sur la plateforme peut en déposer un,
+          une seule fois par réservation, dans les 30 jours suivant sa fin. L&apos;avis
+          comprend une note de 1 à 5 et un commentaire facultatif ; il est publié avec le
+          prénom et l&apos;initiale du nom de son auteur, et n&apos;est plus modifiable.
+          Le Partenaire peut y répondre une fois, publiquement. Les avis sont affichés du
+          plus récent au plus ancien et ne sont ni rémunérés ni sollicités contre une
+          contrepartie. MakomSpace peut masquer un avis injurieux, hors sujet,
+          publicitaire ou contenant des données personnelles ; un avis négatif mais
+          sincère n&apos;est pas masqué. Le texte d&apos;un avis masqué est conservé.
+        </p>
       </Section>
 
       <Section title="8. Classement des annonces">

@@ -58,6 +58,7 @@ function landlordNav(capabilities: AuthContext["capabilities"]): NavItem[] {
   }
   if (capabilities.has("landlord:manage_bookings")) {
     items.push({ href: "/app/landlord/requests", label: "Réservations" });
+    items.push({ href: "/app/landlord/reviews", label: "Avis clients" });
   }
   items.push({ href: "/app/messages", label: "Messagerie" });
   if (capabilities.has("landlord:view_revenue")) {

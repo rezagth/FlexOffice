@@ -25,6 +25,9 @@ import { openingHoursSpecification, weeklyOpeningHours } from "@/lib/opening-hou
 import { parseSpaceSearchParams } from "@/lib/validation/search";
 import { absoluteUrl, pageMetadata } from "@/lib/site";
 import { jsonLd } from "@/lib/json-ld";
+import { getReviewSummaries, listSpaceReviews } from "@/server/domains/reviews/reviews";
+import { SpaceReviews } from "@/components/reviews/space-reviews";
+import { RatingSummary } from "@/components/reviews/star-rating";
 
 // Live listing, session-dependent (favorite, booking link): never cached.
 export const dynamic = "force-dynamic";
@@ -92,6 +95,14 @@ export default async function SpaceDetailPage({
   const favorited =
     ctx && isDatabaseConfigured() ? await isSpaceFavorited(ctx.userId, space.id) : null;
 
+  // Demo mode has no review table: no section content, never an error.
+  const [reviewSummary, reviews] = isDatabaseConfigured()
+    ? await Promise.all([
+        getReviewSummaries([space.id]).then((map) => map.get(space.id) ?? null),
+        listSpaceReviews(space.id),
+      ])
+    : [null, []];
+
   const typeLabel = SPACE_TYPE_LABELS[space.type] ?? space.type;
   const hours = weeklyOpeningHours(space.openingHours);
   const hasHours = space.openingHours.length > 0;
@@ -116,6 +127,17 @@ export default async function SpaceDetailPage({
       addressCountry: "FR",
     },
     maximumAttendeeCapacity: space.capacity,
+    ...(reviewSummary && reviewSummary.count > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: reviewSummary.average,
+            reviewCount: reviewSummary.count,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
     ...(hasHours ? { openingHoursSpecification: openingHoursSpecification(space.openingHours) } : {}),
     makesOffer: [
       { name: "Demi-journée", cents: space.halfDayPriceCents },
@@ -154,6 +176,11 @@ export default async function SpaceDetailPage({
                     Proposé par {space.organization.name} · jusqu&apos;à {space.capacity}{" "}
                     personnes
                   </p>
+                  {reviewSummary && reviewSummary.count > 0 && (
+                    <a href="#reviews-heading" className="mt-1 inline-block hover:underline">
+                      <RatingSummary average={reviewSummary.average} count={reviewSummary.count} />
+                    </a>
+                  )}
                   {isOrganizationVerified(space.organization.status) && (
                     <div className="mt-2">
                       <VerifiedBadge />
@@ -249,6 +276,12 @@ export default async function SpaceDetailPage({
                   ))}
                 </ul>
               </section>
+
+              <SpaceReviews
+                summary={reviewSummary}
+                reviews={reviews}
+                organizationName={space.organization.name}
+              />
             </div>
 
             <Card className="h-fit p-5 lg:sticky lg:top-24">

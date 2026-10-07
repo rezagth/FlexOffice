@@ -28,6 +28,7 @@ import {
   SEARCH_SORTS,
   searchPageHref,
 } from "@/lib/validation/search";
+import { getReviewSummaries } from "@/server/domains/reviews/reviews";
 import { pageMetadata } from "@/lib/site";
 
 const AMENITY_VALUES = Object.keys(SPACE_AMENITY_LABELS).filter((value) => value !== "OTHER");
@@ -63,9 +64,13 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     ctx && isDatabaseConfigured()
       ? await getFavoritedSpaceIds(ctx.userId, result.spaces.map((s) => s.id))
       : null;
+  const ratings = isDatabaseConfigured()
+    ? await getReviewSummaries(result.spaces.map((s) => s.id))
+    : null;
   const spaces = result.spaces.map((space) => ({
     ...space,
     favorited: favoritedIds ? favoritedIds.has(space.id) : undefined,
+    rating: ratings?.get(space.id) ?? null,
   }));
 
   const mapPoints = spaces

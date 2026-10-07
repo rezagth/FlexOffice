@@ -159,6 +159,19 @@ export async function exportProfileData(userId: string) {
     disputes,
     verifications,
     memberships,
+    reviews: await prisma.spaceReview.findMany({
+      where: { authorProfileId: userId },
+      select: {
+        id: true,
+        bookingId: true,
+        rating: true,
+        comment: true,
+        landlordReply: true,
+        createdAt: true,
+        space: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   };
 }
 
@@ -304,6 +317,9 @@ export async function deleteOrAnonymizeProfile(userId: string) {
       data: { email: tombstoneEmail, subject: ERASED_TEXT, message: ERASED_TEXT },
     }),
     prisma.message.updateMany({ where: { senderUserId: userId }, data: { body: ERASED_TEXT } }),
+    // The rating stays (anonymous: the author shows as "Ancien utilisateur"),
+    // the free text goes — it can hold anything about its author.
+    prisma.spaceReview.updateMany({ where: { authorProfileId: userId }, data: { comment: null } }),
     prisma.profile.update({
       where: { id: userId },
       data: {

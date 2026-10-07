@@ -10,6 +10,8 @@ import {
   organizationReactivatedTemplate,
   organizationSuspendedTemplate,
   refundIssuedTemplate,
+  reviewInvitationTemplate,
+  reviewReceivedTemplate,
   spacePublishedTemplate,
   spaceRejectedTemplate,
   spaceUnpublishedTemplate,
@@ -281,4 +283,44 @@ export function notifySupportReply(ticket: { id: string; email: string; subject:
     () => supportReplyTemplate({ to: ticket.email, ticketId: ticket.id, subject: ticket.subject, reply }),
     "email.support_reply.failed"
   );
+}
+
+export function notifyReviewReceived(reviewId: string) {
+  return bestEffort("email.review_received.failed", async () => {
+    const review = await prisma.spaceReview.findUnique({
+      where: { id: reviewId },
+      include: { organization: true, space: true },
+    });
+    if (!review) return;
+    await sendSafely(
+      () =>
+        reviewReceivedTemplate({
+          to: review.organization.email,
+          organizationName: review.organization.name,
+          spaceName: review.space.name,
+          rating: review.rating,
+        }),
+      "email.review_received.failed"
+    );
+  });
+}
+
+export function notifyReviewInvitation(bookingId: string, windowDays: number) {
+  return bestEffort("email.review_invitation.failed", async () => {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { clientUser: true, space: true },
+    });
+    if (!booking || booking.clientUser.deletedAt) return;
+    await sendSafely(
+      () =>
+        reviewInvitationTemplate({
+          to: booking.clientUser.email,
+          clientName: booking.clientUser.name,
+          spaceName: booking.space.name,
+          windowDays,
+        }),
+      "email.review_invitation.failed"
+    );
+  });
 }

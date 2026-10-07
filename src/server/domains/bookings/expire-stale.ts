@@ -8,6 +8,7 @@ import { retryUnconfirmedRefunds } from "@/server/domains/payments/refunds";
 import { purgeExpiredPersonalData } from "@/server/domains/users/retention";
 import { sendDueBookingReminders } from "@/server/domains/notifications/booking-reminders";
 import { issueMissingInvoiceDocuments } from "@/server/domains/invoicing/issue";
+import { sendReviewInvitations } from "@/server/domains/reviews/reviews";
 import { runMonthlyCommissionStatements } from "@/server/domains/invoicing/monthly-statements";
 
 /**
@@ -119,6 +120,10 @@ export async function runBookingMaintenance() {
     logError({ event: "booking.maintenance_reminders_failed", error });
     return null;
   });
+  const reviewInvitations = await sendReviewInvitations().catch((error) => {
+    logError({ event: "booking.maintenance_review_invitations_failed", error });
+    return null;
+  });
   // Invoices and credit notes the capture/refund paths could not issue
   // (and payments captured before invoicing existed).
   const invoices = await issueMissingInvoiceDocuments().catch((error) => {
@@ -131,5 +136,5 @@ export async function runBookingMaintenance() {
     return null;
   });
   await purgeExpiredPersonalData(); // GDPR retention (SEC-10) — never throws, logs its own result.
-  return { holds, requests, completed, refunds, reminders, invoices, commissionStatements };
+  return { holds, requests, completed, refunds, reminders, reviewInvitations, invoices, commissionStatements };
 }

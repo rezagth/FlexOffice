@@ -9,12 +9,13 @@ import { VerifiedBadge } from "@/components/marketing/verified-badge";
 import { formatCents, SPACE_TYPE_LABELS } from "@/lib/format";
 import { canOptimizeImage } from "@/lib/images";
 import { isOrganizationVerified } from "@/lib/verification";
+import { RatingSummary } from "@/components/reviews/star-rating";
 
 /*
- * No rating on this card (B-14 / UX-02). A star score used to be derived from
- * the space id — there is no review system — and shown on every result: a
- * fake review in the sense of the Omnibus directive, i.e. a misleading
- * commercial practice. Real reviews will come with their own data model.
+ * The rating shown here is the real average of visible client reviews
+ * (domains/reviews), passed by the page — never computed or invented here.
+ * It used to be derived from the space id (B-14 / UX-02), a fake review in
+ * the sense of the Omnibus directive; a space without reviews shows none.
  */
 
 export type SpaceCardData = {
@@ -34,6 +35,8 @@ export type SpaceCardData = {
    * `undefined` (no visitor, or the page didn't check) hides the button
    * entirely — favoriting always requires an account. */
   favorited?: boolean;
+  /** Average and count of the visible reviews; absent when there are none. */
+  rating?: { average: number; count: number } | null;
 };
 
 /**
@@ -106,6 +109,9 @@ export function SpaceCard({
           <p className="text-sm text-muted-foreground">
             {space.organization.name} · jusqu&apos;à {space.capacity} pers.
           </p>
+          {space.rating && space.rating.count > 0 && (
+            <RatingSummary average={space.rating.average} count={space.rating.count} className="text-xs" />
+          )}
           <div className="mt-1 flex items-baseline justify-between">
             <p className="text-sm font-medium text-foreground">
               {formatCents(space.dayPriceCents)}{" "}
