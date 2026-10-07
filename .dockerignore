@@ -1,0 +1,30 @@
+# Keep the build context small and free of secrets.
+.git
+.github
+.next
+node_modules
+src/generated
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets: never in the image. .env.example is harmless but useless there.
+.env
+.env.*
+*.pem
+
+# Not needed to build the app
+docs
+tests
+scripts
+README.md
+AGENTS.md
+CLAUDE.md
+setup-test-users.sh
+Dockerfile
+.dockerignore
+.claude
+.agents
+.vscode
+.idea
+.DS_Store
