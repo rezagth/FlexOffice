@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LegalPage, Section, ToFill } from "@/components/marketing/legal-page";
-import { ManageCookiesButton } from "@/components/marketing/manage-cookies-button";
+import { ManageCookiesButton } from "@/components/consent/manage-cookies-button";
+import { buttonClasses } from "@/components/ui/button";
 
 export const metadata = {
   title: "Gestion des cookies — OfficeFlex",
@@ -91,7 +92,7 @@ export default function CookiesPage() {
           Vous pouvez retirer ou modifier votre consentement à tout moment, aussi simplement
           que vous l&apos;avez donné :
         </p>
-        <ManageCookiesButton />
+        <ManageCookiesButton className={buttonClasses("outline", "sm")} />
       </Section>
 
       <Section title="3. Supprimer les cookies depuis votre navigateur">

@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/admin/verifications", label: "Vérifications" },
   { href: "/admin/listings", label: "Annonces" },
   { href: "/admin/payments", label: "Paiements" },
+  { href: "/admin/commission-statements", label: "Relevés de commission" },
   { href: "/admin/disputes", label: "Litiges" },
   { href: "/admin/stripe-disputes", label: "Contestations Stripe" },
   { href: "/admin/support", label: "Support" },

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ManageCookiesButton } from "@/components/consent/manage-cookies-button";
 
 const COMPANY_LINKS = [
   { href: "/search", label: "Rechercher un espace" },
@@ -63,6 +64,10 @@ export function SiteFooter() {
                 </Link>
               </li>
             ))}
+            <li>
+              {/* Withdrawing consent must be as easy as giving it (CNIL). */}
+              <ManageCookiesButton className="text-left hover:text-background" />
+            </li>
           </ul>
         </nav>
       </div>
