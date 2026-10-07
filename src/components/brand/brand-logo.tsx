@@ -33,7 +33,8 @@ export function BrandMark({ className, title }: { className?: string; title?: st
 }
 
 /**
- * Mark + wordmark ("MAKOM" in the current colour, "SPACE" in gold). The
+ * Mark + wordmark ("MAKOM" in the current colour, "SPACE" in gold — the darker text gold
+ * on light surfaces, for contrast). The
  * accessible name is the brand name written normally, once.
  */
 export function BrandLogo({
@@ -47,7 +48,7 @@ export function BrandLogo({
     <span className={cn("inline-flex items-center gap-2", className)}>
       <BrandMark className={markClassName} />
       <span aria-hidden="true" className="font-heading text-lg font-bold tracking-[0.08em]">
-        MAKOM<span className="text-accent">SPACE</span>
+        MAKOM<span className="text-accent-text">SPACE</span>
       </span>
       <span className="sr-only">{SITE_NAME}</span>
     </span>

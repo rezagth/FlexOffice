@@ -33,6 +33,10 @@
   --primary-foreground: #ffffff;
   --accent: #c5a059;
   --accent-foreground: #041627;
+  /* Gold for TEXT on light surfaces: #86672a is 5.0:1 on --background (the
+   * brand gold #c5a059 is 2.3:1, unreadable as text). Inside .surface-dark the
+   * brand gold itself is used (7.4:1 on navy). */
+  --accent-text: #86672a;
   --danger: #b42318;
   --ring: #041627;
   --radius: 1rem;
@@ -67,6 +71,7 @@
  */
 .surface-dark {
   --ring: #c5a059;
+  --accent-text: #c5a059;
 }
 /* A light card placed on a dark surface (the hero search form). */
 .surface-light {
@@ -86,6 +91,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-text: var(--accent-text);
   --color-danger: var(--danger);
   --color-ring: var(--ring);
   --radius-lg: var(--radius);

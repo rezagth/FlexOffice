@@ -676,7 +676,13 @@ un visiteur anonyme.**
 ```bash
 pnpm test:unit          # toujours exécutable, aucune infrastructure
 pnpm test               # tout ; les suites d'intégration se sautent d'elles-mêmes
+pnpm build && pnpm test:e2e   # Playwright sur le build, servi en mode démo
 ```
+
+Les tests e2e (`tests/e2e/*.spec.ts`) démarrent eux-mêmes `pnpm start` avec
+`OFFICEFLEX_DEMO_MODE=true` sur le port 3100 (`E2E_PORT`), ou visent une
+instance existante avec `E2E_BASE_URL`. `PLAYWRIGHT_CHROMIUM_PATH` indique un
+Chromium déjà installé quand `playwright install` n'est pas possible.
 
 Les suites d'intégration sont filtrées selon ce dont elles ont réellement
 besoin (`tests/integration/helpers/should-run.ts`) :
@@ -735,7 +741,9 @@ faut assouplir.
 `.github/workflows/ci.yml`, aucun secret de production :
 
 - **quality** — `pnpm lint`, `pnpm build` (qui inclut la vérification
-  TypeScript), `pnpm typecheck`, `pnpm test:unit`. Le build tourne
+  TypeScript), `pnpm typecheck`, `pnpm test:unit`, puis `pnpm test:e2e`
+  (Playwright, parcours publics en mode démo, bureau et mobile, contrôles
+  d'accessibilité axe). Le build tourne
   volontairement **sans aucune variable d'environnement** : c'est ainsi que le
   contrat du mode démo est vérifié à chaque PR.
 - **integration** — PostgreSQL 17 éphémère, shim du schéma Supabase,
