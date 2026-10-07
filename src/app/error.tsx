@@ -21,10 +21,12 @@ import { ErrorState } from "@/components/dashboard/states";
  */
 export default function AppError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  /** Re-fetches and re-renders the segment (Next 16; `reset` only
+   * re-rendered, which cannot recover from a server-side failure). */
+  retry: () => void;
 }) {
   useEffect(() => {
     // Browser-side console only: the server-side occurrence was already
@@ -33,13 +35,13 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center gap-4 px-6 py-16">
+    <main id="contenu" className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center gap-4 px-6 py-16">
       <ErrorState
         title="Service momentanément indisponible"
         description="Nous n'avons pas pu charger cette page. Réessayez dans quelques instants — si le problème persiste, contactez le support."
       />
       <div className="flex items-center justify-center gap-3">
-        <Button onClick={reset} size="sm">
+        <Button onClick={() => retry()} size="sm">
           Réessayer
         </Button>
       </div>
@@ -48,6 +50,6 @@ export default function AppError({
           Référence : <span className="font-mono">{error.digest}</span>
         </p>
       )}
-    </div>
+    </main>
   );
 }
