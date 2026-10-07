@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 /**
  * Security response headers.
@@ -7,13 +8,9 @@ import type { NextConfig } from "next";
  * Each one below is a header whose absence is exploitable and whose presence
  * cannot break a correctly behaving page.
  *
- * DELIBERATELY ABSENT: Content-Security-Policy.
- * A useful CSP for an App Router application needs per-request nonces for the
- * framework's own inline bootstrap scripts, which means generating them in
- * `src/proxy.ts` and threading them through. Shipping a CSP that has not been
- * exercised against every page is how a site silently loses its interactivity
- * in production, so it is scoped as its own piece of work rather than guessed
- * at here. Recorded in the Phase 1 report under PROBLÈMES RESTANTS.
+ * Content-Security-Policy is NOT here: it needs a fresh nonce per request,
+ * so src/proxy.ts builds it (src/server/config/csp.ts). A static header
+ * from this file could only allow inline scripts wholesale.
  */
 const securityHeaders = [
   {
@@ -25,7 +22,8 @@ const securityHeaders = [
   {
     // No framing at all: nothing in OfficeFlex is meant to be embedded, and
     // clickjacking a "Réserver" or "Supprimer mon compte" button is the
-    // obvious attack. Superseded by CSP frame-ancestors when that lands.
+    // obvious attack. CSP frame-ancestors 'none' says the same to modern
+    // browsers; this covers the others, and the report-only rollout phase.
     key: "X-Frame-Options",
     value: "DENY",
   },
@@ -45,8 +43,8 @@ const securityHeaders = [
     value: 'camera=(), microphone=(), geolocation=(self), payment=(self "https://js.stripe.com"), usb=()',
   },
   {
-    // Two years, subdomains included. Vercel serves HTTPS only; this stops a
-    // first plain-HTTP request from being downgraded or intercepted.
+    // Two years, subdomains included. Cloudflare serves HTTPS only; this
+    // stops a first plain-HTTP request from being downgraded or intercepted.
     // `preload` is intentionally omitted: submitting to the HSTS preload list
     // is close to irreversible and is an operational decision, not a code one.
     key: "Strict-Transport-Security",
@@ -83,6 +81,10 @@ function supabaseStoragePattern(): NonNullable<NonNullable<NextConfig["images"]>
 }
 
 const nextConfig: NextConfig = {
+  // Self-contained server (.next/standalone/server.js + the traced
+  // node_modules it needs) for the Docker image — see Dockerfile.
+  output: "standalone",
+
   // Removes `X-Powered-By: Next.js`. Free version disclosure otherwise.
   poweredByHeader: false,
 
@@ -95,4 +97,26 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Error tracking build integration (GlitchTip through the Sentry SDK).
+ *
+ * Source maps are generated and uploaded ONLY when SENTRY_AUTH_TOKEN is
+ * present — in the image build of the deploy pipeline. Everywhere else
+ * (local, CI checks, demo) nothing is uploaded and no map is produced.
+ * Uploaded maps are deleted from the build output so they are never served.
+ *
+ * The SDK's `tunnelRoute` option is deliberately not used: it only rewrites
+ * to sentry.io. Our tunnel is src/app/monitoring/route.ts.
+ */
+const sentryUploadEnabled = Boolean(process.env.SENTRY_AUTH_TOKEN);
+
+export default withSentryConfig(nextConfig, {
+  sentryUrl: process.env.SENTRY_URL || undefined,
+  org: process.env.SENTRY_ORG || undefined,
+  project: process.env.SENTRY_PROJECT || undefined,
+  authToken: process.env.SENTRY_AUTH_TOKEN || undefined,
+  release: { name: process.env.APP_VERSION || undefined, create: sentryUploadEnabled },
+  sourcemaps: { disable: !sentryUploadEnabled, deleteSourcemapsAfterUpload: true },
+  telemetry: false,
+  silent: !process.env.CI,
+});

@@ -1,4 +1,5 @@
 import { isDemoModeRequested, isProductionDeployment } from "@/server/auth/runtime-config";
+import { cspHeaderName, DEFAULT_POSTHOG_HOST } from "@/server/config/csp";
 
 /**
  * Production configuration checks.
@@ -146,6 +147,51 @@ function otherProblems(): ConfigProblem[] {
     });
   }
 
+  problems.push(...observabilityProblems());
+
+  return problems;
+}
+
+/** PostHog hosts outside the EU (the US cloud and its legacy hostnames). */
+const NON_EU_POSTHOG = /(^|\.)(us\.i\.posthog\.com|us-assets\.i\.posthog\.com|app\.posthog\.com)$/i;
+
+function observabilityProblems(): ConfigProblem[] {
+  const problems: ConfigProblem[] = [];
+
+  if (!env("SENTRY_DSN") && !env("NEXT_PUBLIC_SENTRY_DSN")) {
+    problems.push({
+      key: "SENTRY_DSN",
+      area: "other",
+      message:
+        "SENTRY_DSN is not set: server errors are only in the container logs, nobody is alerted. Point it at the GlitchTip project of this environment.",
+    });
+  }
+
+  if (env("NEXT_PUBLIC_POSTHOG_KEY")) {
+    const host = env("NEXT_PUBLIC_POSTHOG_HOST") ?? DEFAULT_POSTHOG_HOST;
+    let hostname = "";
+    try {
+      hostname = new URL(host).hostname;
+    } catch {
+      hostname = "";
+    }
+    if (!hostname || NON_EU_POSTHOG.test(hostname)) {
+      problems.push({
+        key: "NEXT_PUBLIC_POSTHOG_HOST",
+        area: "other",
+        message: `NEXT_PUBLIC_POSTHOG_HOST="${host}" is not an EU PostHog host: analytics data would leave the EU. Use ${DEFAULT_POSTHOG_HOST} (or a self-hosted instance).`,
+      });
+    }
+  }
+
+  if (Boolean(env("NEXT_PUBLIC_UMAMI_SRC")) !== Boolean(env("NEXT_PUBLIC_UMAMI_WEBSITE_ID"))) {
+    problems.push({
+      key: "NEXT_PUBLIC_UMAMI_WEBSITE_ID",
+      area: "other",
+      message: "Umami needs both NEXT_PUBLIC_UMAMI_SRC and NEXT_PUBLIC_UMAMI_WEBSITE_ID; with only one, audience measurement is off.",
+    });
+  }
+
   return problems;
 }
 
@@ -180,5 +226,9 @@ export function describeActiveIntegrations() {
     email_provider: env("EMAIL_PROVIDER") ?? "log (default)",
     demo_mode: isDemoModeRequested(),
     production_deployment: isProductionDeployment(),
+    error_tracking: env("SENTRY_DSN") || env("NEXT_PUBLIC_SENTRY_DSN") ? "glitchtip" : "off",
+    analytics_umami: Boolean(env("NEXT_PUBLIC_UMAMI_SRC") && env("NEXT_PUBLIC_UMAMI_WEBSITE_ID")),
+    analytics_posthog: Boolean(env("NEXT_PUBLIC_POSTHOG_KEY")),
+    csp: cspHeaderName(process.env) === "Content-Security-Policy" ? "enforced" : "report-only",
   };
 }

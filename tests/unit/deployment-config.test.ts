@@ -174,3 +174,55 @@ describe("public listings without a database", () => {
     expect(await getPublishedSpaceBySlug("salle-rivoli-paris")).toBeNull();
   });
 });
+
+describe("observability configuration (production)", () => {
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production");
+    for (const key of [
+      "SENTRY_DSN",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "NEXT_PUBLIC_POSTHOG_KEY",
+      "NEXT_PUBLIC_POSTHOG_HOST",
+      "NEXT_PUBLIC_UMAMI_SRC",
+      "NEXT_PUBLIC_UMAMI_WEBSITE_ID",
+    ]) {
+      vi.stubEnv(key, "");
+    }
+  });
+
+  it("reports a missing GlitchTip DSN", async () => {
+    const { collectProductionConfigProblems } = await load();
+    expect(collectProductionConfigProblems().map((p) => p.key)).toContain("SENTRY_DSN");
+
+    vi.stubEnv("SENTRY_DSN", "https://k@glitchtip.example.fr/1");
+    const again = await load();
+    expect(again.collectProductionConfigProblems().map((p) => p.key)).not.toContain("SENTRY_DSN");
+  });
+
+  it("reports a PostHog host outside the EU, and accepts the EU default", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_x");
+    let config = await load();
+    expect(config.collectProductionConfigProblems().map((p) => p.key)).not.toContain("NEXT_PUBLIC_POSTHOG_HOST");
+
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+    config = await load();
+    expect(config.collectProductionConfigProblems().map((p) => p.key)).toContain("NEXT_PUBLIC_POSTHOG_HOST");
+  });
+
+  it("reports a half-configured Umami", async () => {
+    vi.stubEnv("NEXT_PUBLIC_UMAMI_SRC", "https://stats.example.fr/script.js");
+    const { collectProductionConfigProblems } = await load();
+    expect(collectProductionConfigProblems().map((p) => p.key)).toContain("NEXT_PUBLIC_UMAMI_WEBSITE_ID");
+  });
+
+  it("describes error tracking, analytics and the CSP mode at boot", async () => {
+    vi.stubEnv("SENTRY_DSN", "https://k@glitchtip.example.fr/1");
+    vi.stubEnv("CSP_ENFORCE", "true");
+    const { describeActiveIntegrations } = await load();
+    expect(describeActiveIntegrations()).toMatchObject({
+      error_tracking: "glitchtip",
+      analytics_posthog: false,
+      csp: "enforced",
+    });
+  });
+});
