@@ -36,8 +36,16 @@ export default async function BookingPage({
           daySlots.morning ? { kind: "MORNING" as const, ...daySlots.morning } : null,
           daySlots.afternoon ? { kind: "AFTERNOON" as const, ...daySlots.afternoon } : null,
           { kind: "FULL_DAY" as const, ...daySlots.fullDay },
-        ].filter(Boolean) as Array<SlotOption & { startsAt: Date }>
-      ).map(({ kind, available, priceCents }) => ({ kind, available, priceCents }))
+        ].filter(Boolean) as Array<Omit<SlotOption, "startsAt" | "endsAt"> & { startsAt: Date; endsAt: Date }>
+      ).map(({ kind, available, priceCents, startsAt, endsAt }) => ({
+        kind,
+        available,
+        priceCents,
+        // Shown in the recap (UX-17); never sent back — the server
+        // recomputes the slot from the date and kind.
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+      }))
     : [];
 
   return (
@@ -69,6 +77,7 @@ export default async function BookingPage({
           date={date}
           slots={slots}
           capacity={space.capacity}
+          timeZone={"timezone" in space ? space.timezone : undefined}
         />
       </main>
     </div>

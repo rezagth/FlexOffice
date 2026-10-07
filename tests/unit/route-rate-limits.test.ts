@@ -35,7 +35,7 @@ function bookingRequest() {
   return new Request("http://test.local/api/bookings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ spaceId: SPACE, date: "2026-12-01", slot: "MORNING", participantsCount: 4, purpose: "Réunion" }),
+    body: JSON.stringify({ spaceId: SPACE, date: "2026-12-01", slot: "MORNING", participantsCount: 4, purpose: "Réunion", acceptTerms: true }),
   });
 }
 

@@ -119,6 +119,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       slot: "MORNING",
       participantsCount: 2,
       purpose: "Prix serveur",
+      acceptTerms: true,
       // Not part of CreateBookingInput — deliberately smuggled in to prove
       // it has no effect even if it reaches this layer.
       ...({ priceAmountCents: 1, commissionAmountCents: 0 } as object),
@@ -126,6 +127,10 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
 
     expect(booking.priceAmountCents).toBe(9000);
     expect(booking.commissionAmountCents).toBe(1350); // 15% of 9000
+    // B-11: the CGV acceptance is stamped by the server, with its own version.
+    const { CGV_VERSION } = await import("@/lib/legal-versions");
+    expect(booking.cgvVersion).toBe(CGV_VERSION);
+    expect(booking.cgvAcceptedAt).toBeInstanceOf(Date);
 
     const payment = await prisma.payment.findUnique({ where: { bookingId: booking.id } });
     expect(payment?.amountCents).toBe(9000);
@@ -143,6 +148,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
         slot: "FULL_DAY",
         participantsCount: 2,
         purpose: "Chevauchement",
+        acceptTerms: true,
       })
     ).rejects.toBeInstanceOf(ConflictError);
   });
@@ -154,6 +160,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       slot: "AFTERNOON",
       participantsCount: 3,
       purpose: "Après-midi",
+      acceptTerms: true,
     });
     expect(booking.priceAmountCents).toBe(9000);
   });
@@ -166,6 +173,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
         slot: "FULL_DAY",
         participantsCount: 2,
         purpose: "Dimanche",
+        acceptTerms: true,
       })
     ).rejects.toBeInstanceOf(ConflictError);
   });
@@ -191,6 +199,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
           slot: "MORNING",
           participantsCount: 2,
           purpose: "Paiement mal configuré",
+          acceptTerms: true,
         })
       ).rejects.toMatchObject({ status: 503 });
     } finally {

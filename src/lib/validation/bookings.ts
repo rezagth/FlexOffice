@@ -10,5 +10,9 @@ export const createBookingSchema = z.object({
   slot: z.enum(["MORNING", "AFTERNOON", "FULL_DAY"]),
   participantsCount: z.number().int().min(1).max(1000),
   purpose: z.string().trim().min(1).max(500),
+  // B-11: the CGV box must be ticked before the request is sent. Only the
+  // fact of accepting comes from the client — the version and the date are
+  // stamped by the server (create-booking.ts, legal-versions.ts).
+  acceptTerms: z.literal(true, { error: "Vous devez accepter les conditions générales de vente." }),
 });
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;

@@ -194,7 +194,7 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
   });
 
   const book = (clientUserId = clientId, date = nextDate()) =>
-    createBooking(clientUserId, { spaceId, date, slot: "MORNING", participantsCount: 2, purpose: "Réunion" });
+    createBooking(clientUserId, { spaceId, date, slot: "MORNING", participantsCount: 2, purpose: "Réunion", acceptTerms: true });
 
   describe("card step (Stripe-like provider)", () => {
     it("holds the slot in AWAITING_PAYMENT, silently, and passes the commission as application fee", async () => {

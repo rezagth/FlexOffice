@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
-import { ConflictError, NotFoundError } from "@/server/lib/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
+import { CGV_VERSION } from "@/lib/legal-versions";
 import { recordAudit } from "@/server/lib/audit";
 import { logError } from "@/server/lib/logger";
 import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
@@ -47,6 +48,13 @@ function isBookingSlotConflict(error: unknown): boolean {
  * authorization is attempted for a slot that turns out to be taken.
  */
 export async function createBooking(clientUserId: string, input: CreateBookingInput) {
+  // B-11. The schema already requires it; checked again here because the
+  // domain function is the one that writes the acceptance record, and it
+  // must never stamp one the client did not give.
+  if (input.acceptTerms !== true) {
+    throw new ValidationError("Vous devez accepter les conditions générales de vente.");
+  }
+
   const space = await prisma.space.findFirst({
     where: { id: input.spaceId, status: "PUBLISHED" },
   });
@@ -144,6 +152,8 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
         purpose: input.purpose,
         priceAmountCents,
         commissionAmountCents,
+        cgvVersion: CGV_VERSION,
+        cgvAcceptedAt: new Date(),
       },
     });
   } catch (error) {
