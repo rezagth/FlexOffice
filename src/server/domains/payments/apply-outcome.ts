@@ -10,6 +10,7 @@ import {
 import type { BookingEmailContext } from "@/server/domains/notifications/templates";
 import type { CancellationReason } from "./provider";
 import { issueRefund } from "./refunds";
+import { issueInvoiceDocumentsSafely } from "@/server/domains/invoicing/issue";
 
 export type PaymentOutcome = "captured" | "canceled" | "failed";
 
@@ -99,6 +100,10 @@ async function finalize(
     logEvent({ event: "payment.outcome_already_applied", payment_id: payment.id, outcome: paymentStatus });
     return "payment_not_awaiting_capture" as const;
   }
+
+  // Money was taken: the booking invoice is issued now (numbered at
+  // capture, lot F). Never throws; the maintenance sweep catches up.
+  if (paymentStatus === "SUCCEEDED") await issueInvoiceDocumentsSafely(payment.id);
 
   const bookingUpdate = await prisma.booking.updateMany({
     where: { id: payment.bookingId, status: "PENDING" },

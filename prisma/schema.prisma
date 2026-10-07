@@ -364,6 +364,7 @@ model Organization {
   propertyManagerOf  PropertyManager[]
 
   commissionStatements CommissionStatement[]
+  invoices             Invoice[]
 
   @@index([status])
   @@map("organizations")
@@ -817,6 +818,7 @@ model Payment {
 
   refunds        Refund[]
   stripeDisputes StripeDispute[]
+  invoice        Invoice?
 
   @@index([organizationId, status])
   @@map("payments")
@@ -843,6 +845,8 @@ model Refund {
   applicationFeeRefunded Boolean @default(false) @map("application_fee_refunded")
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invoice Invoice?
 
   @@index([paymentId])
   @@map("refunds")
@@ -891,14 +895,90 @@ model CommissionStatement {
   organization               Organization @relation(fields: [organizationId], references: [id])
   periodStart                DateTime     @map("period_start") @db.Timestamptz(3)
   periodEnd                  DateTime     @map("period_end") @db.Timestamptz(3)
-  stripeInvoiceId            String       @unique @map("stripe_invoice_id")
+  /// Stripe mirror of the FC commission invoice (`invoice` below, the legal
+  /// document). Null until the mirror succeeds, and forever on an instance
+  /// without Stripe — see invoicing/commission-statements.ts.
+  stripeInvoiceId            String?      @unique @map("stripe_invoice_id")
+  /// Commission kept by the platform over the period, VAT included (TTC).
   totalCommissionAmountCents Int          @map("total_commission_amount_cents")
-  hostedInvoiceUrl           String       @map("hosted_invoice_url")
-  invoicePdfUrl              String       @map("invoice_pdf_url")
+  hostedInvoiceUrl           String?      @map("hosted_invoice_url")
+  invoicePdfUrl              String?      @map("invoice_pdf_url")
+  stripeSyncedAt             DateTime?    @map("stripe_synced_at") @db.Timestamptz(3)
+  /// Last Stripe mirroring error, for the admin list. Cleared on success.
+  stripeSyncError            String?      @map("stripe_sync_error")
   createdAt                  DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  invoice Invoice?
 
   @@unique([organizationId, periodStart])
   @@map("commission_statements")
+}
+
+enum InvoiceKind {
+  /// Booking invoice issued by the platform in the name and on behalf of
+  /// the landlord (billing mandate). Series: the landlord's.
+  INVOICE
+  /// Settled refund. Same series as the invoice it credits.
+  CREDIT_NOTE
+  /// The platform's monthly commission invoice to a landlord. Series: FC.
+  COMMISSION_INVOICE
+}
+
+/// Next number of an invoicing series. Taken with INSERT .. ON CONFLICT DO
+/// UPDATE .. RETURNING in the transaction that inserts the document — see
+/// invoicing/numbering.ts. Never read or written anywhere else.
+model InvoiceNumberCounter {
+  seriesKey String   @map("series_key")
+  year      Int
+  lastValue Int      @map("last_value")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@id([seriesKey, year])
+  @@map("invoice_number_counters")
+}
+
+/// An issued invoicing document. Immutable (database trigger): seller and
+/// buyer are snapshots taken at issuance, amounts are final.
+model Invoice {
+  id                    String               @id @default(uuid()) @db.Uuid
+  kind                  InvoiceKind
+  seriesKey             String               @map("series_key")
+  year                  Int
+  sequence              Int
+  number                String
+  issuedAt              DateTime             @map("issued_at") @db.Timestamptz(3)
+  /// The landlord concerned: issuer (by mandate) of INVOICE / CREDIT_NOTE,
+  /// buyer of COMMISSION_INVOICE.
+  organizationId        String               @map("organization_id") @db.Uuid
+  organization          Organization         @relation(fields: [organizationId], references: [id])
+  paymentId             String?              @unique @map("payment_id") @db.Uuid
+  payment               Payment?             @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  refundId              String?              @unique @map("refund_id") @db.Uuid
+  refund                Refund?              @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  commissionStatementId String?              @unique @map("commission_statement_id") @db.Uuid
+  commissionStatement   CommissionStatement? @relation(fields: [commissionStatementId], references: [id], onDelete: Cascade)
+  creditedInvoiceId     String?              @map("credited_invoice_id") @db.Uuid
+  creditedInvoice       Invoice?             @relation("CreditNotes", fields: [creditedInvoiceId], references: [id], onDelete: Cascade)
+  creditNotes           Invoice[]            @relation("CreditNotes")
+  /// Party snapshot (see invoicing/types.ts). Null = the platform itself.
+  seller                Json?
+  buyer                 Json
+  lines                 Json
+  currency              String               @default("eur")
+  totalCents            Int                  @map("total_cents")
+  netCents              Int                  @map("net_cents")
+  vatCents              Int                  @map("vat_cents")
+  vatRateBasisPoints    Int                  @map("vat_rate_basis_points")
+  vatExempt             Boolean              @default(false) @map("vat_exempt")
+  /// "dont frais de service OfficeFlex", VAT included.
+  serviceFeeCents       Int?                 @map("service_fee_cents")
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([seriesKey, year, sequence])
+  @@unique([seriesKey, number])
+  @@index([organizationId, kind, issuedAt])
+  @@index([creditedInvoiceId])
+  @@map("invoices")
 }
 
 // Idempotency ledger for provider webhooks (Stripe today, others later).

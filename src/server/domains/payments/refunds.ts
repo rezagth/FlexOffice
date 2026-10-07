@@ -5,6 +5,7 @@ import { ConflictError, NotFoundError, ServiceUnavailableError, ValidationError 
 import { logError } from "@/server/lib/logger";
 import { getPaymentProvider } from "./get-payment-provider";
 import { RefundDeclinedError, type RefundFunding } from "./provider";
+import { issueInvoiceDocumentsSafely } from "@/server/domains/invoicing/issue";
 
 /**
  * The single way money goes back to a client (disputes, cancellations).
@@ -218,6 +219,8 @@ export async function syncPaymentRefundStatus(paymentId: string) {
     where: { id: paymentId, status: { in: ["SUCCEEDED", "PARTIALLY_REFUNDED"] } },
     data: { status: refunded >= payment.amountCents ? "REFUNDED" : "PARTIALLY_REFUNDED" },
   });
+  // A settled refund gets its credit note (lot F). Never throws.
+  await issueInvoiceDocumentsSafely(paymentId);
 }
 
 /** The funding a dispute refund of `amountCents` gets: the landlord bears

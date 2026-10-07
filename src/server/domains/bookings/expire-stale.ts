@@ -7,6 +7,8 @@ import { releaseAbandonedPaymentHolds } from "./payment-holds";
 import { retryUnconfirmedRefunds } from "@/server/domains/payments/refunds";
 import { purgeExpiredPersonalData } from "@/server/domains/users/retention";
 import { sendDueBookingReminders } from "@/server/domains/notifications/booking-reminders";
+import { issueMissingInvoiceDocuments } from "@/server/domains/invoicing/issue";
+import { runMonthlyCommissionStatements } from "@/server/domains/invoicing/monthly-statements";
 
 /**
  * A request the landlord has not answered expires after this delay, or at
@@ -117,6 +119,17 @@ export async function runBookingMaintenance() {
     logError({ event: "booking.maintenance_reminders_failed", error });
     return null;
   });
+  // Invoices and credit notes the capture/refund paths could not issue
+  // (and payments captured before invoicing existed).
+  const invoices = await issueMissingInvoiceDocuments().catch((error) => {
+    logError({ event: "booking.maintenance_invoices_failed", error });
+    return null;
+  });
+  // FCT-17: no-op except on the 1st of the month from 02:00 Europe/Paris.
+  const commissionStatements = await runMonthlyCommissionStatements().catch((error) => {
+    logError({ event: "booking.maintenance_commission_statements_failed", error });
+    return null;
+  });
   await purgeExpiredPersonalData(); // GDPR retention (SEC-10) — never throws, logs its own result.
-  return { holds, requests, completed, refunds, reminders };
+  return { holds, requests, completed, refunds, reminders, invoices, commissionStatements };
 }

@@ -33,7 +33,11 @@ export default async function PartnerRevenuePage() {
     sumKeptAmounts({ organizationId: ctx.activeOrgId }),
     prisma.payment.findMany({
       where: { organizationId: ctx.activeOrgId, status: { in: [...CAPTURED_PAYMENT_STATUSES] } },
-      include: { booking: { include: { space: true } }, refunds: settledRefundsSelect },
+      include: {
+        booking: { include: { space: true } },
+        refunds: settledRefundsSelect,
+        invoice: { select: { number: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
@@ -57,7 +61,12 @@ export default async function PartnerRevenuePage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-foreground">Revenus</h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold text-foreground">Revenus</h1>
+          <Link href="/app/landlord/accounting" className="text-sm text-muted-foreground hover:underline">
+            Factures, avoirs et factures de commission →
+          </Link>
+        </div>
         {ctx.capabilities.has("landlord:manage_accounting") && (
           <form
             action="/api/landlord/accounting/export"
@@ -147,11 +156,9 @@ export default async function PartnerRevenuePage() {
         ) : (
           <div className="flex flex-col gap-2">
             {commissionStatements.map((statement) => (
-              <a
+              <Link
                 key={statement.id}
-                href={statement.hostedInvoiceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={`/app/landlord/accounting/commission/${statement.id}`}
                 className="block"
               >
                 <Card className="flex flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:bg-muted">
@@ -165,7 +172,7 @@ export default async function PartnerRevenuePage() {
                     {formatCents(statement.totalCommissionAmountCents)}
                   </p>
                 </Card>
-              </a>
+              </Link>
             ))}
           </div>
         )}
