@@ -86,6 +86,10 @@ model Profile {
   /// `profiles_terms_acceptance_pair_check`.
   termsAcceptedAt DateTime? @map("terms_accepted_at") @db.Timestamptz(3)
   termsVersion    String?   @map("terms_version")
+  /// Set by an administrator (back office): the account keeps its data but
+  /// getAuthContext() treats it like a deleted one — no valid session — until
+  /// it is reactivated (NULL again). See domains/users/suspension.ts.
+  suspendedAt DateTime? @map("suspended_at") @db.Timestamptz(3)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -107,6 +111,7 @@ model Profile {
 
   messagesSent   Message[]
   supportTickets SupportTicket[]
+  supportReplies SupportTicketReply[]
 
   @@index([organizationId])
   @@index([activeOrganizationId])
@@ -630,6 +635,8 @@ model Space {
   dayPriceCents      Int            @map("day_price_cents")
   /// Percentage off both half-day and day price, applied server-side in
   /// computeDaySlots() — never sent by the client. Null means no discount.
+  /// Capped at 90 since lot C (`spaces_discount_percent_max_check`), and the
+  /// discounted price may not fall under 1,00 € (validation/spaces.ts).
   /// Bounded 0-100 by a CHECK, not just Zod: the same reason every other
   /// money-adjacent column here has one (officeflex-security-guardrails §5).
   discountPercent    Int?           @map("discount_percent")
@@ -759,6 +766,9 @@ model Booking {
   /// for bookings created before acceptance was recorded.
   cgvAcceptedAt         DateTime?          @map("cgv_accepted_at") @db.Timestamptz(3)
   cgvVersion            String?            @map("cgv_version")
+  /// Claimed (set) just before the day-before reminder is sent — at most one
+  /// reminder per booking. See notifications/booking-reminders.ts.
+  reminderSentAt        DateTime?          @map("reminder_sent_at") @db.Timestamptz(3)
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -1001,8 +1011,28 @@ model SupportTicket {
   createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  replies SupportTicketReply[]
+
   @@index([status])
   @@map("support_tickets")
+}
+
+/// What the platform answered on a ticket — the history shown in the back
+/// office, each reply also e-mailed to the ticket's address (`emailedAt` set
+/// when the provider accepted it). The author survives as NULL if their
+/// account is later deleted.
+model SupportTicketReply {
+  id              String        @id @default(uuid()) @db.Uuid
+  ticketId        String        @map("ticket_id") @db.Uuid
+  ticket          SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorProfileId String?       @map("author_profile_id") @db.Uuid
+  author          Profile?      @relation(fields: [authorProfileId], references: [id])
+  body            String
+  emailedAt       DateTime?     @map("emailed_at") @db.Timestamptz(3)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_replies")
 }
 
 // ---------------------------------------------------------------------------
