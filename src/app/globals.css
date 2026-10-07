@@ -9,17 +9,24 @@
  * see officeflex-notes) — Deep Navy primary / Gold secondary accent /
  * off-white tertiary / Slate neutral, Plus Jakarta Sans headings. Gold is
  * reserved for icons, large fills and dark surfaces (never small text on a
- * light background — see badge.tsx and the two ad-hoc spots fixed
- * alongside this file for the contrast rule this enforces). Only
- * --secondary and the chart/sidebar tokens are new concepts this design
- * system didn't have before; they're left at reasonable neutral defaults
- * since nothing binds to them yet.
+ * light background — see badge.tsx for the contrast rule this enforces).
+ *
+ * Contrast (UX-19/UX-20, WCAG 2.1 AA), measured against --background
+ * #f8f9fa, --card #fff and --muted #eef1f4:
+ *   --muted-foreground #5b6779 — 5.4:1 / 5.7:1 / 5.1:1 (was #64748b, 4.2:1
+ *     on --muted, under the 4.5:1 required for body text);
+ *   --input #7b8797 — 3.5:1 / 3.7:1, the 3:1 required for a form control's
+ *     boundary (was #e2e8f0, 1.2:1: fields were nearly invisible);
+ *   --ring navy on light surfaces; gold (7.4:1 on navy) inside `.surface-dark`.
+ *
+ * --secondary and --sidebar-* (UX-30) follow the brand instead of shadcn's
+ * neutral grays, so a shadcn component dropped in later looks on-brand.
  */
 :root {
   --card: #ffffff;
   --card-foreground: #041627;
   --muted: #eef1f4;
-  --muted-foreground: #64748b;
+  --muted-foreground: #5b6779;
   --border: #e2e8f0;
   --primary: #041627;
   --primary-hover: #0c2d47;
@@ -33,23 +40,37 @@
   --foreground: #041627;
   --popover: #ffffff;
   --popover-foreground: #041627;
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --secondary: #eef1f4;
+  --secondary-foreground: #041627;
   --destructive: #b42318;
-  --input: #e2e8f0;
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --input: #7b8797;
+  --chart-1: #041627;
+  --chart-2: #c5a059;
+  --chart-3: #3b5b7a;
+  --chart-4: #8a6d2f;
+  --chart-5: #5b6779;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #041627;
+  --sidebar-primary: #041627;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef1f4;
+  --sidebar-accent-foreground: #041627;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #041627;
+}
+
+/*
+ * Dark brand surfaces (hero, footer, navy cards): the navy focus ring would
+ * be navy on navy (1:1) there. Re-pointing --ring inside the surface turns
+ * every `ring-ring` utility and the global outline gold, without touching
+ * each control.
+ */
+.surface-dark {
+  --ring: #c5a059;
+}
+/* A light card placed on a dark surface (the hero search form). */
+.surface-light {
+  --ring: #041627;
 }
 
 @theme inline {
@@ -104,6 +125,36 @@
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* Skip link (UX-19): visually hidden until focused by keyboard. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 0.5rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  --ring: #c5a059;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .dark {

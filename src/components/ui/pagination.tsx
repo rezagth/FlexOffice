@@ -29,14 +29,19 @@ export function PaginationLink({
   isActive,
   href,
   disabled,
+  children,
   ...props
 }: React.ComponentProps<typeof Link> & { isActive?: boolean; disabled?: boolean }) {
   if (disabled) {
+    // Children are kept (they used to be dropped, leaving an empty pill):
+    // a disabled "Précédent" must still read as one.
     return (
       <span
         aria-disabled="true"
         className={cn(buttonClasses("ghost", "sm"), "pointer-events-none opacity-40", className)}
-      />
+      >
+        {children}
+      </span>
     );
   }
   return (
@@ -47,7 +52,9 @@ export function PaginationLink({
       aria-current={isActive ? "page" : undefined}
       className={cn(buttonClasses(isActive ? "outline" : "ghost", "sm"), className)}
       {...props}
-    />
+    >
+      {children}
+    </Link>
   );
 }
 

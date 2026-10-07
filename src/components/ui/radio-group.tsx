@@ -16,7 +16,7 @@ export function RadioGroupItem({
     <RadioGroupPrimitive.Item
       data-slot="radio-group-item"
       className={cn(
-        "flex size-4 shrink-0 items-center justify-center rounded-full border border-border bg-card outline-none transition-colors",
+        "flex size-4 shrink-0 items-center justify-center rounded-full border border-input bg-card outline-none transition-colors",
         "focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-[state=checked]:border-primary",
