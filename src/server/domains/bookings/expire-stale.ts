@@ -5,6 +5,7 @@ import { getPaymentProvider } from "@/server/domains/payments/get-payment-provid
 import { applyPaymentOutcome } from "@/server/domains/payments/apply-outcome";
 import { releaseAbandonedPaymentHolds } from "./payment-holds";
 import { retryUnconfirmedRefunds } from "@/server/domains/payments/refunds";
+import { purgeExpiredPersonalData } from "@/server/domains/users/retention";
 
 /**
  * A request the landlord has not answered expires after this delay, or at
@@ -111,5 +112,6 @@ export async function runBookingMaintenance() {
     logError({ event: "booking.maintenance_refunds_failed", error });
     return null;
   });
+  await purgeExpiredPersonalData(); // GDPR retention (SEC-10) — never throws, logs its own result.
   return { holds, requests, completed, refunds };
 }
