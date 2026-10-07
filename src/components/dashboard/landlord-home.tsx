@@ -5,6 +5,8 @@ import { EmptyState } from "@/components/dashboard/states";
 import { ButtonLink } from "@/components/ui/button";
 import { formatCents } from "@/lib/format";
 import { sumKeptAmounts } from "@/server/domains/payments/settled-amounts";
+import { getLandlordOnboarding } from "@/server/domains/organizations/onboarding";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 
 /**
  * Landlord home, rendered by `/app` when the active mode is LANDLORD.
@@ -30,7 +32,12 @@ export async function LandlordHome({
 
   const startOfYear = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1));
 
-  const [monthRevenue, yearRevenue, bookingsCount, spacesCount] = await Promise.all([
+  // The checklist sends to pages that need these capabilities; a member who
+  // cannot act on them (an accountant) does not get a list of dead ends.
+  const showOnboarding =
+    canManageSpaces && ctx.capabilities.has("landlord:manage_verification");
+
+  const [monthRevenue, yearRevenue, bookingsCount, spacesCount, onboarding] = await Promise.all([
     canSeeRevenue
       ? sumKeptAmounts({ organizationId: ctx.activeOrgId, createdAt: { gte: startOfMonth } })
       : Promise.resolve(null),
@@ -41,6 +48,7 @@ export async function LandlordHome({
       where: { organizationId: ctx.activeOrgId, createdAt: { gte: startOfMonth } },
     }),
     prisma.space.count({ where: { organizationId: ctx.activeOrgId } }),
+    showOnboarding ? getLandlordOnboarding(ctx.activeOrgId) : Promise.resolve(null),
   ]);
 
   return (
@@ -53,6 +61,8 @@ export async function LandlordHome({
           Voici l&apos;activité de votre organisation ce mois-ci.
         </p>
       </div>
+
+      {onboarding && !onboarding.complete && <OnboardingChecklist onboarding={onboarding} />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         {monthRevenue && (
@@ -89,7 +99,7 @@ export async function LandlordHome({
         </Card>
       </div>
 
-      {spacesCount === 0 && canManageSpaces && (
+      {spacesCount === 0 && canManageSpaces && !(onboarding && !onboarding.complete) && (
         <EmptyState
           title="Aucun espace pour l'instant"
           description="Créez votre premier espace pour commencer à recevoir des demandes de réservation."
