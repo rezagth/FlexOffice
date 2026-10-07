@@ -25,7 +25,7 @@ export function Hero() {
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-t from-foreground via-foreground/70 to-foreground/30"
+        className="absolute inset-0 bg-gradient-to-t from-foreground via-foreground/75 to-foreground/50"
       />
       <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-20 text-center sm:py-28">
         <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-background sm:text-5xl">

@@ -122,9 +122,14 @@
   border-color: var(--border);
 }
 
-:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+/* In the base layer so a component's own focus style (`focus-visible:ring-*`
+ * with `outline-none`) wins; unlayered, this outline was drawn on top of the
+ * ring, a double indicator. Still applies to every element without one. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
 
 /* Skip link (UX-19): visually hidden until focused by keyboard. */
