@@ -2,7 +2,12 @@ import { listActiveMemberships } from "@/server/auth/active-context";
 import { requirePageAuth } from "@/server/auth/page-guards";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
-import { GdprActions } from "@/components/dashboard/gdpr-actions";
+import { AccountDataActions } from "@/components/auth/account-data-actions";
+import { AccountEmailForm } from "@/components/auth/account-email-form";
+import { AccountPasswordForm } from "@/components/auth/account-password-form";
+import { AccountProfileForm } from "@/components/auth/account-profile-form";
+import { FormMessage } from "@/components/auth/form-field";
+import { getOwnProfile } from "@/server/domains/users/profile";
 
 export const metadata = { title: "Compte — OfficeFlex" };
 export const dynamic = "force-dynamic";
@@ -25,13 +30,27 @@ const ORG_ROLE_LABELS: Record<string, string> = {
  * Reached in either mode: your account is not part of what you are currently
  * doing.
  */
-export default async function AccountPage() {
+export default async function AccountPage({ searchParams }: PageProps<"/app/account">) {
   const ctx = await requirePageAuth({ redirectTo: "/app/account" });
-  const memberships = ctx.isLandlord ? await listActiveMemberships(ctx.userId) : [];
+  const [memberships, profile, { email: emailFlag }] = await Promise.all([
+    ctx.isLandlord ? listActiveMemberships(ctx.userId) : Promise.resolve([]),
+    getOwnProfile(ctx.userId),
+    searchParams,
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold text-foreground">Compte</h1>
+
+      {emailFlag === "confirmed" && (
+        <div className="max-w-lg">
+          <FormMessage tone="success">
+            Lien confirmé. Si un second lien a été envoyé à votre autre adresse, cliquez
+            aussi dessus : le changement d&apos;adresse prend effet une fois les deux
+            confirmés.
+          </FormMessage>
+        </div>
+      )}
 
       <Card className="max-w-lg p-5">
         <dl className="flex flex-col gap-3 text-sm">
@@ -103,14 +122,31 @@ export default async function AccountPage() {
       )}
 
       <Card className="max-w-lg p-5">
-        <h2 className="mb-4 text-lg font-medium">Mes données personnelles</h2>
-        <GdprActions />
+        <h2 className="mb-4 text-lg font-medium">Mes informations</h2>
+        <AccountProfileForm initialName={profile?.name ?? ctx.name} initialPhone={profile?.phone ?? ""} />
       </Card>
 
-      <p className="max-w-lg text-sm text-muted-foreground">
-        La modification des informations de profil arrive dans une prochaine
-        itération.
-      </p>
+      <Card className="max-w-lg p-5">
+        <h2 className="mb-4 text-lg font-medium">Adresse e-mail</h2>
+        <AccountEmailForm currentEmail={profile?.email ?? ctx.email} />
+      </Card>
+
+      <Card className="max-w-lg p-5">
+        <h2 className="mb-4 text-lg font-medium">Mot de passe</h2>
+        <AccountPasswordForm />
+      </Card>
+
+      <Card className="max-w-lg p-5">
+        <h2 className="mb-4 text-lg font-medium">Mes données personnelles</h2>
+        <AccountDataActions />
+        {profile?.termsAcceptedAt && (
+          <p className="mt-4 border-t border-border pt-4 text-xs text-muted-foreground">
+            Conditions générales et politique de confidentialité acceptées le{" "}
+            {profile.termsAcceptedAt.toLocaleDateString("fr-FR", { dateStyle: "long", timeZone: "Europe/Paris" })}{" "}
+            (version du {profile.termsVersion}).
+          </p>
+        )}
+      </Card>
     </div>
   );
 }
