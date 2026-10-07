@@ -9,6 +9,13 @@ import { PaginationControls } from "@/components/dashboard/pagination-controls";
 import { SortLink } from "@/components/dashboard/sort-link";
 import { parsePageParam, paginationOffsets, totalPageCount } from "@/lib/pagination";
 import { formatDateTime } from "@/lib/format";
+import { AdminActionButton } from "@/components/dashboard/admin-action-button";
+
+const ORGANIZATION_STATUS_LABELS: Record<string, string> = {
+  PENDING_VERIFICATION: "En attente de vérification",
+  VERIFIED: "Vérifiée",
+  SUSPENDED: "Suspendue",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +137,9 @@ export default async function AdminOrganizationsPage({
                     searchParams={activeParams}
                   />
                 </TableHead>
+                <TableHead>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,12 +147,32 @@ export default async function AdminOrganizationsPage({
                 <TableRow key={org.id}>
                   <TableCell className="font-medium">{org.name}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    SIRET {org.siret} · {org.city}
+                    {org.siret ? `SIRET ${org.siret} · ` : ""}
+                    {org.city}
                   </TableCell>
                   <TableCell className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {org.status}
+                    {ORGANIZATION_STATUS_LABELS[org.status] ?? org.status}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDateTime(org.createdAt)}</TableCell>
+                  <TableCell>
+                    {org.status === "SUSPENDED" ? (
+                      <AdminActionButton
+                        url={`/api/admin/organizations/${org.id}/reactivate`}
+                        label="Réactiver"
+                        confirmLabel="Confirmer la réactivation"
+                        warning="Ses annonces validées redeviennent visibles si son dossier est approuvé."
+                      />
+                    ) : (
+                      <AdminActionButton
+                        url={`/api/admin/organizations/${org.id}/suspend`}
+                        label="Suspendre"
+                        confirmLabel="Confirmer la suspension"
+                        reason="required"
+                        reasonLabel="Motif de la suspension"
+                        warning="Ses annonces quittent le catalogue immédiatement. Les réservations confirmées ne sont pas annulées."
+                      />
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

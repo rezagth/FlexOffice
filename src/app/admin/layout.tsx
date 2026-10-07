@@ -3,12 +3,13 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Vue d'ensemble" },
+  { href: "/admin/users", label: "Utilisateurs" },
   { href: "/admin/organizations", label: "Entreprises" },
   { href: "/admin/verifications", label: "Vérifications" },
   { href: "/admin/listings", label: "Annonces" },
   { href: "/admin/payments", label: "Paiements" },
   { href: "/admin/disputes", label: "Litiges" },
-  { href: "/admin/stripe-disputes", label: "Litiges Stripe" },
+  { href: "/admin/stripe-disputes", label: "Contestations Stripe" },
   { href: "/admin/support", label: "Support" },
 ];
 
