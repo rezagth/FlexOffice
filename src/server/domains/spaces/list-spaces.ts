@@ -1,11 +1,19 @@
-import type { SpaceAmenity } from "@/generated/prisma/client";
+import type { SpaceAmenity, SpaceType } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { STATUSES_ALLOWED_TO_PUBLISH } from "@/server/domains/organizations/publication-guard";
 import { recordSearchEvent } from "@/server/domains/analytics/search-events";
 import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import { isSpaceAvailableOnDate } from "@/server/domains/bookings/availability";
-import { SPACE_AMENITY_LABELS } from "@/lib/format";
+import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
+import {
+  SEARCH_MAX_PAGE,
+  SEARCH_MAX_PAGE_SIZE,
+  SEARCH_PAGE_SIZE,
+  type SearchSort,
+} from "@/lib/validation/search";
 import { MOCK_SPACES } from "./mock-data";
+
+type MockSpace = (typeof MOCK_SPACES)[number];
 import { isProductionDeployment } from "@/server/auth/runtime-config";
 
 const VALID_AMENITIES = new Set(Object.keys(SPACE_AMENITY_LABELS));
@@ -124,117 +132,226 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+export type PublishedSpaceSearch = {
+  city?: string;
+  near?: { lat: number; lng: number };
+  capacity?: number;
+  amenities?: string[];
+  date?: string;
+  /** A SpaceType value; anything else is ignored. */
+  type?: string;
+  /** Upper bound on the full-day list price, in cents. */
+  maxPriceCents?: number;
+  sort?: SearchSort;
+  /** 1-based. */
+  page?: number;
+  limit?: number;
+  track?: boolean;
+};
+
+export type PublishedSpacesPage<T> = {
+  spaces: T[];
+  /** Matching spaces across every page. */
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
 /**
- * Public space search — city substring match, plus an optional distance
- * sort when the caller supplies its own coordinates (browser geolocation,
- * see search-geolocation.tsx). No auth required: browsing published
- * listings is public, same as the rest of the marketplace's "Découvrir"
- * experience. Date/capacity/amenities filters are noted as future work, not
- * silently ignored — the search page below says so.
+ * When the date filter or the distance sort is used, matching cannot happen
+ * entirely in SQL (availability depends on each space's opening hours,
+ * closures and bookings; distance is computed here), so at most this many
+ * candidates are read — in the requested order — and filtered/sorted in
+ * memory before being paginated. Beyond that the results are truncated; the
+ * same trade-off the previous fixed `take: 50` made, with a higher ceiling.
+ */
+export const IN_MEMORY_CANDIDATE_CAP = 100;
+
+const VALID_SPACE_TYPES = new Set(Object.keys(SPACE_TYPE_LABELS));
+
+function normalizePaging(params: PublishedSpaceSearch) {
+  const pageSize = Math.min(
+    Math.max(Math.floor(params.limit ?? SEARCH_PAGE_SIZE), 1),
+    SEARCH_MAX_PAGE_SIZE
+  );
+  const page = Math.min(Math.max(Math.floor(params.page ?? 1), 1), SEARCH_MAX_PAGE);
+  return { page, pageSize };
+}
+
+function pageOf<T>(items: T[], page: number, pageSize: number): PublishedSpacesPage<T> {
+  return {
+    spaces: items.slice((page - 1) * pageSize, page * pageSize),
+    total: items.length,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(items.length / pageSize)),
+  };
+}
+
+function compareDistance(a: { distanceKm: number | null }, b: { distanceKm: number | null }) {
+  if (a.distanceKm == null && b.distanceKm == null) return 0;
+  if (a.distanceKm == null) return 1;
+  if (b.distanceKm == null) return -1;
+  return a.distanceKm - b.distanceKm;
+}
+
+/**
+ * Public space search — city substring match, capacity floor, amenities
+ * (must have every one requested), space type, maximum full-day price,
+ * same-day availability, an optional distance sort when the caller supplies
+ * its own coordinates (browser geolocation, see search-geolocation.tsx), a
+ * sort order and pagination. No auth required: browsing published listings
+ * is public.
+ *
+ * Sort: `relevance` is "closest first" when a position is given, "most recent
+ * first" otherwise; `price_asc` / `price_desc` order by the full-day list
+ * price (before any discount). Ties are broken by id so pages never overlap.
  *
  * A space whose property has no coordinates yet (geocoding failed, or it
  * predates geocodeAddress()) is kept, just not distance-sorted — it is
- * appended after every space that does have one, rather than dropped from
- * the results.
+ * appended after every space that does have one, rather than dropped.
  *
- * `capacity` (>=) and `amenities` (must have every one requested) are
- * applied in the database query. `date` is not: availability depends on
- * each space's own opening hours/closures/bookings, so it is checked
- * per-candidate via isSpaceAvailableOnDate() after the DB filter narrows
- * the list — same N-calls-for-N-spaces tradeoff summarizeMonth() already
- * accepts for a page-sized (`take: 50`) result set, not a hot inner loop.
+ * `capacity`, `amenities`, `type` and `maxPriceCents` are applied in the
+ * database query and paginated there (`count` + `skip`/`take`). `date` and
+ * the distance sort are not — see IN_MEMORY_CANDIDATE_CAP.
  *
- * None of the three run against the demo mock data — same as `near`
- * above, mock mode only ever supported the city filter.
+ * Demo mode (no database) applies the same filters, sort and pagination to
+ * the static mock listings — except `date` and the amenities, which mock data
+ * cannot answer (no bookings, free-text amenity labels).
  *
  * `track: true` records a `SearchEvent` (see analytics/search-events.ts),
  * used only for the recherche → réservation conversion KPI. Passed only by
  * the actual search surfaces (`/search`, `GET /api/spaces`) — the landing
  * page calls this same function for its "espaces à la une" preview, which
- * is not a visitor searching and must not inflate the denominator.
+ * is not a visitor searching and must not inflate the denominator. The
+ * recorded count is the total across pages, not the size of one page.
  */
-export async function listPublishedSpaces(
-  params: {
-    city?: string;
-    near?: { lat: number; lng: number };
-    capacity?: number;
-    amenities?: string[];
-    date?: string;
-    track?: boolean;
-  } = {}
-) {
-  if (servesNothing) return [];
+export async function searchPublishedSpaces(params: PublishedSpaceSearch = {}) {
+  const { page, pageSize } = normalizePaging(params);
+  const sort: SearchSort = params.sort ?? "relevance";
+  const type = params.type && VALID_SPACE_TYPES.has(params.type) ? params.type : undefined;
+  const maxPriceCents =
+    params.maxPriceCents != null && params.maxPriceCents > 0 ? params.maxPriceCents : undefined;
+
+  if (servesNothing) return pageOf<MockSpace & { distanceKm: number | null }>([], page, pageSize);
   if (useMockData) {
     const city = params.city?.toLowerCase();
-    return MOCK_SPACES.filter(
-      (space) => !city || space.city.toLowerCase().includes(city)
-    );
+    const matches = MOCK_SPACES.filter(
+      (space) =>
+        (!city || space.city.toLowerCase().includes(city)) &&
+        (!params.capacity || space.capacity >= params.capacity) &&
+        (!type || space.type === type) &&
+        (!maxPriceCents || space.dayPriceCents <= maxPriceCents)
+    ).map((space) => ({ ...space, distanceKm: null as number | null }));
+    if (sort === "price_asc") matches.sort((a, b) => a.dayPriceCents - b.dayPriceCents);
+    if (sort === "price_desc") matches.sort((a, b) => b.dayPriceCents - a.dayPriceCents);
+    return pageOf(matches, page, pageSize);
   }
 
   const amenityFilter = sanitizeAmenities(params.amenities);
+  const where = {
+    status: "PUBLISHED" as const,
+    organization: publiclyVisibleOrganization(),
+    ...(params.city ? { city: { contains: params.city, mode: "insensitive" as const } } : {}),
+    ...(params.capacity ? { capacity: { gte: params.capacity } } : {}),
+    ...(amenityFilter.length ? { amenities: { hasEvery: amenityFilter } } : {}),
+    ...(type ? { type: type as SpaceType } : {}),
+    ...(maxPriceCents ? { dayPriceCents: { lte: maxPriceCents } } : {}),
+  };
+  const orderBy =
+    sort === "price_asc"
+      ? [{ dayPriceCents: "asc" as const }, { id: "asc" as const }]
+      : sort === "price_desc"
+        ? [{ dayPriceCents: "desc" as const }, { id: "asc" as const }]
+        : [{ createdAt: "desc" as const }, { id: "asc" as const }];
+  const select = {
+    ...publicSpaceScalars(),
+    organization: { select: { name: true, status: true } },
+    property: { select: { latitude: true, longitude: true } },
+    spacePhotos: spacePhotosInclude(),
+  };
 
-  const rawSpaces = await prisma.space.findMany({
-    where: {
-      status: "PUBLISHED",
-      organization: publiclyVisibleOrganization(),
-      ...(params.city
-        ? { city: { contains: params.city, mode: "insensitive" } }
-        : {}),
-      ...(params.capacity ? { capacity: { gte: params.capacity } } : {}),
-      ...(amenityFilter.length ? { amenities: { hasEvery: amenityFilter } } : {}),
-    },
-    select: {
-      ...publicSpaceScalars(),
-      organization: { select: { name: true, status: true } },
-      property: { select: { latitude: true, longitude: true } },
-      spacePhotos: spacePhotosInclude(),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  });
-
-  let spaces = rawSpaces.map(({ spacePhotos, ...space }) => ({
-    ...space,
-    photos: resolvePhotoUrls(space.photos, spacePhotos),
-  }));
-
-  if (params.date) {
-    const availableFlags = await Promise.all(
-      spaces.map((space) => isSpaceAvailableOnDate(space.id, params.date!))
-    );
-    spaces = spaces.filter((_, i) => availableFlags[i]);
+  const toPublic = (rawSpaces: Awaited<ReturnType<typeof findSpaces>>) =>
+    rawSpaces.map(({ spacePhotos, ...space }) => ({
+      ...space,
+      photos: resolvePhotoUrls(space.photos, spacePhotos),
+      distanceKm: null as number | null,
+    }));
+  function findSpaces(skip: number, take: number) {
+    return prisma.space.findMany({ where, select, orderBy, skip, take });
   }
 
-  if (!params.near) {
-    if (params.track) {
-      await recordSearchEvent({ city: params.city, hasGeo: false, resultsCount: spaces.length });
+  let result: PublishedSpacesPage<ReturnType<typeof toPublic>[number]>;
+
+  if (!params.date && !params.near) {
+    const [total, rawSpaces] = await Promise.all([
+      prisma.space.count({ where }),
+      findSpaces((page - 1) * pageSize, pageSize),
+    ]);
+    result = {
+      spaces: toPublic(rawSpaces),
+      total,
+      page,
+      pageSize,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  } else {
+    let spaces = toPublic(await findSpaces(0, IN_MEMORY_CANDIDATE_CAP));
+
+    if (params.date) {
+      const availableFlags = await Promise.all(
+        spaces.map((space) => isSpaceAvailableOnDate(space.id, params.date!))
+      );
+      spaces = spaces.filter((_, i) => availableFlags[i]);
     }
-    return spaces;
+
+    if (params.near) {
+      const near = params.near;
+      spaces = spaces.map((space) => ({
+        ...space,
+        distanceKm:
+          space.property.latitude != null && space.property.longitude != null
+            ? distanceKm(near, { lat: space.property.latitude, lng: space.property.longitude })
+            : null,
+      }));
+      // A price sort keeps its order; distance only decides "relevance".
+      if (sort === "relevance") spaces.sort(compareDistance);
+    }
+
+    result = pageOf(spaces, page, pageSize);
   }
-
-  const withDistance = spaces.map((space) => ({
-    ...space,
-    distanceKm:
-      space.property.latitude != null && space.property.longitude != null
-        ? distanceKm(
-            { lat: params.near!.lat, lng: params.near!.lng },
-            { lat: space.property.latitude, lng: space.property.longitude }
-          )
-        : null,
-  }));
-
-  withDistance.sort((a, b) => {
-    if (a.distanceKm == null && b.distanceKm == null) return 0;
-    if (a.distanceKm == null) return 1;
-    if (b.distanceKm == null) return -1;
-    return a.distanceKm - b.distanceKm;
-  });
 
   if (params.track) {
-    await recordSearchEvent({ city: params.city, hasGeo: true, resultsCount: withDistance.length });
+    await recordSearchEvent({
+      city: params.city,
+      hasGeo: Boolean(params.near),
+      resultsCount: result.total,
+    });
   }
 
-  return withDistance;
+  return result;
+}
+
+/** One page of matching spaces, without the pagination metadata — for
+ * callers that only need a short list (the landing page's featured spaces). */
+export async function listPublishedSpaces(params: PublishedSpaceSearch = {}) {
+  return (await searchPublishedSpaces(params)).spaces;
+}
+
+/**
+ * Every published slug, for sitemap.xml. Same visibility rule as the public
+ * reads; selects nothing but the slug and the last modification date.
+ */
+export async function listPublishedSpaceSlugs(): Promise<{ slug: string; updatedAt?: Date }[]> {
+  if (servesNothing) return [];
+  if (useMockData) return MOCK_SPACES.map((space) => ({ slug: space.slug }));
+  return prisma.space.findMany({
+    where: { status: "PUBLISHED", organization: publiclyVisibleOrganization() },
+    select: { slug: true, updatedAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 5000,
+  });
 }
 
 export async function getPublishedSpaceBySlug(slug: string) {

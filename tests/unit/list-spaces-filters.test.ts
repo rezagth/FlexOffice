@@ -43,8 +43,12 @@ const spaceFindMany = vi.fn(async ({ where }: { where: Record<string, unknown> }
 
 const isSpaceAvailableOnDateMock = vi.fn<(spaceId: string, dateStr: string) => Promise<boolean>>();
 
+const spaceCount = vi.fn(async (args: { where: Record<string, unknown> }) =>
+  (await spaceFindMany(args)).length
+);
+
 vi.mock("@/server/db/prisma", () => ({
-  prisma: { space: { findMany: spaceFindMany, findFirst: vi.fn() } },
+  prisma: { space: { findMany: spaceFindMany, findFirst: vi.fn(), count: spaceCount } },
 }));
 
 vi.mock("@/server/domains/media/photo-storage", () => ({

@@ -16,7 +16,8 @@ const favoriteFindMany = vi.fn();
 
 vi.mock("@/server/db/prisma", () => ({
   prisma: {
-    space: { findMany: spaceFindMany, findFirst: spaceFindFirst },
+    // `count` returns no row at all — it only feeds the pagination total.
+    space: { findMany: spaceFindMany, findFirst: spaceFindFirst, count: vi.fn().mockResolvedValue(0) },
     favorite: { findMany: favoriteFindMany },
   },
 }));
