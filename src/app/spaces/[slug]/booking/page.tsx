@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { parseSpaceSearchParams } from "@/lib/validation/search";
+import { SiteFooter } from "@/components/marketing/site-footer";
 import { getPublishedSpaceBySlug } from "@/server/domains/spaces/list-spaces";
 import { getAuthContext } from "@/server/auth/rbac";
 import { computeDaySlots } from "@/server/domains/bookings/availability";
@@ -10,6 +13,18 @@ import { Input } from "@/components/ui/input";
 import { BookingFunnel, type SlotOption } from "@/components/booking/booking-funnel";
 
 export const dynamic = "force-dynamic";
+
+// A booking step, behind sign-in: useless in a search engine (UX-10).
+export async function generateMetadata({
+  params,
+}: PageProps<"/spaces/[slug]/booking">): Promise<Metadata> {
+  const { slug } = await params;
+  const space = await getPublishedSpaceBySlug(slug);
+  return {
+    title: space ? `Réserver ${space.name} — OfficeFlex` : "Réservation — OfficeFlex",
+    robots: { index: false, follow: false },
+  };
+}
 
 function todayIso(): string {
   const now = new Date();
@@ -24,10 +39,13 @@ export default async function BookingPage({
   const { date: dateParam } = await searchParams;
   const [space, ctx] = await Promise.all([getPublishedSpaceBySlug(slug), getAuthContext()]);
   if (!space) notFound();
-  if (!ctx) redirect(`/login?redirectTo=/spaces/${slug}/booking`);
+  const requestedDate = parseSpaceSearchParams({ date: dateParam }).date;
+  if (!ctx) {
+    const back = `/spaces/${slug}/booking${requestedDate ? `?date=${requestedDate}` : ""}`;
+    redirect(`/login?redirectTo=${encodeURIComponent(back)}`);
+  }
 
-  const date =
-    typeof dateParam === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : todayIso();
+  const date = requestedDate ?? todayIso();
 
   const daySlots = await computeDaySlots(space.id, date);
   const slots: SlotOption[] = daySlots
@@ -51,7 +69,7 @@ export default async function BookingPage({
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-10">
+      <main id="contenu" className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Réserver {space.name}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -80,6 +98,7 @@ export default async function BookingPage({
           timeZone={"timezone" in space ? space.timezone : undefined}
         />
       </main>
+      <SiteFooter />
     </div>
   );
 }
