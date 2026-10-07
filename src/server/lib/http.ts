@@ -3,6 +3,15 @@ import { ZodError } from "zod";
 import { AppError, RateLimitedError } from "./errors";
 import { logError } from "./logger";
 import { assertSameOriginRequest } from "./request-origin";
+// Every route handler goes through this module: configuring Zod's French
+// messages here covers all server-side parsing.
+import "@/lib/validation/zod-locale";
+
+/** Generic messages of the error envelope — shown to the visitor, so in
+ * French; the detail of an unexpected error stays in the logs. */
+export const GENERIC_VALIDATION_MESSAGE = "Les informations saisies sont invalides.";
+export const GENERIC_INTERNAL_ERROR_MESSAGE =
+  "Une erreur inattendue est survenue. Réessayez dans quelques instants.";
 
 /**
  * Wraps a Route Handler so thrown `AppError`s (unauthorized, forbidden,
@@ -39,7 +48,7 @@ export function withErrorHandling<Args extends unknown[]>(
           {
             error: {
               code: "VALIDATION_ERROR",
-              message: "Invalid input",
+              message: GENERIC_VALIDATION_MESSAGE,
               issues: error.issues,
             },
           },
@@ -48,7 +57,7 @@ export function withErrorHandling<Args extends unknown[]>(
       }
       logError({ event: "http.unhandled_error", error });
       return NextResponse.json(
-        { error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
+        { error: { code: "INTERNAL_ERROR", message: GENERIC_INTERNAL_ERROR_MESSAGE } },
         { status: 500 }
       );
     }

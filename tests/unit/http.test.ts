@@ -48,4 +48,27 @@ describe("withErrorHandling", () => {
     expect(body.error.message).not.toContain("hunter2");
     expect(body.error.code).toBe("INTERNAL_ERROR");
   });
+
+  it("answers in French: default AppError messages, Zod issues and the generic 500", async () => {
+    const notFound = await withErrorHandling(async () => {
+      throw new NotFoundError();
+    })(new Request("http://test.local"));
+    expect((await notFound.json()).error.message).toBe("Élément introuvable.");
+
+    const schema = z.object({ email: z.email(), name: z.string().min(3) });
+    const invalid = await withErrorHandling(async () => {
+      schema.parse({ email: "not-an-email", name: "a" });
+      return new Response("unreachable");
+    })(new Request("http://test.local"));
+    const invalidBody = await invalid.json();
+    expect(invalidBody.error.message).toBe("Les informations saisies sont invalides.");
+    const issueMessages = invalidBody.error.issues.map((i: { message: string }) => i.message);
+    expect(issueMessages.join(" ")).not.toMatch(/Invalid|Too small/);
+    expect(issueMessages[0]).toMatch(/invalide/i);
+
+    const crash = await withErrorHandling(async () => {
+      throw new Error("boom");
+    })(new Request("http://test.local"));
+    expect((await crash.json()).error.message).toMatch(/erreur inattendue/i);
+  });
 });
