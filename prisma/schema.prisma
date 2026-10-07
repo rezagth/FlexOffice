@@ -79,6 +79,13 @@ model Profile {
   // therefore cannot be hard-deleted, see bookings_client_user_id_fkey
   // ON DELETE RESTRICT). name/email/phone are anonymized at the same time.
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+  /// B-11: when the CGU and privacy policy were accepted, and which version
+  /// (src/lib/legal-versions.ts). Written server-side by the register domain
+  /// only — never derived from signup metadata. Null for accounts created
+  /// before acceptance was recorded. Pair kept consistent by
+  /// `profiles_terms_acceptance_pair_check`.
+  termsAcceptedAt DateTime? @map("terms_accepted_at") @db.Timestamptz(3)
+  termsVersion    String?   @map("terms_version")
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -223,6 +230,9 @@ model VerificationDocument {
   /// RGPD: when set, a retention job (a later phase) purges the object and
   /// this row past this date. Null means "still part of an active dossier".
   retentionUntil      DateTime? @map("retention_until") @db.Timestamptz(3)
+  /// The Storage object was deleted (account erasure, or the retention
+  /// purge in users/retention.ts). The row stays for the dossier's history.
+  purgedAt            DateTime? @map("purged_at") @db.Timestamptz(3)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -745,6 +755,10 @@ model Booking {
   respondedAt           DateTime?          @map("responded_at") @db.Timestamptz(3)
   cancelledAt           DateTime?          @map("cancelled_at") @db.Timestamptz(3)
   cancelledBy           CancellationActor? @map("cancelled_by")
+  /// B-11: the CGV accepted by the client when sending the request. Null
+  /// for bookings created before acceptance was recorded.
+  cgvAcceptedAt         DateTime?          @map("cgv_accepted_at") @db.Timestamptz(3)
+  cgvVersion            String?            @map("cgv_version")
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
