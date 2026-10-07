@@ -4,6 +4,7 @@ import type { AuthContext } from "@/server/auth/rbac";
 import type { MembershipSummary } from "@/server/auth/active-context";
 import { ModeSwitcher } from "./mode-switcher";
 import { SignOutButton } from "./sign-out-button";
+import { CollapsibleSidebar, SidebarNav } from "@/components/ui/sidebar-nav";
 
 /**
  * The shell for the unified `/app` space.
@@ -81,18 +82,17 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <a
-        href="#app-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
-      >
+      <a href="#app-content" className="skip-link">
         Aller au contenu
       </a>
 
-      <aside className="flex w-full shrink-0 flex-col gap-6 border-b border-border bg-card px-6 py-6 md:min-h-screen md:w-64 md:border-b-0 md:border-r">
-        <Link href="/" className="text-lg font-semibold text-foreground">
-          OfficeFlex
-        </Link>
-
+      <CollapsibleSidebar
+        brand={
+          <Link href="/" className="text-lg font-semibold text-foreground">
+            OfficeFlex
+          </Link>
+        }
+      >
         <ModeSwitcher
           activeMode={ctx.activeMode}
           isLandlord={ctx.isLandlord}
@@ -100,17 +100,7 @@ export function AppShell({
           activeOrgId={ctx.activeOrgId}
         />
 
-        <nav aria-label="Navigation principale" className="flex flex-1 flex-col gap-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <SidebarNav items={navItems} label="Navigation de l'espace" />
 
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           {/* Shown so an administrator can reach the back office without
@@ -133,9 +123,9 @@ export function AppShell({
           <p className="truncate text-sm font-medium text-foreground">{ctx.name}</p>
           <SignOutButton />
         </div>
-      </aside>
+      </CollapsibleSidebar>
 
-      <main id="app-content" className="flex-1 px-6 py-8 md:px-10">
+      <main id="app-content" tabIndex={-1} className="flex-1 px-6 py-8 focus:outline-none md:px-10">
         {children}
       </main>
     </div>
