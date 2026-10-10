@@ -150,7 +150,10 @@ describe.skipIf(!hasDatabase)("GDPR erasure, export and retention", () => {
       "refuses with a French 409 while a %s booking is upcoming, changing nothing",
       async (status) => {
         const client = await user(`Client ${status}`);
-        const startsAt = new Date(Date.now() + 7 * 24 * 3600 * 1000 + Math.random() * 1e9);
+        // One distinct day per status: all three share the same space, and a random start could
+        // overlap another case's booking and trip bookings_no_overlap_excl (flaky ~6 % of runs).
+        const dayOffset = 7 + (["PENDING", "CONFIRMED", "AWAITING_PAYMENT"] as const).indexOf(status) * 2;
+        const startsAt = new Date(Date.now() + dayOffset * 24 * 3600 * 1000);
         await booking(client.id, { startsAt, endsAt: new Date(startsAt.getTime() + 3 * 3600 * 1000), status });
 
         await expect(
