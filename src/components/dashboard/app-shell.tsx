@@ -63,6 +63,7 @@ function landlordNav(capabilities: AuthContext["capabilities"]): NavItem[] {
   items.push({ href: "/app/messages", label: "Messagerie" });
   if (capabilities.has("landlord:view_revenue")) {
     items.push({ href: "/app/landlord/revenue", label: "Comptabilité" });
+    items.push({ href: "/app/landlord/payouts", label: "Versements" });
   }
   items.push({ href: "/app/account", label: "Compte" });
   items.push({ href: "/contact", label: "Nous contacter" });

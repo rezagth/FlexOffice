@@ -6,7 +6,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { RaiseDisputeButton } from "@/components/dashboard/raise-dispute-button";
 import { CancelBookingButton } from "@/components/dashboard/cancel-booking-button";
 import { BOOKING_STATUS_LABELS, formatCents, formatDateTime } from "@/lib/format";
-import { clientCancellationRefund } from "@/lib/cancellation-policy";
+import { cancellationWindowLabel, clientCancellationRefund } from "@/lib/cancellation-policy";
 import { ReviewForm } from "@/components/reviews/review-form";
 import { StarRating } from "@/components/reviews/star-rating";
 import { reviewEligibility } from "@/server/domains/reviews/reviews";
@@ -32,6 +32,7 @@ function cancellationConsequence(booking: {
   status: string;
   priceAmountCents: number;
   commissionAmountCents: number;
+  cancellationWindowHours: number;
   startsAt: Date;
 }): string | null {
   if (booking.startsAt.getTime() <= Date.now()) return null;
@@ -40,11 +41,13 @@ function cancellationConsequence(booking: {
   }
   if (booking.status !== "CONFIRMED") return null;
   const { tier, refundCents } = clientCancellationRefund(booking);
-  if (tier === "NONE") {
-    return "Moins de 24 h avant le début : aucun remboursement ne sera dû.";
-  }
+  const label = cancellationWindowLabel(booking.cancellationWindowHours);
   return `Vous serez remboursé de ${formatCents(refundCents)} (${
-    tier === "FULL" ? "plus de 48 h avant le début" : "entre 48 h et 24 h avant le début : 50 %"
+    tier === "FULL"
+      ? label
+        ? `plus de ${label} avant le début`
+        : "annulation sans délai"
+      : `moins de ${label} avant le début : 50 % du prix`
   }). Les frais de service ne sont pas remboursables.`;
 }
 

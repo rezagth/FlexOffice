@@ -96,6 +96,11 @@ export default async function BookingPage({
           slots={slots}
           capacity={space.capacity}
           timeZone={"timezone" in space ? space.timezone : undefined}
+          cancellationWindowHours={
+            "cancellationWindowHours" in space && typeof space.cancellationWindowHours === "number"
+              ? space.cancellationWindowHours
+              : undefined
+          }
         />
       </main>
       <SiteFooter />

@@ -14,7 +14,7 @@ export function StripeConnectButton({ label }: { label: string }) {
       const response = await fetch("/api/landlord/stripe/connect", { method: "POST" });
       const body = await response.json();
       if (!response.ok) {
-        setError(body?.error?.message ?? "La connexion à Stripe a échoué.");
+        setError(body?.error?.message ?? "L'enregistrement des coordonnées bancaires a échoué.");
         setPending(false);
         return;
       }
