@@ -1,44 +1,42 @@
-import { ButtonLink } from "@/components/ui/button";
+import Image from "next/image";
 import { HeroSearch } from "./hero-search";
 
+/**
+ * Landing hero. The background is a local illustration in public/images
+ * (UX-18): it used to be hot-linked from images.unsplash.com, a third-party
+ * request on every visit and a page whose largest element depended on it.
+ * It is the LCP element, hence `preload` (Next 16's replacement for
+ * `priority`) and `fetchPriority="high"`.
+ *
+ * `surface-dark` turns focus rings gold on the navy background (UX-19); the
+ * white search card resets them to navy.
+ */
 export function Hero() {
   return (
-    <section className="border-b border-border bg-card">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-8 px-6 py-16 text-center sm:py-24">
-        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-          Recevez vos clients dans un vrai espace professionnel
+    <section className="surface-dark relative overflow-hidden bg-foreground">
+      <Image
+        src="/images/hero-office.svg"
+        alt=""
+        fill
+        preload
+        fetchPriority="high"
+        sizes="100vw"
+        className="object-cover"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-gradient-to-t from-foreground via-foreground/75 to-foreground/50"
+      />
+      <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-20 text-center sm:py-28">
+        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-background sm:text-5xl">
+          Recevez vos clients dans un vrai espace professionnel.
         </h1>
-        <p className="max-w-2xl text-base text-muted-foreground sm:text-lg">
-          OfficeFlex met en relation des entreprises qui ont des bureaux
-          sous-utilisés avec des professionnels qui cherchent une salle de réunion,
-          un bureau ou un espace de formation, à la demi-journée ou à la journée —
-          sans engagement.
+        <p className="max-w-2xl text-base text-background/85 sm:text-lg">
+          Réservez un bureau d&apos;entreprise à la journée ou à la demi-journée, sans
+          abonnement.
         </p>
 
         <HeroSearch />
-
-        <div className="grid w-full max-w-2xl grid-cols-1 gap-4 pt-4 sm:grid-cols-2">
-          <div className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-background p-5 text-left">
-            <p className="text-sm font-medium text-muted-foreground">Locataire</p>
-            <p className="text-base font-semibold text-foreground">
-              Trouvez un espace pour votre prochain rendez-vous
-            </p>
-            <ButtonLink href="/search" variant="primary" size="sm">
-              Trouvez un espace
-            </ButtonLink>
-          </div>
-          <div className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-background p-5 text-left">
-            <p className="text-sm font-medium text-muted-foreground">
-              Entreprise partenaire
-            </p>
-            <p className="text-base font-semibold text-foreground">
-              Monétisez vos espaces sous-utilisés
-            </p>
-            <ButtonLink href="/register" variant="secondary" size="sm">
-              Publiez votre espace
-            </ButtonLink>
-          </div>
-        </div>
       </div>
     </section>
   );

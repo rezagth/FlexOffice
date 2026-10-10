@@ -118,7 +118,7 @@ async function main() {
   // role: "ADMIN" in user_metadata no longer does anything. Promotion is an
   // explicit privileged write, which is exactly the point.
   const adminUserId = await ensureUser(admin, accounts.admin.email, accounts.admin.password.value, {
-    name: "Admin OfficeFlex",
+    name: "Admin MakomSpace",
   });
   await prisma.profile.update({ where: { id: adminUserId }, data: { role: "ADMIN" } });
   console.log("  promoted to ADMIN");

@@ -1,5 +1,6 @@
-import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { clsx } from "clsx";
+import { ButtonLink } from "@/components/ui/button";
 import type { MonthDayStatus } from "@/server/domains/bookings/availability";
 
 const WEEKDAY_HEADERS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -51,19 +52,15 @@ export function MonthCalendar({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <Link
-          href={hrefForMonth(shiftMonth(yearMonth, -1))}
-          className="rounded-lg px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          ← Mois précédent
-        </Link>
+        <ButtonLink href={hrefForMonth(shiftMonth(yearMonth, -1))} variant="ghost" size="sm">
+          <ChevronLeft aria-hidden="true" />
+          Mois précédent
+        </ButtonLink>
         <p className="text-sm font-medium capitalize">{monthLabel}</p>
-        <Link
-          href={hrefForMonth(shiftMonth(yearMonth, 1))}
-          className="rounded-lg px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          Mois suivant →
-        </Link>
+        <ButtonLink href={hrefForMonth(shiftMonth(yearMonth, 1))} variant="ghost" size="sm">
+          Mois suivant
+          <ChevronRight aria-hidden="true" />
+        </ButtonLink>
       </div>
 
       <div className="grid grid-cols-7 gap-1">

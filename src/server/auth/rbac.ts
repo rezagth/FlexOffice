@@ -162,6 +162,15 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     return null;
   }
 
+  // An account suspended from the back office is treated exactly like a
+  // deleted one: no session resolves anywhere in the app (pages, route
+  // handlers, capabilities) until an administrator reactivates it. Re-read
+  // on every request, so a suspension takes effect at once.
+  if (profile.suspendedAt) {
+    logEvent({ event: "auth.suspended_account_rejected", user_id: userId });
+    return null;
+  }
+
   // The stored mode and organization are a preference, not a grant: the
   // membership is re-read here on every request, so a revoked or downgraded
   // membership takes effect immediately rather than at the next sign-in.

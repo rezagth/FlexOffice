@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "Messages — OfficeFlex" };
+export const metadata = { title: "Messages — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 /**

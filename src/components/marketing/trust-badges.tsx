@@ -1,20 +1,78 @@
-const BADGES = [
-  { title: "Entreprises vérifiées", description: "SIRET et email professionnel contrôlés avant publication." },
-  { title: "Paiement sécurisé", description: "Paiement en ligne géré par un prestataire certifié PCI-DSS." },
-  { title: "Espaces contrôlés", description: "Chaque annonce est modérée avant mise en ligne." },
-  { title: "Support dédié", description: "Une équipe disponible en cas de litige ou de question." },
+import { CalendarX, Lock, LifeBuoy, ShieldCheck } from "lucide-react";
+import type { ComponentType } from "react";
+
+/**
+ * Two of the four descriptions in the supplied mockup made specific
+ * operational claims this repo has no basis for ("inspection en 50 points
+ * de contrôle", "conciergerie disponible 24h/24") — neither figure appears
+ * in officeflex-context. Reworded to what the product actually does
+ * (SIRET/email/address verification, a support team, no 24/7 guarantee)
+ * rather than copying an unverified claim into production copy.
+ *
+ * Same rule for support (UX-27): "Support 7j/7" promised a weekend service
+ * nobody staffs; the badge now states a commitment the team can keep — an
+ * answer within 24 business hours.
+ */
+const GUARANTEES: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  badge: "dark" | "accent";
+}[] = [
+  {
+    icon: Lock,
+    title: "Paiement sécurisé",
+    description: "Paiement traité par un prestataire certifié PCI-DSS, sans stockage bancaire.",
+    badge: "dark",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Espaces vérifiés",
+    description: "Chaque espace est vérifié (SIRET, e-mail professionnel, adresse) avant publication.",
+    badge: "accent",
+  },
+  {
+    icon: LifeBuoy,
+    title: "Réponse sous 24 h ouvrées",
+    description:
+      "Une question ou un litige ? Notre équipe vous répond sous 24 heures ouvrées via le formulaire de contact.",
+    badge: "dark",
+  },
+  {
+    icon: CalendarX,
+    title: "Sans abonnement",
+    description: "Réservez à la demande, sans engagement ni abonnement long terme.",
+    badge: "accent",
+  },
 ];
 
 export function TrustBadges() {
   return (
-    <section>
-      <div className="mx-auto max-w-6xl px-6 py-16">
-        <h2 className="text-2xl font-semibold text-foreground">Confiance</h2>
+    <section className="border-b border-border bg-card">
+      <div className="mx-auto max-w-6xl px-6 py-16 text-center">
+        <h2 className="text-2xl font-semibold text-foreground">La garantie MakomSpace</h2>
+        <p className="mt-2 text-muted-foreground">
+          Réservez en toute sérénité grâce à nos standards de qualité élevés.
+        </p>
+
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {BADGES.map((badge) => (
-            <div key={badge.title} className="rounded-2xl border border-border p-5">
-              <p className="font-medium text-foreground">{badge.title}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{badge.description}</p>
+          {GUARANTEES.map((item) => (
+            <div
+              key={item.title}
+              className="flex flex-col items-center gap-3 rounded-2xl border border-border p-6 text-center"
+            >
+              <span
+                aria-hidden="true"
+                className={`flex h-12 w-12 items-center justify-center rounded-full ${
+                  item.badge === "dark"
+                    ? "bg-foreground text-background"
+                    : "bg-accent text-accent-foreground"
+                }`}
+              >
+                <item.icon className="size-5" />
+              </span>
+              <h3 className="font-sans text-base font-medium text-foreground">{item.title}</h3>
+              <p className="text-sm text-muted-foreground">{item.description}</p>
             </div>
           ))}
         </div>

@@ -12,16 +12,26 @@ export function formatDateTime(date: Date): string {
   });
 }
 
+/** Shown while a captured payment's invoice has not been numbered yet (the
+ * maintenance job issues it within minutes). */
+export const INVOICE_PENDING_LABEL = "Facture en cours d'émission";
+
 /**
- * Deterministic, human-readable invoice number derived from the payment
- * itself — never a separate counter to keep in step. Not a legally
- * sequential numbering (French invoicing law expects one); good enough to
- * identify one payment on a printed page, not a substitute for real
- * accounting software.
+ * Legal number of a payment's invoice. The number is allocated in the
+ * database, sequentially per issuer, when the payment is captured
+ * (server/domains/invoicing) — it is read here, never derived from the
+ * payment id or its date as it used to be (`OF-<year>-<uuid>`, which was
+ * not a legal numbering).
  */
-export function invoiceNumber(payment: { id: string; createdAt: Date }): string {
-  return `OF-${payment.createdAt.getFullYear()}-${payment.id.slice(0, 8).toUpperCase()}`;
+export function invoiceNumber(payment: { invoice?: { number: string } | null }): string {
+  return payment.invoice?.number ?? INVOICE_PENDING_LABEL;
 }
+
+export const INVOICE_KIND_LABELS: Record<string, string> = {
+  INVOICE: "Facture",
+  CREDIT_NOTE: "Avoir",
+  COMMISSION_INVOICE: "Facture de commission",
+};
 
 export const SPACE_TYPE_LABELS: Record<string, string> = {
   MEETING_ROOM: "Salle de réunion",
@@ -68,11 +78,21 @@ export const SPACE_STATUS_LABELS: Record<string, string> = {
 };
 
 export const BOOKING_STATUS_LABELS: Record<string, string> = {
-  PENDING: "En attente",
+  AWAITING_PAYMENT: "Paiement en cours",
+  PENDING: "En attente de l'hôte",
   CONFIRMED: "Confirmée",
   CANCELLED: "Annulée",
   REJECTED: "Refusée",
   COMPLETED: "Terminée",
+};
+
+export const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  AWAITING_AUTHORIZATION: "Paiement en cours",
+  REQUIRES_CAPTURE: "Autorisé, en attente de l'hôte",
+  SUCCEEDED: "Payé",
+  PARTIALLY_REFUNDED: "Partiellement remboursé",
+  REFUNDED: "Remboursé",
+  FAILED: "Non débité",
 };
 
 export const VERIFICATION_STATUS_LABELS: Record<string, string> = {

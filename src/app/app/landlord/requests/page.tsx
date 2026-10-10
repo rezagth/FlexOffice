@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { BookingRequestActions } from "@/components/dashboard/booking-request-actions";
 import { RaiseDisputeButton } from "@/components/dashboard/raise-dispute-button";
-import { formatCents, formatDateTime } from "@/lib/format";
+import { CancelBookingButton } from "@/components/dashboard/cancel-booking-button";
+import { BOOKING_STATUS_LABELS, formatCents, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,11 @@ const DISPUTE_STATUS_LABELS: Record<string, string> = {
   ESCALATED: "Litige escaladé",
 };
 
+/** A confirmed booking whose slot has not started can still be cancelled. */
+function canLandlordCancel(booking: { status: string; startsAt: Date }): boolean {
+  return booking.status === "CONFIRMED" && booking.startsAt.getTime() > Date.now();
+}
+
 export default async function PartnerRequestsPage() {
   const ctx = await requirePageLandlordOrg("landlord:manage_bookings");
   const [requests, handled] = await Promise.all([
@@ -30,7 +36,9 @@ export default async function PartnerRequestsPage() {
       orderBy: { createdAt: "asc" },
     }),
     prisma.booking.findMany({
-      where: { organizationId: ctx.activeOrgId, status: { in: [...DISPUTABLE_STATUSES] } },
+      // CANCELLED shown too (not disputable): a landlord must see that a
+      // confirmed booking was cancelled by the client.
+      where: { organizationId: ctx.activeOrgId, status: { in: [...DISPUTABLE_STATUSES, "CANCELLED"] }, NOT: { cancelledBy: "SYSTEM" } },
       include: {
         space: true,
         clientUser: { select: { name: true } },
@@ -88,9 +96,17 @@ export default async function PartnerRequestsPage() {
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {formatDateTime(booking.startsAt)} → {formatDateTime(booking.endsAt)} ·{" "}
-                    {formatCents(booking.priceAmountCents)}
+                    {formatCents(booking.priceAmountCents)} ·{" "}
+                    {BOOKING_STATUS_LABELS[booking.status] ?? booking.status}
                   </p>
                 </div>
+                <div className="flex flex-col items-end gap-2">
+                {canLandlordCancel(booking) && (
+                  <CancelBookingButton
+                    endpoint={`/api/partner/bookings/${booking.id}/cancel`}
+                    consequence={`Le client sera remboursé intégralement (${formatCents(booking.priceAmountCents)}) et le montant qui vous a été versé sera repris. À réserver aux cas de force majeure.`}
+                  />
+                )}
                 {booking.disputes[0] ? (
                   <p className="text-sm font-medium text-primary">
                     {DISPUTE_STATUS_LABELS[booking.disputes[0].status] ?? booking.disputes[0].status}
@@ -100,6 +116,7 @@ export default async function PartnerRequestsPage() {
                     <RaiseDisputeButton bookingId={booking.id} />
                   )
                 )}
+                </div>
               </Card>
             ))}
           </div>

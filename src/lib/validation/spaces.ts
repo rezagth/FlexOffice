@@ -61,6 +61,54 @@ export const openingHoursWeekSchema = z.array(openingHourSchema).max(70).refine(
 );
 export type OpeningHoursWeekInput = z.infer<typeof openingHoursWeekSchema>;
 
+/** Lowest price a client may be charged for a slot, after discount: 1,00 €.
+ * Below that, the card fees exceed the amount and the commission rounds to
+ * nothing. */
+export const MIN_SLOT_PRICE_CENTS = 100;
+/** Highest discount a landlord may set. */
+export const MAX_DISCOUNT_PERCENT = 90;
+
+/** The price actually charged for a slot — same rounding as
+ * `applyDiscount()` in domains/bookings/availability.ts (down to the cent). */
+export function discountedPriceCents(priceCents: number, discountPercent: number | null | undefined): number {
+  if (!discountPercent) return priceCents;
+  return Math.floor((priceCents * (100 - discountPercent)) / 100);
+}
+
+export const MIN_PRICE_MESSAGE = "Le prix après remise doit être d'au moins 1,00 €.";
+
+/**
+ * Pricing invariant shared by the Zod schemas and the service layer (a
+ * partial update must be checked against the stored values it does not
+ * resend). Returns the French message of the first broken rule, or null.
+ */
+export function pricingViolation(pricing: {
+  halfDayPriceCents: number;
+  dayPriceCents: number;
+  discountPercent?: number | null;
+}): { field: "halfDayPriceCents" | "dayPriceCents" | "discountPercent"; message: string } | null {
+  if (pricing.discountPercent != null && pricing.discountPercent > MAX_DISCOUNT_PERCENT) {
+    return { field: "discountPercent", message: `La remise ne peut pas dépasser ${MAX_DISCOUNT_PERCENT} %.` };
+  }
+  if (discountedPriceCents(pricing.halfDayPriceCents, pricing.discountPercent) < MIN_SLOT_PRICE_CENTS) {
+    return { field: "halfDayPriceCents", message: MIN_PRICE_MESSAGE };
+  }
+  if (discountedPriceCents(pricing.dayPriceCents, pricing.discountPercent) < MIN_SLOT_PRICE_CENTS) {
+    return { field: "dayPriceCents", message: MIN_PRICE_MESSAGE };
+  }
+  return null;
+}
+
+const priceCents = z
+  .number({ error: "Le prix doit être un nombre." })
+  .int("Le prix doit être exprimé en centimes entiers.")
+  .min(MIN_SLOT_PRICE_CENTS, MIN_PRICE_MESSAGE)
+  .max(10_000_000, "Le prix est trop élevé.");
+
+// Photos are deliberately NOT part of these schemas: a listing's images only
+// come from the upload routes (sniffed type, server-generated storage path).
+// An arbitrary URL was a tracking pixel or unmoderated content waiting to be
+// shown on a public page. A `photos` key in a payload is stripped by Zod.
 const spaceBaseFields = {
   name: z.string().trim().min(1).max(150),
   type: spaceTypeEnum,
@@ -70,13 +118,15 @@ const spaceBaseFields = {
   postalCode: z.string().trim().regex(/^\d{5}$/, "Le code postal doit contenir 5 chiffres"),
   capacity: z.number().int().min(1).max(1000),
   amenities: z.array(spaceAmenityEnum).max(spaceAmenityEnum.options.length),
-  // Photos are not set through this schema any more: they are uploaded one
-  // by one to Storage (see api/partner/spaces/[id]/photos). Kept optional so
-  // an existing payload carrying URLs is still accepted.
-  photos: z.array(z.url()).max(10).optional(),
-  halfDayPriceCents: z.number().int().min(0),
-  dayPriceCents: z.number().int().min(0),
-  discountPercent: z.number().int().min(0).max(100).nullable().optional(),
+  halfDayPriceCents: priceCents,
+  dayPriceCents: priceCents,
+  discountPercent: z
+    .number()
+    .int("La remise doit être un pourcentage entier.")
+    .min(0, "La remise ne peut pas être négative.")
+    .max(MAX_DISCOUNT_PERCENT, `La remise ne peut pas dépasser ${MAX_DISCOUNT_PERCENT} %.`)
+    .nullable()
+    .optional(),
   accessInstructions: z.string().trim().max(2000).optional(),
   // The zone the opening hours are written in. Validated against the
   // runtime's own IANA database rather than a hand-kept list, so a typo is
@@ -88,15 +138,42 @@ const spaceBaseFields = {
     .optional(),
 };
 
-export const createSpaceSchema = z.object({
-  ...spaceBaseFields,
-  // The Property this Space is a unit of (Phase 4). Not optional: every new
-  // space is created from a property's page, or with one picked explicitly.
-  propertyId: z.uuid(),
-});
+function refinePricing(
+  space: { halfDayPriceCents: number; dayPriceCents: number; discountPercent?: number | null },
+  ctx: z.RefinementCtx
+) {
+  const violation = pricingViolation(space);
+  if (violation) ctx.addIssue({ code: "custom", path: [violation.field], message: violation.message });
+}
+
+/** A new space's fields, without the property it belongs to — for routes
+ * that take the property from the URL. (Zod 4 refuses `.omit()` on a
+ * refined schema, hence two schemas rather than one derived from the other.) */
+export const createSpaceFieldsSchema = z.object(spaceBaseFields).superRefine(refinePricing);
+
+export const createSpaceSchema = z
+  .object({
+    ...spaceBaseFields,
+    // The Property this Space is a unit of (Phase 4). Not optional: every new
+    // space is created from a property's page, or with one picked explicitly.
+    propertyId: z.uuid(),
+  })
+  .superRefine(refinePricing);
 export type CreateSpaceInput = z.infer<typeof createSpaceSchema>;
 
-export const updateSpaceSchema = z.object(spaceBaseFields).partial();
+/** Partial: the after-discount minimum is checked here when the payload
+ * carries all three pricing fields, and against the stored values in the
+ * service layer otherwise (organizations/update-space.ts). */
+export const updateSpaceSchema = z
+  .object(spaceBaseFields)
+  .partial()
+  .superRefine((space, ctx) => {
+    if (space.halfDayPriceCents === undefined || space.dayPriceCents === undefined) return;
+    refinePricing(
+      { halfDayPriceCents: space.halfDayPriceCents, dayPriceCents: space.dayPriceCents, discountPercent: space.discountPercent },
+      ctx
+    );
+  });
 export type UpdateSpaceInput = z.infer<typeof updateSpaceSchema>;
 
 export const closureSchema = z

@@ -8,7 +8,10 @@
 export type EmailMessage = {
   to: string;
   subject: string;
+  /** Plain-text version — always sent, read by some clients and filters. */
   text: string;
+  /** HTML version, built by layout.ts (escaped, table-based). */
+  html?: string;
 };
 
 export interface EmailProvider {

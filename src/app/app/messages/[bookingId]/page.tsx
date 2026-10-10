@@ -7,7 +7,7 @@ import { MessageThread } from "@/components/dashboard/message-thread";
 import { Card } from "@/components/ui/card";
 import { NotFoundError } from "@/server/lib/errors";
 
-export const metadata = { title: "Conversation — OfficeFlex" };
+export const metadata = { title: "Conversation — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 export default async function MessageThreadPage({

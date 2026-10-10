@@ -14,7 +14,7 @@ type Ctx = { params: Promise<{ id: string }> };
 // PATCH /api/properties/[id] — edits it. Same access check.
 export const GET = withErrorHandling(async (_request: Request, { params }: Ctx) => {
   const { id } = await params;
-  await requirePropertyManageAccess(id);
+  await requirePropertyManageAccess(id, "landlord:view_dashboard");
   const property = await getPropertyDetail(id);
   if (!property) throw new NotFoundError("Property not found");
   return NextResponse.json({ property });
@@ -22,7 +22,7 @@ export const GET = withErrorHandling(async (_request: Request, { params }: Ctx) 
 
 export const PATCH = withErrorHandling(async (request: Request, { params }: Ctx) => {
   const { id } = await params;
-  const { ctx } = await requirePropertyManageAccess(id);
+  const { ctx } = await requirePropertyManageAccess(id, "landlord:manage_properties");
   const input = updatePropertySchema.parse(await request.json());
   const property = await updateProperty(id, ctx, input);
   return NextResponse.json({ property });

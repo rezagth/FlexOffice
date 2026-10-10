@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export const POST = withErrorHandling(async (request: Request, { params }: Ctx) => {
   const { id } = await params;
-  const { ctx } = await requirePropertyManageAccess(id);
+  const { ctx } = await requirePropertyManageAccess(id, "landlord:manage_properties");
   const { photoIds } = reorderPhotosSchema.parse(await request.json());
   await reorderPropertyPhotos(id, photoIds, ctx);
   return NextResponse.json({ ok: true });

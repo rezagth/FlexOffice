@@ -1,5 +1,6 @@
 import { prisma } from "@/server/db/prisma";
 import { requireAuth, requireCapability, type AuthContext } from "@/server/auth/rbac";
+import type { Capability } from "@/server/auth/capabilities";
 import { ForbiddenError, NotFoundError } from "@/server/lib/errors";
 import { logEvent } from "@/server/lib/logger";
 import type { Property, PropertyManager, PropertyOperator, PropertyOwner } from "@/generated/prisma/client";
@@ -56,12 +57,16 @@ export function organizationManagesProperty(
  * does not yet distinguish what each role may edit beyond that (see
  * `PropertyManager`'s doc comment: `scope` is reserved, not read).
  *
+ * `capability` is what the route needs: `landlord:view_dashboard` to read,
+ * `landlord:manage_properties` / `landlord:manage_spaces` to change.
+ *
  * Platform admins bypass, same as `requireOrganizationAccess()`. A property
  * the caller has no relation to answers 404, not 403 — a 403 would confirm
  * the id exists to someone who has no business knowing that.
  */
 export async function requirePropertyManageAccess(
-  propertyId: string
+  propertyId: string,
+  capability: Capability
 ): Promise<{ ctx: AuthContext; property: PropertyWithRelations }> {
   const ctx = await requireAuth();
 
@@ -81,6 +86,21 @@ export async function requirePropertyManageAccess(
       property_id: propertyId,
     });
     throw new NotFoundError("Property not found");
+  }
+
+  // SEC-13 — being related to the property is not enough: the member's role
+  // must carry the capability the route needs (a VIEWER or an ACCOUNTANT
+  // reads, it never edits a listing). Checked AFTER the relation, so a 403
+  // only ever reaches someone who already knows the property: a stranger
+  // still gets the same 404 whether it exists or not.
+  if (!ctx.capabilities.has(capability)) {
+    logEvent({
+      event: "authz.denied",
+      user_id: ctx.userId,
+      required_capability: capability,
+      org_role: ctx.activeOrgRole ?? "none",
+    });
+    throw new ForbiddenError("Not allowed to perform this action");
   }
 
   return { ctx, property };

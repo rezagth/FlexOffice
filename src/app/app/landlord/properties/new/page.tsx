@@ -1,7 +1,7 @@
 import { requirePageLandlordOrg } from "@/server/auth/page-guards";
 import { PropertyForm } from "@/components/dashboard/property-form";
 
-export const metadata = { title: "Ajouter un bien — OfficeFlex" };
+export const metadata = { title: "Ajouter un bien — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 export default async function NewPropertyPage() {

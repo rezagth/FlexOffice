@@ -41,6 +41,7 @@ type TestProfile = {
   activeMode: "TENANT" | "LANDLORD";
   activeOrganizationId: string | null;
   deletedAt?: Date | null;
+  suspendedAt?: Date | null;
   /** Legacy column, still present. Never read for authorization. */
   role?: "CLIENT" | "PARTNER" | "ADMIN";
 };
@@ -53,7 +54,7 @@ type TestMembership = {
 
 function mockSignedInAs(profile: TestProfile, memberships: TestMembership[] = []) {
   getUserMock.mockResolvedValue({ data: { user: { id: profile.id } }, error: null });
-  findUniqueMock.mockResolvedValue({ deletedAt: null, role: "CLIENT", ...profile });
+  findUniqueMock.mockResolvedValue({ deletedAt: null, suspendedAt: null, role: "CLIENT", ...profile });
 
   const rows = memberships.map((m) => ({
     organizationId: m.organizationId,
@@ -233,6 +234,16 @@ describe("getAuthContext — degraded modes still resolve to 'signed out'", () =
 describe("getAuthContext — erased accounts", () => {
   it("refuses a tombstoned profile even if a valid cookie still exists", async () => {
     mockSignedInAs({ ...tenant, deletedAt: new Date("2026-09-01T10:00:00Z") });
+    expect(await getAuthContext()).toBeNull();
+  });
+
+  it("refuses a suspended account exactly like a deleted one (FCT-16)", async () => {
+    mockSignedInAs({ ...tenant, suspendedAt: new Date("2026-10-06T10:00:00Z") });
+    expect(await getAuthContext()).toBeNull();
+  });
+
+  it("refuses a suspended administrator too — no capability survives a suspension", async () => {
+    mockSignedInAs({ ...tenant, platformRole: "ADMIN", suspendedAt: new Date("2026-10-06T10:00:00Z") });
     expect(await getAuthContext()).toBeNull();
   });
 });

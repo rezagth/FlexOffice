@@ -1,7 +1,19 @@
 ignoredBuiltDependencies:
+  - core-js
   - sharp
   - unrs-resolver
 
 onlyBuiltDependencies:
   - prisma
   - "@prisma/engines"
+
+# Transitive dependencies forced past a published advisory. Each entry must
+# stay within the range the parent declares, so nothing is forced onto an
+# untested major. Remove an entry once the parent ships the fix itself.
+overrides:
+  # GHSA-wq5f-xc86-pv6w (librsvg in sharp < 0.35.5). next@16.3.8 asks for
+  # ^0.35.4; sharp serves next/image optimisation in the runtime image.
+  sharp: ">=0.35.5 <0.36.0"
+  # GHSA-qhr7-859c-m2p7 / GHSA-6j4f-fj2g-mc7p. Build-time only (Sentry's
+  # bundler plugin, through minimatch ^10 which asks for ^5.0.8).
+  "brace-expansion@5": "^5.0.11"

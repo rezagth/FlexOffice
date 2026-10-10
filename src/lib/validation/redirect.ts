@@ -4,7 +4,7 @@
  * `redirectTo` arrives in the query string, so it is attacker-controlled. Fed
  * straight to `router.push()` or `redirect()` it is an open redirect: a link
  * to `/login?redirectTo=https://evil.example/login` walks the user through a
- * genuine OfficeFlex sign-in and drops them on a copy of it.
+ * genuine MakomSpace sign-in and drops them on a copy of it.
  *
  * Only a same-origin path is accepted. Everything else falls back to
  * `fallback` rather than throwing — a malformed link should still sign the

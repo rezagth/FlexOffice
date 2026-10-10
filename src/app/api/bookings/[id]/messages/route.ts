@@ -3,6 +3,7 @@ import { requireAuth } from "@/server/auth/rbac";
 import { sendMessageSchema } from "@/lib/validation/messages";
 import { listMessages, sendMessage } from "@/server/domains/messaging/conversation";
 import { withErrorHandling } from "@/server/lib/http";
+import { enforceRateLimit, RATE_LIMITS } from "@/server/auth/rate-limit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -24,6 +25,13 @@ export const GET = withErrorHandling(async (_request: Request, { params }: Ctx) 
 //   conversation on first use.
 export const POST = withErrorHandling(async (request: Request, { params }: Ctx) => {
   const ctx = await requireAuth();
+  await enforceRateLimit({
+    key: `message:send:user:${ctx.userId}`,
+    config: RATE_LIMITS.messageSend,
+    endpoint: "POST /api/bookings/[id]/messages",
+    scope: "user",
+    onStoreError: "allow",
+  });
   const { id } = await params;
   const input = sendMessageSchema.parse(await request.json());
 

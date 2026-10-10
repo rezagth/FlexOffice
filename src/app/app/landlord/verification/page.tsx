@@ -16,7 +16,7 @@ import {
   formatDateTime,
 } from "@/lib/format";
 
-export const metadata = { title: "Vérification — OfficeFlex" };
+export const metadata = { title: "Vérification — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 const EDITABLE_STATUSES = new Set(["DRAFT", "REJECTED"]);
@@ -115,7 +115,7 @@ export default async function VerificationPage() {
             Votre dossier est en cours de vérification.
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vous pouvez continuer à utiliser OfficeFlex en tant que locataire
+            Vous pouvez continuer à utiliser MakomSpace en tant que locataire
             pendant ce temps. La publication de vos espaces sera possible une
             fois votre dossier vérifié.
           </p>

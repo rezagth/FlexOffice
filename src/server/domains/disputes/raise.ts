@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, NotFoundError } from "@/server/lib/errors";
+import { notifyDisputeOpened } from "@/server/domains/notifications/send-notifications";
 
 const OPEN_STATUSES = ["OPEN", "INVESTIGATING"] as const;
 
@@ -62,6 +63,8 @@ export async function raiseDispute({
     organizationId: booking.organizationId,
     metadata: { disputeId: dispute.id, bookingId },
   });
+  // Both parties and the platform operators (ADMIN_ALERT_EMAIL).
+  await notifyDisputeOpened(dispute.id);
 
   return dispute;
 }

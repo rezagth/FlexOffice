@@ -5,11 +5,15 @@ de réunion, bureaux et espaces de formation, à la demi-journée ou à la journ
 
 Monolithe **Next.js 16** (App Router, React 19) sur **PostgreSQL** via
 **Prisma 7**, authentification **Supabase Auth**, paiement **Stripe** derrière
-une abstraction interne. Déploiement visé : Vercel.
+une abstraction interne. Déploiement : image Docker (`output: "standalone"`)
+construite par GitHub Actions, publiée sur GHCR et déployée par **Coolify**
+sur l'infrastructure Proxmox, derrière un tunnel Cloudflare. Voir
+[`docs/runbooks/`](docs/runbooks/README.md).
 
-État : la boucle `publier → modérer → réserver → accepter → capturer`
-fonctionne de bout en bout. Le paiement reste sur le fournisseur **mock** —
-brancher de l'argent réel est volontairement différé (`PAYMENT_PROVIDER`).
+État : la boucle `publier → modérer → réserver → accepter → capturer →
+reverser → facturer` fonctionne de bout en bout. Le paiement passe par
+**Stripe Connect** (`PAYMENT_PROVIDER=stripe`) ou par le fournisseur **mock**
+en développement et en démo.
 
 Les conventions et les raisons derrière chaque choix non évident sont dans les
 commentaires des fichiers concernés, en particulier `src/server/auth/rbac.ts`,
@@ -583,16 +587,18 @@ Conséquences concrètes, toutes appliquées dans le dépôt :
 ### Limitation de débit
 
 `rateLimit()` (`src/server/auth/rate-limit/`) s'appuie sur un magasin
-enfichable. Le magasin mémoire par défaut compte **par processus** : sur
-Vercel, cela signifie par instance, remis à zéro à chaque démarrage à froid.
+enfichable. Le magasin mémoire par défaut compte **par processus** : avec
+plusieurs conteneurs, chacun a son compteur, remis à zéro à chaque redémarrage.
 **Ce n'est donc pas un contrôle de production.** Renseigner
 `UPSTASH_REDIS_REST_URL` et `UPSTASH_REDIS_REST_TOKEN` pour un compteur
 partagé ; sinon l'application journalise une erreur à chaque démarrage en
 production.
 
-L'identifiant client est lu dans les en-têtes que la plateforme garantit
-(`x-vercel-forwarded-for`, `cf-connecting-ip`, `x-real-ip`), et non dans le
-premier maillon de `x-forwarded-for`, que le client fournit lui-même.
+L'identifiant client est lu dans l'en-tête que l'infrastructure garantit,
+désigné par `TRUSTED_CLIENT_IP_HEADER` (`cf-connecting-ip` derrière le tunnel
+Cloudflare), et non dans le premier maillon de `x-forwarded-for`, que le
+client fournit lui-même. Sans cette variable, l'application le signale au
+démarrage en production.
 
 En cas de panne du magasin, la décision par défaut est de **refuser** : un
 limiteur qui échoue en mode ouvert offre le contournement recherché. Les
@@ -641,6 +647,22 @@ Sur un déploiement de démonstration en production, poser
 `OFFICEFLEX_DEMO_MODE=true` : sans ce drapeau, une configuration manquante en
 production est journalisée comme une erreur de déploiement — ce qu'elle est.
 
+**En production sans ce drapeau (déploiement réel), les replis de démo sont
+coupés** — ils y deviendraient des incidents (audit du 06/10/2026) :
+
+- `DATABASE_URL` absent → catalogue vide, jamais d'espaces fictifs montrés à
+  de vrais visiteurs (les pages restent servies) ;
+- `PAYMENT_PROVIDER` doit être posé explicitement ; `mock` n'est accepté
+  qu'avec `OFFICEFLEX_ALLOW_MOCK_PAYMENTS=true` (staging) et un
+  `PAYMENT_MOCK_WEBHOOK_SECRET` d'au moins 32 caractères. Sinon les routes de
+  réservation et de paiement répondent 503 ; le reste du site fonctionne ;
+- chaque variable manquante (e-mail, `CRON_SECRET`, `APP_URL`,
+  `TRUSTED_CLIENT_IP_HEADER`, `RATE_LIMIT_KEY_SALT`…) est journalisée en
+  erreur au démarrage par `src/instrumentation.ts`
+  (`src/server/config/deployment-config.ts`).
+
+En `pnpm dev` et dans les tests, rien ne change : zéro configuration.
+
 `getAuthContext()` distingue explicitement quatre situations : démo assumée,
 utilisateur non authentifié, configuration absente hors production, et panne
 réelle d'infrastructure. Seule la dernière lève une erreur (503, rendue par
@@ -654,7 +676,13 @@ un visiteur anonyme.**
 ```bash
 pnpm test:unit          # toujours exécutable, aucune infrastructure
 pnpm test               # tout ; les suites d'intégration se sautent d'elles-mêmes
+pnpm build && pnpm test:e2e   # Playwright sur le build, servi en mode démo
 ```
+
+Les tests e2e (`tests/e2e/*.spec.ts`) démarrent eux-mêmes `pnpm start` avec
+`OFFICEFLEX_DEMO_MODE=true` sur le port 3100 (`E2E_PORT`), ou visent une
+instance existante avec `E2E_BASE_URL`. `PLAYWRIGHT_CHROMIUM_PATH` indique un
+Chromium déjà installé quand `playwright install` n'est pas possible.
 
 Les suites d'intégration sont filtrées selon ce dont elles ont réellement
 besoin (`tests/integration/helpers/should-run.ts`) :
@@ -710,16 +738,29 @@ faut assouplir.
 
 ## CI
 
-`.github/workflows/ci.yml`, deux jobs, aucun secret de production :
+`.github/workflows/ci.yml`, aucun secret de production :
 
 - **quality** — `pnpm lint`, `pnpm build` (qui inclut la vérification
-  TypeScript), `pnpm typecheck`, `pnpm test:unit`. Le build tourne
+  TypeScript), `pnpm typecheck`, `pnpm test:unit`, puis `pnpm test:e2e`
+  (Playwright, parcours publics en mode démo, bureau et mobile, contrôles
+  d'accessibilité axe). Le build tourne
   volontairement **sans aucune variable d'environnement** : c'est ainsi que le
   contrat du mode démo est vérifié à chaque PR.
 - **integration** — PostgreSQL 17 éphémère, shim du schéma Supabase,
   `pnpm db:deploy`, puis `INTEGRATION=1 pnpm test:integration`. Se termine par
   deux vérifications directes en SQL : aucune table de `public` sans RLS, et
   aucun privilège restant pour `anon`/`authenticated`.
+- **security** — gitleaks sur l'historique, puis `pnpm audit:prod`
+  (vulnérabilités des dépendances de production, exceptions justifiées dans
+  `.github/audit-allowlist.json`).
+- **migrations-supabase-image** — mêmes migrations contre l'image
+  `supabase/postgres` réellement utilisée en production (non bloquant).
+
+`.github/workflows/deploy.yml` prend le relais quand la CI réussit :
+`develop` → staging, `main` → production. Build de l'image (variables
+`NEXT_PUBLIC_*` figées au build), scan Trivy, push GHCR, migrations depuis le
+runner auto-hébergé, webhook Coolify, puis test de `/api/health/ready`.
+Procédures détaillées : [`docs/runbooks/`](docs/runbooks/README.md).
 
 ---
 

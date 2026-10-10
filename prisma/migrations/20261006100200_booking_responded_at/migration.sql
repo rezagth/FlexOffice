@@ -1,0 +1,11 @@
+-- When the landlord answered a request (accept or refuse).
+--
+-- 1. Concurrency: accepting captures the payment, but the booking only
+--    leaves PENDING when Stripe's webhook confirms the capture. In that
+--    window a client could still cancel "for free", and the late capture
+--    left them charged for a cancelled booking. Accepting now claims the
+--    request first by setting responded_at (conditional update); a free
+--    cancellation, an expiry or a refusal require it to be NULL.
+-- 2. The response-time KPI used updated_at as a proxy, no longer valid now
+--    that a booking moves through several states.
+ALTER TABLE "bookings" ADD COLUMN "responded_at" TIMESTAMPTZ(3);

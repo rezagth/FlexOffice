@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 // POST /api/properties/[id]/archive — status flip, never a hard delete.
 export const POST = withErrorHandling(async (_request: Request, { params }: Ctx) => {
   const { id } = await params;
-  const { ctx } = await requirePropertyManageAccess(id);
+  const { ctx } = await requirePropertyManageAccess(id, "landlord:manage_properties");
   const property = await archiveProperty(id, ctx);
   return NextResponse.json({ property });
 });

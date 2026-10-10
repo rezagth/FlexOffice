@@ -12,7 +12,7 @@ import { DeleteClosureButton } from "@/components/dashboard/delete-closure-butto
 import { Card } from "@/components/ui/card";
 import { SPACE_STATUS_LABELS, formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "Détail de l'espace — OfficeFlex" };
+export const metadata = { title: "Détail de l'espace — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];

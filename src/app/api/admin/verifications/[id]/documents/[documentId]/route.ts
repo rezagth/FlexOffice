@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/prisma";
 import { requireAdmin } from "@/server/auth/rbac";
 import { createSignedDocumentUrl } from "@/server/domains/verification/storage";
 import { NotFoundError } from "@/server/lib/errors";
+import { recordAudit } from "@/server/lib/audit";
 import { withErrorHandling } from "@/server/lib/http";
 
 type Ctx = { params: Promise<{ id: string; documentId: string }> };
@@ -13,13 +14,24 @@ type Ctx = { params: Promise<{ id: string; documentId: string }> };
 //   evidence here, they do not upload or delete it (that stays with the
 //   organization's own OWNER/ADMIN, via /api/verifications/*).
 export const GET = withErrorHandling(async (_request: Request, { params }: Ctx) => {
-  await requireAdmin();
+  const ctx = await requireAdmin();
   const { id, documentId } = await params;
 
   const document = await prisma.verificationDocument.findFirst({
     where: { id: documentId, verificationId: id },
+    include: { verification: { select: { organizationId: true } } },
   });
   if (!document) throw new NotFoundError("Document introuvable");
+
+  // SEC-19 — every look at an identity document by a member of staff is
+  // traced (who, which document, which dossier), BEFORE the URL is handed
+  // out: a viewing that cannot be recorded does not happen.
+  await recordAudit({
+    event: "verification.document_viewed",
+    actorUserId: ctx.userId,
+    organizationId: document.verification.organizationId,
+    metadata: { verificationId: id, documentId, documentType: document.type },
+  });
 
   const signedUrl = await createSignedDocumentUrl(document.storagePath);
   return NextResponse.json({ signedUrl });

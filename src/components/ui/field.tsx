@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Label } from "@/components/ui/label";
 
 type FieldProps = {
   label: string;
@@ -14,9 +15,7 @@ export function Field({ label, htmlFor, error, hint, children }: FieldProps) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
-        {label}
-      </label>
+      <Label htmlFor={htmlFor}>{label}</Label>
       <div aria-describedby={describedBy}>{children}</div>
       {hint && !error && (
         <p id={`${htmlFor}-hint`} className="text-xs text-muted-foreground">

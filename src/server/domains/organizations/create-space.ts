@@ -61,9 +61,13 @@ export async function createSpace(organizationId: string, input: CreateSpaceInpu
       postalCode: input.postalCode,
       capacity: input.capacity,
       amenities: input.amenities,
-      photos: input.photos ?? [],
+      // Photos only ever come from the upload routes (SEC-09).
+      photos: [],
       halfDayPriceCents: input.halfDayPriceCents,
       dayPriceCents: input.dayPriceCents,
+      // Was silently dropped on creation: the discount only stuck after a
+      // second save through the edit form.
+      discountPercent: input.discountPercent ?? null,
       accessInstructions: input.accessInstructions,
       ...(input.timezone ? { timezone: input.timezone } : {}),
       status: "DRAFT",

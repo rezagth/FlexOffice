@@ -4,6 +4,9 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { ButtonLink } from "@/components/ui/button";
 import { formatCents } from "@/lib/format";
+import { sumKeptAmounts } from "@/server/domains/payments/settled-amounts";
+import { getLandlordOnboarding } from "@/server/domains/organizations/onboarding";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 
 /**
  * Landlord home, rendered by `/app` when the active mode is LANDLORD.
@@ -29,31 +32,23 @@ export async function LandlordHome({
 
   const startOfYear = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1));
 
-  const [monthRevenue, yearRevenue, bookingsCount, spacesCount] = await Promise.all([
+  // The checklist sends to pages that need these capabilities; a member who
+  // cannot act on them (an accountant) does not get a list of dead ends.
+  const showOnboarding =
+    canManageSpaces && ctx.capabilities.has("landlord:manage_verification");
+
+  const [monthRevenue, yearRevenue, bookingsCount, spacesCount, onboarding] = await Promise.all([
     canSeeRevenue
-      ? prisma.payment.aggregate({
-          where: {
-            organizationId: ctx.activeOrgId,
-            status: "SUCCEEDED",
-            createdAt: { gte: startOfMonth },
-          },
-          _sum: { netAmountCents: true },
-        })
+      ? sumKeptAmounts({ organizationId: ctx.activeOrgId, createdAt: { gte: startOfMonth } })
       : Promise.resolve(null),
     canSeeRevenue
-      ? prisma.payment.aggregate({
-          where: {
-            organizationId: ctx.activeOrgId,
-            status: "SUCCEEDED",
-            createdAt: { gte: startOfYear },
-          },
-          _sum: { netAmountCents: true },
-        })
+      ? sumKeptAmounts({ organizationId: ctx.activeOrgId, createdAt: { gte: startOfYear } })
       : Promise.resolve(null),
     prisma.booking.count({
       where: { organizationId: ctx.activeOrgId, createdAt: { gte: startOfMonth } },
     }),
     prisma.space.count({ where: { organizationId: ctx.activeOrgId } }),
+    showOnboarding ? getLandlordOnboarding(ctx.activeOrgId) : Promise.resolve(null),
   ]);
 
   return (
@@ -67,6 +62,8 @@ export async function LandlordHome({
         </p>
       </div>
 
+      {onboarding && !onboarding.complete && <OnboardingChecklist onboarding={onboarding} />}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         {monthRevenue && (
           <Card className="p-5">
@@ -74,7 +71,7 @@ export async function LandlordHome({
               Revenus du mois
             </p>
             <p className="mt-2 text-2xl font-semibold">
-              {formatCents(monthRevenue._sum.netAmountCents ?? 0)}
+              {formatCents(monthRevenue.netCents)}
             </p>
           </Card>
         )}
@@ -84,7 +81,7 @@ export async function LandlordHome({
               Revenus de l&apos;année
             </p>
             <p className="mt-2 text-2xl font-semibold">
-              {formatCents(yearRevenue._sum.netAmountCents ?? 0)}
+              {formatCents(yearRevenue.netCents)}
             </p>
           </Card>
         )}
@@ -102,7 +99,7 @@ export async function LandlordHome({
         </Card>
       </div>
 
-      {spacesCount === 0 && canManageSpaces && (
+      {spacesCount === 0 && canManageSpaces && !(onboarding && !onboarding.complete) && (
         <EmptyState
           title="Aucun espace pour l'instant"
           description="Créez votre premier espace pour commencer à recevoir des demandes de réservation."

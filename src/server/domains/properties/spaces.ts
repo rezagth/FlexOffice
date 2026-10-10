@@ -2,9 +2,11 @@ import { prisma } from "@/server/db/prisma";
 import { NotFoundError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
 import type { AuthContext } from "@/server/auth/rbac";
+import type { Capability } from "@/server/auth/capabilities";
 import { requirePropertyManageAccess } from "@/server/domains/properties/access";
 import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import type { UpdateSpaceInput } from "@/lib/validation/spaces";
+import { applySpaceUpdate } from "@/server/domains/organizations/update-space";
 
 /**
  * Resolves a space by id and authorizes the caller through its PROPERTY —
@@ -13,10 +15,13 @@ import type { UpdateSpaceInput } from "@/lib/validation/spaces";
  * Property rather than adding another organizationId-based check). Used by
  * every `/api/spaces/[id]/...` route.
  */
-export async function requireSpaceManageAccess(spaceId: string) {
+export async function requireSpaceManageAccess(
+  spaceId: string,
+  capability: Capability = "landlord:manage_spaces"
+) {
   const space = await prisma.space.findUnique({ where: { id: spaceId } });
   if (!space) throw new NotFoundError("Space not found");
-  const { ctx } = await requirePropertyManageAccess(space.propertyId);
+  const { ctx } = await requirePropertyManageAccess(space.propertyId, capability);
   return { ctx, space };
 }
 
@@ -45,20 +50,14 @@ export async function getSpaceForProperty(propertyId: string, spaceId: string) {
 }
 
 /** Edits a space the caller already reached through `requireSpaceManageAccess()`.
- * A separate function from `organizations/update-space.ts#updateSpace()`
- * (which re-derives ownership from `organizationId`) rather than a call
- * into it: that would mean authorizing through Property here and then
- * re-checking through `organizationId` there, two different authorities
- * answering the same question. */
+ * Authorization stays Property-derived here (not `updateSpace()`, which
+ * re-derives ownership from `organizationId`); the write itself goes
+ * through the shared `applySpaceUpdate()`. */
 export async function updateSpaceViaProperty(spaceId: string, ctx: AuthContext, input: UpdateSpaceInput) {
-  const space = await prisma.space.update({ where: { id: spaceId }, data: { ...input } });
-  await recordAudit({
-    event: "space.updated",
-    actorUserId: ctx.userId,
-    organizationId: ctx.activeOrgId,
-    metadata: { spaceId },
-  });
-  return space;
+  const existing = await prisma.space.findUnique({ where: { id: spaceId } });
+  if (!existing) throw new NotFoundError("Space not found");
+  // Same pricing and re-moderation rules as the organization-scoped path.
+  return applySpaceUpdate(existing, input, { actorUserId: ctx.userId, organizationId: ctx.activeOrgId });
 }
 
 /**

@@ -1,19 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { hasRealBackend } from "./helpers/should-run";
+import { hasDatabase } from "./helpers/should-run";
 
 const deleteUser = vi.fn();
 const updateUserById = vi.fn();
+const getUserById = vi.fn(async () => ({ data: { user: { user_metadata: {} } }, error: null }));
 
 // Supabase Auth admin calls are stubbed: the point of this test is which
 // database branch runs (hard delete vs anonymize), which is decided by the
 // ON DELETE RESTRICT foreign key on bookings — a real database concern.
+// Gated on the database only (not a Supabase project) since lot A: every
+// Supabase call here is stubbed, so CI can run it.
 vi.mock("@/server/auth/supabase-admin", () => ({
   createSupabaseAdminClient: () => ({
-    auth: { admin: { deleteUser, updateUserById } },
+    auth: { admin: { deleteUser, updateUserById, getUserById } },
+    storage: { from: () => ({ remove: async () => ({ data: [], error: null }) }) },
   }),
 }));
 
-describe.skipIf(!hasRealBackend)("GDPR account deletion", () => {
+describe.skipIf(!hasDatabase)("GDPR account deletion", () => {
   let prisma: typeof import("@/server/db/prisma").prisma;
   let deleteOrAnonymizeProfile: typeof import("@/server/domains/users/gdpr").deleteOrAnonymizeProfile;
   let exportProfileData: typeof import("@/server/domains/users/gdpr").exportProfileData;

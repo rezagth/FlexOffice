@@ -1,14 +1,27 @@
 import { NextResponse } from "next/server";
-import { requireRole } from "@/server/auth/rbac";
+import { optionalReasonSchema } from "@/lib/validation/admin";
+import { requireAdmin } from "@/server/auth/rbac";
 import { withErrorHandling } from "@/server/lib/http";
 import { rejectSpace } from "@/server/domains/organizations/moderate-space";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 // POST /api/admin/spaces/[id]/reject — PENDING_REVIEW -> REJECTED.
-export const POST = withErrorHandling(async (_request: Request, { params }: Ctx) => {
-  const ctx = await requireRole("ADMIN");
+// Body (optional): { reason?: string } — passed on to the landlord's e-mail.
+// Auth: platform administration.
+export const POST = withErrorHandling(async (request: Request, { params }: Ctx) => {
+  const ctx = await requireAdmin();
   const { id } = await params;
-  await rejectSpace(ctx.userId, id);
+  const text = await request.text();
+  const { reason } = optionalReasonSchema.parse(text ? safeJson(text) : {});
+  await rejectSpace(ctx.userId, id, reason || null);
   return NextResponse.json({ status: "REJECTED" });
 });
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}

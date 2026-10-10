@@ -91,3 +91,13 @@ export function resetRuntimeConfigForTests() {
   misconfigurationReported = false;
   degradedModeReported = false;
 }
+
+/**
+ * A real production deployment: built and served with NODE_ENV=production
+ * and NOT declared as a demo. This is where silent fallbacks (mock payments,
+ * logged-only e-mails, demo listings) stop being conveniences and become
+ * incidents — see deployment-config.ts.
+ */
+export function isProductionDeployment(): boolean {
+  return process.env.NODE_ENV === "production" && !isDemoModeRequested();
+}

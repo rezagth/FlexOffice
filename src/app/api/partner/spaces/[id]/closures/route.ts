@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOrg } from "@/server/auth/rbac";
 import { withErrorHandling } from "@/server/lib/http";
+import { requireOrgCapability } from "@/server/domains/organizations/require-org-capability";
 import { closureSchema } from "@/lib/validation/spaces";
 import { createClosure, listClosures } from "@/server/domains/organizations/closures";
 
@@ -14,7 +15,7 @@ export const GET = withErrorHandling(async (_request: Request, { params }: Ctx) 
 });
 
 export const POST = withErrorHandling(async (request: Request, { params }: Ctx) => {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgCapability("landlord:manage_calendar");
   const { id } = await params;
   const input = closureSchema.parse(await request.json());
   const closure = await createClosure(ctx.organizationId, id, input);

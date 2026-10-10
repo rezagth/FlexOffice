@@ -3,6 +3,7 @@ import { switchModeSchema } from "@/lib/validation/landlord";
 import { requireAuth } from "@/server/auth/rbac";
 import { switchMode } from "@/server/domains/users/switch-mode";
 import { withErrorHandling } from "@/server/lib/http";
+import { enforceRateLimit, RATE_LIMITS } from "@/server/auth/rate-limit";
 
 // PUT /api/account/mode
 // Auth: required.
@@ -19,6 +20,13 @@ import { withErrorHandling } from "@/server/lib/http";
 // (become-landlord) is limited instead.
 export const PUT = withErrorHandling(async (request: Request) => {
   const ctx = await requireAuth();
+  await enforceRateLimit({
+    key: `account:mode:user:${ctx.userId}`,
+    config: RATE_LIMITS.accountModeSwitch,
+    endpoint: "PUT /api/account/mode",
+    scope: "user",
+    onStoreError: "allow",
+  });
 
   const body = await request.json().catch(() => null);
   const input = switchModeSchema.parse(body);

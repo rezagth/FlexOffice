@@ -7,8 +7,8 @@ import type { EmailMessage, EmailProvider } from "./provider";
  * so a deployment with no key configured keeps working exactly as before,
  * same zero-config-degrades-gracefully contract as the payment provider.
  *
- * Text-only, matching the templates in templates.ts — no HTML body is
- * generated today, so none is sent rather than a bare, unstyled one.
+ * Sends both bodies: the HTML one built by layout.ts and the plain-text
+ * one, which Resend uses as the text/plain alternative.
  */
 export class ResendEmailProvider implements EmailProvider {
   readonly name = "resend";
@@ -23,7 +23,7 @@ export class ResendEmailProvider implements EmailProvider {
     // Resend's own shared test sender — works with zero domain setup, but
     // Resend restricts it to the account's own verified email addresses.
     // Set EMAIL_FROM once a real sending domain is verified.
-    this.from = process.env.EMAIL_FROM || "OfficeFlex <onboarding@resend.dev>";
+    this.from = process.env.EMAIL_FROM || "MakomSpace <onboarding@resend.dev>";
     this.client = new Resend(apiKey);
   }
 
@@ -33,6 +33,7 @@ export class ResendEmailProvider implements EmailProvider {
       to: message.to,
       subject: message.subject,
       text: message.text,
+      ...(message.html ? { html: message.html } : {}),
     });
     if (error) {
       throw new Error(`Resend send failed: ${error.name} — ${error.message}`);

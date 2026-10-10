@@ -4,7 +4,12 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import { ButtonLink } from "@/components/ui/button";
 import { RaiseDisputeButton } from "@/components/dashboard/raise-dispute-button";
+import { CancelBookingButton } from "@/components/dashboard/cancel-booking-button";
 import { BOOKING_STATUS_LABELS, formatCents, formatDateTime } from "@/lib/format";
+import { clientCancellationRefund } from "@/lib/cancellation-policy";
+import { ReviewForm } from "@/components/reviews/review-form";
+import { StarRating } from "@/components/reviews/star-rating";
+import { reviewEligibility } from "@/server/domains/reviews/reviews";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +26,28 @@ const DISPUTE_STATUS_LABELS: Record<string, string> = {
   ESCALATED: "Litige escaladé",
 };
 
+/** What cancelling would mean for this booking, in one sentence — the same
+ * policy the server applies (src/lib/cancellation-policy.ts). */
+function cancellationConsequence(booking: {
+  status: string;
+  priceAmountCents: number;
+  commissionAmountCents: number;
+  startsAt: Date;
+}): string | null {
+  if (booking.startsAt.getTime() <= Date.now()) return null;
+  if (booking.status === "AWAITING_PAYMENT" || booking.status === "PENDING") {
+    return "La demande sera annulée sans frais : rien ne vous a été débité.";
+  }
+  if (booking.status !== "CONFIRMED") return null;
+  const { tier, refundCents } = clientCancellationRefund(booking);
+  if (tier === "NONE") {
+    return "Moins de 24 h avant le début : aucun remboursement ne sera dû.";
+  }
+  return `Vous serez remboursé de ${formatCents(refundCents)} (${
+    tier === "FULL" ? "plus de 48 h avant le début" : "entre 48 h et 24 h avant le début : 50 %"
+  }). Les frais de service ne sont pas remboursables.`;
+}
+
 export default async function ClientBookingsPage() {
   const ctx = await requirePageAuth();
   const bookings = await prisma.booking.findMany({
@@ -28,6 +55,7 @@ export default async function ClientBookingsPage() {
     include: {
       space: true,
       disputes: { orderBy: { createdAt: "desc" }, take: 1 },
+      review: { select: { rating: true } },
     },
     orderBy: { startsAt: "desc" },
   });
@@ -71,6 +99,26 @@ export default async function ClientBookingsPage() {
                     {BOOKING_STATUS_LABELS[booking.status] ?? booking.status}
                   </p>
                 </div>
+                {(() => {
+                  const consequence = cancellationConsequence(booking);
+                  return consequence ? (
+                    <CancelBookingButton
+                      endpoint={`/api/bookings/${booking.id}/cancel`}
+                      consequence={consequence}
+                      label={booking.status === "CONFIRMED" ? "Annuler la réservation" : "Annuler la demande"}
+                    />
+                  ) : null;
+                })()}
+                {booking.review ? (
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                    Votre avis : <StarRating value={booking.review.rating} />
+                    <span className="sr-only">{booking.review.rating} sur 5</span>
+                  </p>
+                ) : (
+                  reviewEligibility(booking) === "ELIGIBLE" && (
+                    <ReviewForm bookingId={booking.id} spaceName={booking.space.name} />
+                  )
+                )}
                 {booking.disputes[0] ? (
                   <p className="text-xs font-medium text-primary">
                     {DISPUTE_STATUS_LABELS[booking.disputes[0].status] ?? booking.disputes[0].status}

@@ -1,3 +1,4 @@
+import { RateLimitedError } from "@/server/lib/errors";
 import { logError, logEvent } from "@/server/lib/logger";
 import { MemoryRateLimitStore } from "./memory-store";
 import type { RateLimitConfig, RateLimitStore, RateLimitVerdict } from "./store";
@@ -64,6 +65,28 @@ export const RATE_LIMITS = {
    * any other public write; loose enough that a real visitor retrying a
    * typo'd email never hits it. */
   supportTicket: { limit: 5, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /**
+   * Booking requests, per account. Each one creates a Stripe PaymentIntent
+   * and locks a slot until it expires, so an unlimited loop could hold the
+   * whole catalogue or card-test stolen cards. A real client books a few
+   * slots a day at most.
+   */
+  bookingCreate: { limit: 10, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Messages in a booking conversation, per account. */
+  messageSend: { limit: 60, windowSeconds: 600 } satisfies RateLimitConfig,
+  /** Opening a dispute, per account — rare by nature, and it alerts the admins. */
+  disputeRaise: { limit: 5, windowSeconds: 86400 } satisfies RateLimitConfig,
+  /** Adding / removing favorites, per account. */
+  favoriteToggle: { limit: 120, windowSeconds: 600 } satisfies RateLimitConfig,
+  /** Listing / property photo uploads, per account — each one fills Storage. */
+  photoUpload: { limit: 60, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Cancelling a booking, per account (client or landlord side). */
+  bookingCancel: { limit: 10, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Writing a review or a landlord reply, per account — one per booking by
+   * construction, this only bounds a scripted loop. */
+  reviewWrite: { limit: 20, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Switching between tenant and landlord mode, per account. */
+  accountModeSwitch: { limit: 30, windowSeconds: 3600 } satisfies RateLimitConfig,
 } as const;
 
 type StoreErrorBehaviour = "deny" | "allow";
@@ -174,25 +197,50 @@ export async function rateLimit(
 }
 
 /**
+ * The one request header this deployment's edge sets and a client cannot
+ * forge, lower-cased — or null when none is known.
+ *
+ * It used to be a fixed list tried in order (x-vercel-forwarded-for, then
+ * cf-connecting-ip, then x-real-ip), all treated as trustworthy. That is
+ * only true on Vercel: behind Cloudflare + Traefik nothing strips an
+ * incoming `X-Vercel-Forwarded-For`, so a client sending a random value per
+ * request escaped every per-IP limit (login, signup, support, uploads).
+ * Which header is trustworthy depends on the hosting, so it is configured:
+ *
+ *   TRUSTED_CLIENT_IP_HEADER=cf-connecting-ip   behind a Cloudflare tunnel
+ *   (unset, on Vercel)                          x-vercel-forwarded-for
+ *
+ * Only that header is ever read as trusted; every other one is ignored.
+ * The edge must also be the only way in (Traefik reachable from cloudflared
+ * only), otherwise even the configured header can be sent directly.
+ */
+export function getTrustedClientIpHeader(): string | null {
+  const configured = readEnv("TRUSTED_CLIENT_IP_HEADER")?.trim().toLowerCase();
+  if (configured) return configured;
+  if (readEnv("VERCEL") === "1") return "x-vercel-forwarded-for";
+  return null;
+}
+
+/**
  * Client identifier for a rate-limit key.
  *
- * Reads the headers the hosting platform sets and a client cannot forge,
- * in preference order. `x-forwarded-for` is last and only its first element
- * is available, which the client itself controls — so it is a best-effort
- * fallback for local development, never the basis of a security decision on
- * its own. `trusted` says which case applied, so a log can show whether the
- * limit was keyed on something meaningful.
+ * Reads the trusted edge header (see getTrustedClientIpHeader). Without
+ * one, the first element of `x-forwarded-for` is used as a best-effort key
+ * for local development — the client controls it, so `trusted: false` says
+ * so, and a production deployment without TRUSTED_CLIENT_IP_HEADER is
+ * reported at boot (deployment-config.ts).
+ *
+ * When the trusted header is configured but missing from a request (an
+ * internal call, a health check), the request is keyed "unknown" rather
+ * than falling back to a header the client could forge.
  */
 export function getClientIp(request: Request): { ip: string; trusted: boolean } {
-  const platformHeaders = [
-    "x-vercel-forwarded-for", // Vercel, set at the edge
-    "cf-connecting-ip", // Cloudflare
-    "x-real-ip", // common reverse-proxy convention
-  ];
+  const trustedHeader = getTrustedClientIpHeader();
 
-  for (const header of platformHeaders) {
-    const value = request.headers.get(header)?.trim();
+  if (trustedHeader) {
+    const value = request.headers.get(trustedHeader)?.split(",")[0]?.trim();
     if (value) return { ip: value, trusted: true };
+    return { ip: "unknown", trusted: false };
   }
 
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
@@ -225,4 +273,32 @@ export function logRateLimitDenied(fields: {
   ipTrusted: boolean;
 }) {
   logEvent({ event: "rate_limit.denied", ...fields });
+}
+
+/**
+ * Applies `config` to `key` and throws a 429 when the limit is reached —
+ * the one-call form every route uses, so the deny path (log + error) cannot
+ * be forgotten.
+ *
+ * Prefer a per-account key (`user:<id>`) on authenticated routes: it does
+ * not depend on the client-IP header at all.
+ */
+export async function enforceRateLimit(params: {
+  key: string;
+  config: RateLimitConfig;
+  endpoint: string;
+  scope: "ip" | "user";
+  ipTrusted?: boolean;
+  onStoreError?: StoreErrorBehaviour;
+}): Promise<void> {
+  const verdict = await rateLimit(params.key, params.config, { onStoreError: params.onStoreError });
+  if (verdict.allowed) return;
+
+  logRateLimitDenied({
+    endpoint: params.endpoint,
+    scope: params.scope,
+    retryAfterSeconds: verdict.retryAfterSeconds,
+    ipTrusted: params.ipTrusted ?? false,
+  });
+  throw new RateLimitedError("Trop de tentatives. Réessayez plus tard.", verdict.retryAfterSeconds);
 }

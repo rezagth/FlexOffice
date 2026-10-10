@@ -16,9 +16,23 @@ import type { RateLimitConfig, RateLimitStore, RateLimitVerdict } from "./store"
  *   RATE_LIMIT_STORE=upstash
  *   UPSTASH_REDIS_REST_URL=...
  *   UPSTASH_REDIS_REST_TOKEN=...
+ *
+ * Self-hosted: the same REST API is served by `hiett/serverless-redis-http`
+ * (SRH) in front of a plain Redis container — no code change, see
+ * docs/runbooks/rate-limit-redis.md.
  */
 
 const KEY_PREFIX = "officeflex:rl:";
+
+/**
+ * Upper bound on one round trip to the store. Every rate-limited request
+ * waits on it, so a slow or unreachable Redis must not turn into a slow site:
+ * past this delay the call fails, and the caller's `onStoreError` policy
+ * decides (refuse by default, allow for public reads). 500 ms is far above a
+ * healthy round trip (a few ms on the same host for SRH, tens of ms for
+ * Upstash) and well under what a user notices as a hang.
+ */
+export const UPSTASH_TIMEOUT_MS = 500;
 
 export class UpstashRateLimitStore implements RateLimitStore {
   readonly name = "upstash";
@@ -47,6 +61,7 @@ export class UpstashRateLimitStore implements RateLimitStore {
         ["TTL", redisKey],
       ]),
       cache: "no-store",
+      signal: AbortSignal.timeout(UPSTASH_TIMEOUT_MS),
     });
 
     if (!response.ok) {

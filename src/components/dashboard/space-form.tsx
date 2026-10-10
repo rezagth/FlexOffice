@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -91,6 +92,7 @@ export function SpaceForm({
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? properties?.[0]?.id ?? "");
   const [hours, setHours] = useState<WeekdayHours[]>(initialHours ?? DEFAULT_HOURS);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const set = (key: keyof SpaceFormValues) => (value: string) =>
@@ -135,6 +137,7 @@ export function SpaceForm({
     event.preventDefault();
     setSaving(true);
     setError(null);
+    setNotice(null);
 
     const payload = {
       name: values.name,
@@ -162,8 +165,15 @@ export function SpaceForm({
       });
       const body = await response.json();
       if (!response.ok) {
-        setError(body?.error?.message ?? "L'enregistrement a échoué.");
+        // A field-level Zod message (French) is more useful than the
+        // generic envelope message.
+        setError(body?.error?.issues?.[0]?.message ?? body?.error?.message ?? "L'enregistrement a échoué.");
         return;
+      }
+      if (spaceId && body?.space?.status === "PENDING_REVIEW") {
+        setNotice(
+          "Modifications enregistrées. L'annonce est en attente de validation : elle réapparaîtra dans le catalogue une fois validée par notre équipe."
+        );
       }
 
       const savedId: string = spaceId ?? body.space.id;
@@ -310,10 +320,9 @@ export function SpaceForm({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {AMENITY_VALUES.map((value) => (
             <label key={value} className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={values.amenities.includes(value)}
-                onChange={() => toggleAmenity(value)}
+                onCheckedChange={() => toggleAmenity(value)}
               />
               {SPACE_AMENITY_LABELS[value]}
             </label>
@@ -358,13 +367,13 @@ export function SpaceForm({
         <Field
           label="Remise (%)"
           htmlFor="discountPercent"
-          hint="Optionnel. S'applique à la demi-journée et à la journée. Laisser vide pour aucune remise."
+          hint="Optionnel, 90 % au plus. S'applique à la demi-journée et à la journée ; le prix remisé doit rester d'au moins 1,00 €. Laisser vide pour aucune remise."
         >
           <Input
             id="discountPercent"
             type="number"
             min={0}
-            max={100}
+            max={90}
             value={values.discountPercent}
             onChange={(e) => set("discountPercent")(e.target.value)}
           />
@@ -440,6 +449,21 @@ export function SpaceForm({
           ))}
         </div>
       </Card>
+
+      {spaceId && (
+        <p className="text-sm text-muted-foreground">
+          Si l&apos;annonce est publiée, modifier son nom, sa description, son type,
+          son adresse, sa capacité, ses prix ou sa remise la renvoie en validation :
+          elle quitte le catalogue jusqu&apos;à ce que notre équipe la valide de nouveau.
+          Les réservations existantes ne sont pas affectées.
+        </p>
+      )}
+
+      {notice && (
+        <Card role="status" className="p-4 text-sm text-foreground">
+          {notice}
+        </Card>
+      )}
 
       <div className="flex gap-3">
         <Button type="submit" disabled={saving}>

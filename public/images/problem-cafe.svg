@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" width="1200" height="480">
+  <!-- Grayscale on purpose: the "before" scene of the problem section. -->
+  <rect width="1200" height="480" fill="#d4d7db"/>
+  <rect y="330" width="1200" height="150" fill="#b8bcc2"/>
+  <!-- shelves with cups behind the counter -->
+  <g fill="#9aa0a8">
+    <rect x="80" y="70" width="460" height="10"/>
+    <rect x="80" y="150" width="460" height="10"/>
+  </g>
+  <g fill="#7d848d">
+    <rect x="100" y="40" width="28" height="30" rx="4"/>
+    <rect x="145" y="40" width="28" height="30" rx="4"/>
+    <rect x="190" y="40" width="28" height="30" rx="4"/>
+    <rect x="300" y="35" width="40" height="35" rx="4"/>
+    <rect x="360" y="35" width="40" height="35" rx="4"/>
+    <rect x="120" y="115" width="60" height="35" rx="6"/>
+    <rect x="220" y="110" width="30" height="40" rx="4"/>
+    <rect x="420" y="112" width="70" height="38" rx="6"/>
+  </g>
+  <!-- counter with espresso machine -->
+  <rect x="40" y="230" width="560" height="110" fill="#8d939b"/>
+  <rect x="40" y="220" width="560" height="14" fill="#6f757d"/>
+  <rect x="140" y="160" width="150" height="62" rx="6" fill="#5f656d"/>
+  <rect x="165" y="175" width="20" height="20" rx="10" fill="#c3c7cc"/>
+  <!-- crowded tables -->
+  <g fill="#6f757d">
+    <ellipse cx="760" cy="350" rx="110" ry="22"/>
+    <rect x="752" y="350" width="16" height="110"/>
+    <ellipse cx="1040" cy="370" rx="110" ry="22"/>
+    <rect x="1032" y="370" width="16" height="100"/>
+  </g>
+  <!-- people silhouettes -->
+  <g fill="#555b63">
+    <circle cx="680" cy="245" r="28"/>
+    <path d="M640 345 q40 -80 80 0 z"/>
+    <circle cx="840" cy="240" r="28"/>
+    <path d="M800 345 q40 -80 80 0 z"/>
+    <circle cx="970" cy="265" r="28"/>
+    <path d="M930 365 q40 -80 80 0 z"/>
+    <circle cx="1110" cy="260" r="28"/>
+    <path d="M1070 365 q40 -80 80 0 z"/>
+  </g>
+  <!-- laptop on the small table -->
+  <path d="M720 318 h70 l8 24 h-86 z" fill="#c3c7cc"/>
+  <!-- noise -->
+  <g fill="none" stroke="#7d848d" stroke-width="6" stroke-linecap="round">
+    <path d="M700 150 q20 -20 40 0 q20 20 40 0"/>
+    <path d="M900 130 q20 -20 40 0 q20 20 40 0"/>
+    <path d="M1060 160 q20 -20 40 0 q20 20 40 0"/>
+  </g>
+  <g fill="#ffffff" stroke="#7d848d" stroke-width="4">
+    <path d="M760 60 h120 a14 14 0 0 1 14 14 v40 a14 14 0 0 1 -14 14 h-80 l-24 20 v-20 h-16 a14 14 0 0 1 -14 -14 v-40 a14 14 0 0 1 14 -14 z"/>
+    <path d="M990 40 h120 a14 14 0 0 1 14 14 v40 a14 14 0 0 1 -14 14 h-16 v20 l-24 -20 h-80 a14 14 0 0 1 -14 -14 v-40 a14 14 0 0 1 14 -14 z"/>
+  </g>
+  <g fill="#9aa0a8">
+    <rect x="770" y="82" width="90" height="8" rx="4"/>
+    <rect x="770" y="100" width="60" height="8" rx="4"/>
+    <rect x="1000" y="62" width="90" height="8" rx="4"/>
+    <rect x="1000" y="80" width="70" height="8" rx="4"/>
+  </g>
+</svg>

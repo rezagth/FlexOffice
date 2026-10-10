@@ -70,9 +70,16 @@ describe.skipIf(!hasDatabase)("publication and organization status", () => {
       createTestProperty(suspended.id, creator.id, { city }),
     ]);
 
-    verifiedSlug = (
-      await createTestSpace(verified.id, verifiedProperty.id, { status: "PUBLISHED", city })
-    ).slug;
+    const verifiedSpace = await createTestSpace(verified.id, verifiedProperty.id, {
+      status: "PUBLISHED",
+      city,
+    });
+    verifiedSlug = verifiedSpace.slug;
+    // Door / key-box code: must never appear in a public read (B-06).
+    await prisma.space.update({
+      where: { id: verifiedSpace.id },
+      data: { accessInstructions: "Digicode 4821B" },
+    });
     pendingSlug = (
       await createTestSpace(pending.id, pendingProperty.id, { status: "PUBLISHED", city })
     ).slug;
@@ -113,6 +120,22 @@ describe.skipIf(!hasDatabase)("publication and organization status", () => {
 
     it("returns a verified organization's space", async () => {
       expect(await getPublishedSpaceBySlug(verifiedSlug)).not.toBeNull();
+    });
+  });
+
+  describe("access instructions stay private", () => {
+    it("are absent from the public search results", async () => {
+      const spaces = await listPublishedSpaces({ city });
+      expect(spaces.map((s) => s.slug)).toContain(verifiedSlug);
+      expect(JSON.stringify(spaces)).not.toContain("4821B");
+      for (const space of spaces) expect(space).not.toHaveProperty("accessInstructions");
+    });
+
+    it("are absent from the public detail page data", async () => {
+      const space = await getPublishedSpaceBySlug(verifiedSlug);
+      expect(space).not.toBeNull();
+      expect(JSON.stringify(space)).not.toContain("4821B");
+      expect(space).not.toHaveProperty("accessInstructions");
     });
   });
 

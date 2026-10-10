@@ -86,22 +86,20 @@ export async function getAverageOccupancyRate(): Promise<number | null> {
 
 /**
  * Average hours between a booking request being created and the
- * organization accepting or rejecting it. `updatedAt` is a reliable proxy
- * for "the moment it was answered" because exactly one write ever moves a
- * booking off PENDING (`applyPaymentOutcome()`'s `finalize()`) — confirmed
- * by reading that code path, not assumed. A dedicated `respondedAt` column
- * would be more explicit; this reuses what already exists rather than
- * adding one for a single read.
+ * organization accepting or rejecting it, from `respondedAt` (set by
+ * accept-reject.ts). `updatedAt` used to stand in for it, which stopped
+ * being valid once bookings went through several states (card hold,
+ * completion). Expiries are not answers and are left out.
  */
 export async function getAverageResponseTimeHours(): Promise<number | null> {
   const answered = await prisma.booking.findMany({
-    where: { status: { in: ["CONFIRMED", "REJECTED"] } },
-    select: { createdAt: true, updatedAt: true },
+    where: { respondedAt: { not: null }, status: { in: ["CONFIRMED", "COMPLETED", "REJECTED", "CANCELLED"] } },
+    select: { createdAt: true, respondedAt: true },
   });
   if (answered.length === 0) return null;
 
   const totalHours = answered.reduce((sum, b) => {
-    const hours = (b.updatedAt.getTime() - b.createdAt.getTime()) / (1000 * 60 * 60);
+    const hours = (b.respondedAt!.getTime() - b.createdAt.getTime()) / (1000 * 60 * 60);
     return sum + Math.max(hours, 0);
   }, 0);
 

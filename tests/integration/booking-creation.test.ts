@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { hasDatabase } from "./helpers/should-run";
 
 /**
@@ -119,6 +119,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       slot: "MORNING",
       participantsCount: 2,
       purpose: "Prix serveur",
+      acceptTerms: true,
       // Not part of CreateBookingInput — deliberately smuggled in to prove
       // it has no effect even if it reaches this layer.
       ...({ priceAmountCents: 1, commissionAmountCents: 0 } as object),
@@ -126,6 +127,10 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
 
     expect(booking.priceAmountCents).toBe(9000);
     expect(booking.commissionAmountCents).toBe(1350); // 15% of 9000
+    // B-11: the CGV acceptance is stamped by the server, with its own version.
+    const { CGV_VERSION } = await import("@/lib/legal-versions");
+    expect(booking.cgvVersion).toBe(CGV_VERSION);
+    expect(booking.cgvAcceptedAt).toBeInstanceOf(Date);
 
     const payment = await prisma.payment.findUnique({ where: { bookingId: booking.id } });
     expect(payment?.amountCents).toBe(9000);
@@ -143,6 +148,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
         slot: "FULL_DAY",
         participantsCount: 2,
         purpose: "Chevauchement",
+        acceptTerms: true,
       })
     ).rejects.toBeInstanceOf(ConflictError);
   });
@@ -154,6 +160,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       slot: "AFTERNOON",
       participantsCount: 3,
       purpose: "Après-midi",
+      acceptTerms: true,
     });
     expect(booking.priceAmountCents).toBe(9000);
   });
@@ -166,7 +173,46 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
         slot: "FULL_DAY",
         participantsCount: 2,
         purpose: "Dimanche",
+        acceptTerms: true,
       })
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("leaves no booking behind when payments are misconfigured in production", async () => {
+    // Regression (lot 1 review): the provider used to be resolved after the
+    // booking insert, so a 503 from a misconfigured provider left a PENDING
+    // booking with no Payment — locking the slot forever, since
+    // expire-stale.ts skips bookings without a payment.
+    const { resetPaymentProviderForTests } = await import(
+      "@/server/domains/payments/get-payment-provider"
+    );
+    const freeDate = "2031-06-09"; // the next Monday, untouched by other tests
+    resetPaymentProviderForTests();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("OFFICEFLEX_DEMO_MODE", "");
+    vi.stubEnv("PAYMENT_PROVIDER", "");
+    try {
+      await expect(
+        createBooking(clientUserId, {
+          spaceId,
+          date: freeDate,
+          slot: "MORNING",
+          participantsCount: 2,
+          purpose: "Paiement mal configuré",
+          acceptTerms: true,
+        })
+      ).rejects.toMatchObject({ status: 503 });
+    } finally {
+      vi.unstubAllEnvs();
+      resetPaymentProviderForTests();
+    }
+
+    const leftovers = await prisma.booking.count({
+      where: {
+        spaceId,
+        startsAt: { gte: new Date(`${freeDate}T00:00:00Z`), lt: new Date("2031-06-10T00:00:00Z") },
+      },
+    });
+    expect(leftovers).toBe(0);
   });
 });

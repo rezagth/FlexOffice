@@ -1,8 +1,8 @@
 import { LegalPage, Section, Sub, ToFill } from "@/components/marketing/legal-page";
 
 export const metadata = {
-  title: "Conditions générales d'utilisation — OfficeFlex",
-  description: "Règles d'accès et d'usage de la plateforme OfficeFlex.",
+  title: "Conditions générales d'utilisation — MakomSpace",
+  description: "Règles d'accès et d'usage de la plateforme MakomSpace.",
 };
 
 export default function CguPage() {
@@ -13,7 +13,7 @@ export default function CguPage() {
     >
       <Section title="1. Objet et acceptation">
         <p>
-          OfficeFlex est une plateforme de mise en relation entre des entreprises
+          MakomSpace est une plateforme de mise en relation entre des entreprises
           disposant d&apos;espaces professionnels inoccupés (les « Partenaires ») et
           des professionnels souhaitant les réserver ponctuellement (les « Clients »).
         </p>
@@ -24,9 +24,9 @@ export default function CguPage() {
         </p>
       </Section>
 
-      <Section title="2. Qualité d'intermédiaire — ce qu'OfficeFlex n'est pas">
+      <Section title="2. Qualité d'intermédiaire — ce que MakomSpace n'est pas">
         <p>
-          OfficeFlex agit exclusivement en qualité d&apos;intermédiaire technique de
+          MakomSpace agit exclusivement en qualité d&apos;intermédiaire technique de
           mise en relation. La plateforme :
         </p>
         <ul className="list-disc pl-5">
@@ -48,7 +48,7 @@ export default function CguPage() {
           </li>
         </ul>
         <p>
-          S&apos;agissant des contenus publiés par les utilisateurs, OfficeFlex relève
+          S&apos;agissant des contenus publiés par les utilisateurs, MakomSpace relève
           du régime de responsabilité limitée des prestataires intermédiaires (article
           6-I-2 de la LCEN et articles 4 à 6 du règlement sur les services numériques).
           Sa responsabilité ne peut être engagée qu&apos;à défaut d&apos;avoir agi
@@ -68,7 +68,7 @@ export default function CguPage() {
           de la consommation propres aux relations entre professionnels et
           consommateurs — en particulier le droit de rétractation de quatorze jours —
           ne trouvent pas à s&apos;appliquer. L&apos;utilisateur déclare agir à titre
-          professionnel et garantit OfficeFlex contre toute conséquence d&apos;une
+          professionnel et garantit MakomSpace contre toute conséquence d&apos;une
           déclaration inexacte sur ce point.
         </p>
       </Section>
@@ -84,7 +84,7 @@ export default function CguPage() {
         </Sub>
         <Sub title="4.2 Vérification des entreprises partenaires">
           <p>
-            Avant la publication d&apos;une annonce, OfficeFlex procède à des
+            Avant la publication d&apos;une annonce, MakomSpace procède à des
             vérifications sur l&apos;entreprise partenaire : numéro SIRET, adresse
             professionnelle, adresse électronique professionnelle et, le cas échéant,
             pièces justificatives complémentaires. Ces vérifications constituent une
@@ -93,13 +93,13 @@ export default function CguPage() {
             traçabilité des professionnels.
           </p>
           <p>
-            OfficeFlex peut refuser, suspendre ou retirer une annonce dont les
+            MakomSpace peut refuser, suspendre ou retirer une annonce dont les
             informations se révèlent inexactes, incomplètes ou invérifiables.
           </p>
         </Sub>
         <Sub title="4.3 Suspension et résiliation">
           <p>
-            OfficeFlex peut suspendre ou clôturer un compte en cas de manquement aux
+            MakomSpace peut suspendre ou clôturer un compte en cas de manquement aux
             présentes conditions, de fraude, d&apos;impayé, de comportement portant
             atteinte à la sécurité des personnes ou des biens, ou d&apos;atteinte à la
             réputation de la plateforme.
@@ -174,7 +174,7 @@ export default function CguPage() {
       <Section title="7. Contenus publiés">
         <p>
           Chaque utilisateur garantit détenir les droits sur les contenus qu&apos;il
-          publie et concède à OfficeFlex, à titre gratuit et non exclusif, le droit de
+          publie et concède à MakomSpace, à titre gratuit et non exclusif, le droit de
           les reproduire, représenter et adapter aux seules fins de leur diffusion sur
           la plateforme et de sa promotion, pour la durée de publication de
           l&apos;annonce et douze mois au-delà, dans le monde entier.
@@ -183,8 +183,21 @@ export default function CguPage() {
           Sont notamment interdits : les contenus mensongers, diffamatoires, portant
           atteinte à la vie privée ou aux droits de tiers, discriminatoires, ainsi que
           toute donnée à caractère personnel de tiers publiée sans base légale.
-          OfficeFlex peut retirer sans préavis un contenu manifestement illicite et en
+          MakomSpace peut retirer sans préavis un contenu manifestement illicite et en
           informe l&apos;auteur avec les motifs et les voies de recours.
+        </p>
+        <p>
+          <strong>Avis.</strong> Conformément à l&apos;article L. 111-7-2 du Code de la
+          consommation, MakomSpace indique que les avis publiés sont contrôlés : seul le
+          Client d&apos;une réservation qui a eu lieu sur la plateforme peut en déposer un,
+          une seule fois par réservation, dans les 30 jours suivant sa fin. L&apos;avis
+          comprend une note de 1 à 5 et un commentaire facultatif ; il est publié avec le
+          prénom et l&apos;initiale du nom de son auteur, et n&apos;est plus modifiable.
+          Le Partenaire peut y répondre une fois, publiquement. Les avis sont affichés du
+          plus récent au plus ancien et ne sont ni rémunérés ni sollicités contre une
+          contrepartie. MakomSpace peut masquer un avis injurieux, hors sujet,
+          publicitaire ou contenant des données personnelles ; un avis négatif mais
+          sincère n&apos;est pas masqué. Le texte d&apos;un avis masqué est conservé.
         </p>
       </Section>
 
@@ -206,7 +219,7 @@ export default function CguPage() {
 
       <Section title="9. Disponibilité du service">
         <p>
-          OfficeFlex s&apos;engage à mettre en œuvre les moyens raisonnables pour
+          MakomSpace s&apos;engage à mettre en œuvre les moyens raisonnables pour
           assurer l&apos;accessibilité de la plateforme, sans garantie
           d&apos;absence d&apos;interruption. Des opérations de maintenance peuvent
           survenir, en principe annoncées à l&apos;avance lorsqu&apos;elles sont
@@ -216,7 +229,7 @@ export default function CguPage() {
 
       <Section title="10. Responsabilité">
         <p>
-          OfficeFlex ne répond pas des dommages résultant de la relation entre un
+          MakomSpace ne répond pas des dommages résultant de la relation entre un
           Client et un Partenaire, notamment de la non-conformité, de
           l&apos;indisponibilité ou de l&apos;état d&apos;un espace, des dommages
           causés aux locaux ou aux personnes, ni des vols et pertes d&apos;effets
@@ -224,14 +237,14 @@ export default function CguPage() {
         </p>
         <p>
           Dans la limite permise par la loi, et hors faute lourde ou dolosive, la
-          responsabilité d&apos;OfficeFlex, toutes causes confondues, est plafonnée au
+          responsabilité de MakomSpace, toutes causes confondues, est plafonnée au
           montant des commissions effectivement perçues au titre des réservations
           concernées au cours des douze mois précédant le fait générateur. Sont exclus
           les dommages indirects, notamment la perte de chiffre d&apos;affaires, de
           clientèle, de données ou d&apos;image.
         </p>
         <p>
-          Chaque utilisateur garantit OfficeFlex contre toute réclamation de tiers
+          Chaque utilisateur garantit MakomSpace contre toute réclamation de tiers
           résultant de son propre manquement aux présentes conditions.
         </p>
       </Section>
@@ -249,7 +262,7 @@ export default function CguPage() {
         <Sub title="12.1 Traitement interne des réclamations">
           <p>
             Toute réclamation peut être adressée à{" "}
-            <ToFill>adresse e-mail de réclamation</ToFill>. OfficeFlex accuse réception
+            <ToFill>adresse e-mail de réclamation</ToFill>. MakomSpace accuse réception
             sous cinq jours ouvrés et apporte une réponse motivée dans un délai
             raisonnable, conformément à l&apos;article 11 du règlement (UE) 2019/1150.
           </p>
@@ -274,7 +287,7 @@ export default function CguPage() {
 
       <Section title="13. Modification des conditions">
         <p>
-          OfficeFlex peut modifier les présentes conditions. Toute modification est
+          MakomSpace peut modifier les présentes conditions. Toute modification est
           notifiée aux Partenaires au moins quinze jours avant son entrée en vigueur,
           conformément à l&apos;article 3 du règlement (UE) 2019/1150, sauf lorsque la
           modification répond à une obligation légale. La poursuite de

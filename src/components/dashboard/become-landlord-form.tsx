@@ -7,6 +7,7 @@ import { becomeLandlordSchema } from "@/lib/validation/landlord";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * "Devenir bailleur" — activity type, holder type, and the details that go
@@ -254,11 +255,10 @@ export function BecomeLandlordForm() {
               />
             </Field>
             <label className="flex items-start gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 className="mt-0.5"
                 checked={isRealEstateProfessional}
-                onChange={(e) => setIsRealEstateProfessional(e.target.checked)}
+                onCheckedChange={(checked) => setIsRealEstateProfessional(checked === true)}
               />
               <span>
                 Agence immobilière / foncière / conciergerie

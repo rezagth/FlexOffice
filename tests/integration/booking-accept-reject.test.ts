@@ -134,6 +134,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
       slot: "MORNING",
       participantsCount: 2,
       purpose: "Isolation",
+      acceptTerms: true,
     });
 
     await expect(acceptBookingRequest(orgBId, booking.id)).rejects.toBeInstanceOf(NotFoundError);
@@ -166,6 +167,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
       slot: "AFTERNOON",
       participantsCount: 2,
       purpose: "À refuser",
+      acceptTerms: true,
     });
 
     await rejectBookingRequest(orgAId, booking.id);
@@ -183,6 +185,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
       slot: "AFTERNOON",
       participantsCount: 2,
       purpose: "Re-réservation",
+      acceptTerms: true,
     });
     expect(rebooked.status).toBe("PENDING");
   });

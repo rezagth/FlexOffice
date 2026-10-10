@@ -10,12 +10,16 @@ import { getAuthRuntimeMode } from "@/server/auth/runtime-config";
 import { registerUser } from "@/server/domains/users/register";
 import { RateLimitedError, ServiceUnavailableError } from "@/server/lib/errors";
 import { withErrorHandling } from "@/server/lib/http";
+import { getAppBaseUrl } from "@/server/lib/request-origin";
 
 // POST /api/auth/register
 // Auth: none (public signup endpoint)
 // Body: RegisterInput (see src/lib/validation/auth.ts) — role-discriminated,
 //       CLIENT or PARTNER (+ organization fields)
 // Rate limit: 5 / hour / IP
+// Response: 201 { emailConfirmationRequired } — IDENTICAL whether or not the
+//           address already has an account (SEC-15, see users/register.ts).
+//           No user id is returned: it would differ between the two cases.
 //
 // Note the Zod union below is not the security boundary for the role: an
 // attacker can POST to Supabase's own /auth/v1/signup and never reach this
@@ -42,16 +46,13 @@ export const POST = withErrorHandling(async (request: Request) => {
     );
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const input = registerSchema.parse(body);
 
-  const result = await registerUser(input);
+  const outcome = await registerUser(input, { appBaseUrl: getAppBaseUrl(request) });
 
   return NextResponse.json(
-    {
-      userId: result.userId,
-      emailConfirmationRequired: result.emailConfirmationRequired,
-    },
+    { emailConfirmationRequired: outcome.status === "CONFIRMATION_REQUIRED" },
     { status: 201 }
   );
 });

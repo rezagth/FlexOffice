@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/server/db/prisma";
-import { requireRole } from "@/server/auth/rbac";
+import { requireAdmin } from "@/server/auth/rbac";
 import { withErrorHandling } from "@/server/lib/http";
 
-// GET /api/admin/organizations — Auth: required, role ADMIN only.
-// Verification actions (approve/suspend/contact) are scaffolded for a
-// following iteration; this lists organizations for review today.
+// GET /api/admin/organizations — Auth: platform administration.
+// Suspension / reactivation: ./[id]/suspend and ./[id]/reactivate;
+// verification decisions live under /api/admin/verifications.
 export const GET = withErrorHandling(async () => {
-  await requireRole("ADMIN");
+  await requireAdmin();
   const organizations = await prisma.organization.findMany({
     orderBy: { createdAt: "desc" },
   });

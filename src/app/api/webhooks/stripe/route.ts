@@ -3,6 +3,17 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
 import { applyPaymentOutcome } from "@/server/domains/payments/apply-outcome";
+import { applyRefundOutcome } from "@/server/domains/payments/apply-refund-outcome";
+import { applyAuthorization } from "@/server/domains/bookings/payment-holds";
+import type { CancellationReason } from "@/server/domains/payments/provider";
+import {
+  recordDisputeEvent,
+  type StripeDisputeEventData,
+} from "@/server/domains/payments/disputes";
+import {
+  isConnectAccountEventData,
+  recordConnectAccountUpdate,
+} from "@/server/domains/payments/stripe-connect";
 import { logEvent } from "@/server/lib/logger";
 import { withErrorHandling } from "@/server/lib/http";
 
@@ -52,7 +63,17 @@ export const POST = withErrorHandling(async (request: Request) => {
     logEvent({ event: "webhook.received", providerEventId: event.id, type: event.type });
   }
 
-  await dispatchOutcome(event.type, event.data);
+  if (event.type.startsWith("charge.dispute.")) {
+    await dispatchDispute(event.data);
+  } else if (event.type === "refund.updated" || event.type === "refund.created") {
+    await dispatchRefund(event.data);
+  } else if (event.type === "account.updated") {
+    // Connect account state, journaled only (see stripe-connect.ts).
+    if (isConnectAccountEventData(event.data)) await recordConnectAccountUpdate(event.data);
+    else logEvent({ event: "webhook.malformed_account_payload" });
+  } else {
+    await dispatchOutcome(event.type, event.data);
+  }
 
   return NextResponse.json({ received: true, ...(duplicate ? { duplicate: true } : {}) });
 });
@@ -64,7 +85,73 @@ function extractPaymentIntentId(data: unknown): string | null {
   return null;
 }
 
+function isStripeDisputeEventData(data: unknown): data is StripeDisputeEventData {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    "id" in data &&
+    "reason" in data &&
+    "status" in data &&
+    "amount" in data
+  );
+}
+
+async function dispatchDispute(data: unknown) {
+  if (!isStripeDisputeEventData(data)) {
+    logEvent({ event: "webhook.malformed_dispute_payload" });
+    return;
+  }
+  await recordDisputeEvent(data);
+}
+
+function isStripeRefundEventData(data: unknown): data is { id: string; status: string } {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    "id" in data &&
+    typeof (data as { id: unknown }).id === "string" &&
+    "status" in data &&
+    typeof (data as { status: unknown }).status === "string"
+  );
+}
+
+async function dispatchRefund(data: unknown) {
+  if (!isStripeRefundEventData(data)) {
+    logEvent({ event: "webhook.malformed_refund_payload" });
+    return;
+  }
+  const metadata = (data as { metadata?: unknown }).metadata;
+  const refundRowId =
+    metadata && typeof metadata === "object" && typeof (metadata as { refund_row_id?: unknown }).refund_row_id === "string"
+      ? (metadata as { refund_row_id: string }).refund_row_id
+      : null;
+  await applyRefundOutcome(data.id, data.status, refundRowId);
+}
+
+function extractCancellationReason(data: unknown): CancellationReason {
+  const reason =
+    data && typeof data === "object" && "cancellation_reason" in data
+      ? (data as { cancellation_reason: unknown }).cancellation_reason
+      : null;
+  // We only ever set these two; anything else (unset, or a reason Stripe
+  // set itself) is treated as a landlord refusal / plain release.
+  return reason === "abandoned" || reason === "requested_by_customer" ? reason : "declined";
+}
+
 async function dispatchOutcome(type: string, data: unknown) {
+  const providerPaymentIntentId = extractPaymentIntentId(data);
+
+  // The card is authorized: the hold becomes a real request (B-03). The
+  // only event that may do so — never the browser's own confirmation.
+  if (type === "payment_intent.amount_capturable_updated") {
+    if (!providerPaymentIntentId) {
+      logEvent({ event: "webhook.missing_intent_id", type });
+      return;
+    }
+    await applyAuthorization(providerPaymentIntentId);
+    return;
+  }
+
   const outcome =
     type === "payment_intent.succeeded"
       ? "captured"
@@ -79,11 +166,14 @@ async function dispatchOutcome(type: string, data: unknown) {
     return;
   }
 
-  const providerPaymentIntentId = extractPaymentIntentId(data);
   if (!providerPaymentIntentId) {
     logEvent({ event: "webhook.missing_intent_id", type });
     return;
   }
 
-  await applyPaymentOutcome(providerPaymentIntentId, outcome);
+  await applyPaymentOutcome(
+    providerPaymentIntentId,
+    outcome,
+    outcome === "canceled" ? extractCancellationReason(data) : null
+  );
 }

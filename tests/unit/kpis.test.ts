@@ -47,10 +47,10 @@ describe("getAverageResponseTimeHours", () => {
     expect(await getAverageResponseTimeHours()).toBeNull();
   });
 
-  it("averages the hours between creation and the last update for answered bookings", async () => {
+  it("averages the hours between creation and the landlord's answer", async () => {
     bookingFindMany.mockResolvedValue([
-      { createdAt: new Date("2030-01-01T00:00:00Z"), updatedAt: new Date("2030-01-01T02:00:00Z") },
-      { createdAt: new Date("2030-01-01T00:00:00Z"), updatedAt: new Date("2030-01-01T06:00:00Z") },
+      { createdAt: new Date("2030-01-01T00:00:00Z"), respondedAt: new Date("2030-01-01T02:00:00Z") },
+      { createdAt: new Date("2030-01-01T00:00:00Z"), respondedAt: new Date("2030-01-01T06:00:00Z") },
     ]);
     expect(await getAverageResponseTimeHours()).toBeCloseTo(4);
   });
@@ -60,7 +60,7 @@ describe("getAverageResponseTimeHours", () => {
     await getAverageResponseTimeHours();
     expect(bookingFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: { in: ["CONFIRMED", "REJECTED"] } },
+        where: expect.objectContaining({ respondedAt: { not: null } }),
       })
     );
   });

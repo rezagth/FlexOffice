@@ -2,6 +2,10 @@ import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { NotFoundError } from "@/server/lib/errors";
 import type { CreateTicketInput } from "@/lib/validation/support";
+import {
+  notifySupportReply,
+  notifySupportTicketReceived,
+} from "@/server/domains/notifications/send-notifications";
 
 /**
  * Reachable without an account on purpose — a visitor blocked before
@@ -24,6 +28,8 @@ export async function createTicket(input: CreateTicketInput, userId: string | nu
     actorUserId: userId,
     metadata: { ticketId: ticket.id },
   });
+  // Acknowledgment with the reference only — see supportTicketAckTemplate.
+  await notifySupportTicketReceived(ticket);
 
   return ticket;
 }
@@ -31,7 +37,58 @@ export async function createTicket(input: CreateTicketInput, userId: string | nu
 export async function listTickets() {
   return prisma.supportTicket.findMany({
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    include: {
+      replies: {
+        orderBy: { createdAt: "asc" },
+        include: { author: { select: { name: true } } },
+      },
+    },
   });
+}
+
+export async function listTicketReplies(ticketId: string) {
+  const ticket = await prisma.supportTicket.findUnique({ where: { id: ticketId }, select: { id: true } });
+  if (!ticket) throw new NotFoundError("Ticket introuvable");
+  return prisma.supportTicketReply.findMany({
+    where: { ticketId },
+    orderBy: { createdAt: "asc" },
+    include: { author: { select: { name: true } } },
+  });
+}
+
+/**
+ * An administrator answers a ticket: the reply is stored (the history the
+ * back office shows), then e-mailed to the address the ticket was opened
+ * with. The e-mail is best-effort like every other one; `emailedAt` records
+ * whether the provider accepted it, so a failed send is visible instead of
+ * looking answered. Optionally closes the ticket in the same step.
+ */
+export async function replyToTicket(params: {
+  ticketId: string;
+  actorUserId: string;
+  body: string;
+  close?: boolean;
+}) {
+  const ticket = await prisma.supportTicket.findUnique({ where: { id: params.ticketId } });
+  if (!ticket) throw new NotFoundError("Ticket introuvable");
+
+  const reply = await prisma.supportTicketReply.create({
+    data: { ticketId: ticket.id, authorProfileId: params.actorUserId, body: params.body },
+  });
+  await recordAudit({
+    event: "support_ticket.replied",
+    actorUserId: params.actorUserId,
+    metadata: { ticketId: ticket.id, replyId: reply.id },
+  });
+
+  const emailed = await notifySupportReply(ticket, params.body);
+  const stored = emailed
+    ? await prisma.supportTicketReply.update({ where: { id: reply.id }, data: { emailedAt: new Date() } })
+    : reply;
+
+  if (params.close) await closeTicket(ticket.id, params.actorUserId);
+
+  return { reply: stored, emailed };
 }
 
 export async function closeTicket(ticketId: string, actorUserId: string) {

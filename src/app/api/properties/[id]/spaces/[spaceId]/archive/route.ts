@@ -7,7 +7,7 @@ type Ctx = { params: Promise<{ id: string; spaceId: string }> };
 
 export const POST = withErrorHandling(async (_request: Request, { params }: Ctx) => {
   const { id: propertyId, spaceId } = await params;
-  const { ctx } = await requirePropertyManageAccess(propertyId);
+  const { ctx } = await requirePropertyManageAccess(propertyId, "landlord:manage_spaces");
   await getSpaceForProperty(propertyId, spaceId);
   const space = await archiveSpace(spaceId, ctx);
   return NextResponse.json({ space });

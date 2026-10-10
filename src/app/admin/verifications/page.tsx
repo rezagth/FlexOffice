@@ -9,7 +9,7 @@ import {
   VERIFICATION_STATUS_LABELS,
 } from "@/lib/format";
 
-export const metadata = { title: "Vérifications — Admin OfficeFlex" };
+export const metadata = { title: "Vérifications — Admin MakomSpace" };
 export const dynamic = "force-dynamic";
 
 /**
