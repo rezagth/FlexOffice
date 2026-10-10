@@ -346,6 +346,9 @@ model Organization {
   // Connect payee. Created lazily on first statement — see
   // commission-statements.ts.
   stripeCustomerId        String?            @map("stripe_customer_id")
+  /// How often this landlord is paid: at the start of each week (Monday) or
+  /// of each month (the 1st), Europe/Paris. See domains/payouts.
+  payoutFrequency         PayoutFrequency    @default(MONTHLY) @map("payout_frequency")
   createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -367,6 +370,8 @@ model Organization {
 
   commissionStatements CommissionStatement[]
   invoices             Invoice[]
+  payouts              Payout[]
+  payoutLines          PayoutLine[]
 
   @@index([status])
   @@map("organizations")
@@ -648,6 +653,13 @@ model Space {
   accessInstructions String?        @map("access_instructions")
   // IANA zone the opening hours are expressed in — see domains/bookings/timezone.ts.
   timezone           String         @default("Europe/Paris")
+  /// Cancellation window chosen by the landlord, in hours before the start of
+  /// the slot: 0 (no window, free cancellation until the start), 48 (2 days),
+  /// 168 (7 days) or 720 (1 month). A client cancelling inside the window gets
+  /// half of the price back (see src/lib/cancellation-policy.ts). Copied onto
+  /// each booking when it is created, so a later change never rewrites a
+  /// promise already made.
+  cancellationWindowHours Int      @default(48) @map("cancellation_window_hours")
   status             SpaceStatus    @default(DRAFT)
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -762,6 +774,9 @@ model Booking {
   purpose               String
   priceAmountCents      Int           @map("price_amount_cents")
   commissionAmountCents Int           @map("commission_amount_cents")
+  /// The space's cancellation window at the time of the request (hours before
+  /// the start). See Space.cancellationWindowHours.
+  cancellationWindowHours Int         @default(48) @map("cancellation_window_hours")
   /// Set when the landlord accepts (claim before capture) or refuses.
   respondedAt           DateTime?          @map("responded_at") @db.Timestamptz(3)
   cancelledAt           DateTime?          @map("cancelled_at") @db.Timestamptz(3)
@@ -783,6 +798,7 @@ model Booking {
   disputes     Dispute[]
   conversation Conversation?
   review       SpaceReview?
+  payoutLines  PayoutLine[]
 
   // Referenced side of the composite foreign keys that keep the
   // denormalised organizationId in step with the space's and the
@@ -1203,4 +1219,79 @@ model SearchEvent {
 
   @@index([createdAt])
   @@map("search_events")
+}
+
+
+// ---------------------------------------------------------------------------
+// Payouts (decided 10/10/2026)
+//
+// The platform keeps the client's money until the stay is over, then pays the
+// landlord on the schedule the landlord chose (weekly or monthly). The
+// landlord never handles a payment provider: they see their balance and their
+// payouts in the app.
+// ---------------------------------------------------------------------------
+enum PayoutFrequency {
+  WEEKLY
+  MONTHLY
+}
+
+enum PayoutStatus {
+  /// Created, the transfer has not been confirmed yet.
+  PENDING
+  PAID
+  /// The provider refused the transfer; the lines stay attached and the job
+  /// retries it (see domains/payouts/run-payouts.ts).
+  FAILED
+}
+
+enum PayoutLineKind {
+  /// What the landlord earned on a finished booking (after refunds).
+  EARNING
+  /// The commission the landlord owes after cancelling a booking inside the
+  /// cancellation window (negative amount).
+  CANCELLATION_PENALTY
+}
+
+model Payout {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  /// The schedule boundary this payout belongs to (Monday or the 1st, 00:00
+  /// Europe/Paris). One payout per landlord and boundary.
+  scheduledFor       DateTime     @map("scheduled_for") @db.Timestamptz(3)
+  amountCents        Int          @map("amount_cents")
+  status             PayoutStatus @default(PENDING)
+  providerTransferId String?      @unique @map("provider_transfer_id")
+  failureReason      String?      @map("failure_reason")
+  paidAt             DateTime?    @map("paid_at") @db.Timestamptz(3)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lines PayoutLine[]
+
+  @@unique([organizationId, scheduledFor])
+  @@index([status])
+  @@map("payouts")
+}
+
+model PayoutLine {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  bookingId      String         @map("booking_id") @db.Uuid
+  booking        Booking        @relation(fields: [bookingId], references: [id])
+  kind           PayoutLineKind
+  /// Positive for an earning, negative for a penalty. Cents, VAT included.
+  amountCents    Int            @map("amount_cents")
+  /// The line can be paid out from this moment (end of the stay plus the
+  /// dispute window for an earning; immediately for a penalty).
+  eligibleAt     DateTime       @map("eligible_at") @db.Timestamptz(3)
+  /// Null while the line is open (not paid yet).
+  payoutId       String?        @map("payout_id") @db.Uuid
+  payout         Payout?        @relation(fields: [payoutId], references: [id])
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([bookingId, kind])
+  @@index([organizationId, payoutId])
+  @@map("payout_lines")
 }

@@ -17,9 +17,8 @@ import { FadeIn } from "@/components/ui/fade-in";
 import { formatCents, SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
 import { isOrganizationVerified } from "@/lib/verification";
 import {
-  FULL_REFUND_MIN_HOURS,
-  PARTIAL_REFUND_MIN_HOURS,
-  PARTIAL_REFUND_PERCENT,
+  cancellationPolicyLines,
+  DEFAULT_CANCELLATION_WINDOW_HOURS,
 } from "@/lib/cancellation-policy";
 import { openingHoursSpecification, weeklyOpeningHours } from "@/lib/opening-hours";
 import { parseSpaceSearchParams } from "@/lib/validation/search";
@@ -62,16 +61,14 @@ export async function generateMetadata({ params }: PageProps<"/spaces/[slug]">):
   });
 }
 
-/** Summary of src/lib/cancellation-policy.ts — the same constants the
- * server uses to compute a refund, so the page cannot drift from the rule. */
-function cancellationSummary(): string[] {
-  return [
-    "Annulation gratuite tant que l'entreprise n'a pas accepté votre demande.",
-    `Plus de ${FULL_REFUND_MIN_HOURS} h avant le début : la location est remboursée intégralement.`,
-    `Entre ${FULL_REFUND_MIN_HOURS} h et ${PARTIAL_REFUND_MIN_HOURS} h avant : ${PARTIAL_REFUND_PERCENT} % de la location est remboursé.`,
-    `Moins de ${PARTIAL_REFUND_MIN_HOURS} h avant : aucun remboursement.`,
-    "Les frais de service MakomSpace ne sont pas remboursables, sauf annulation par l'entreprise.",
-  ];
+/** The space's own terms (src/lib/cancellation-policy.ts), the same rule
+ * the server applies to compute a refund. */
+function cancellationSummary(space: object): string[] {
+  const hours =
+    "cancellationWindowHours" in space && typeof space.cancellationWindowHours === "number"
+      ? space.cancellationWindowHours
+      : DEFAULT_CANCELLATION_WINDOW_HOURS;
+  return cancellationPolicyLines(hours);
 }
 
 export default async function SpaceDetailPage({
@@ -271,7 +268,7 @@ export default async function SpaceDetailPage({
                   Conditions d&apos;annulation
                 </h2>
                 <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-sm text-foreground">
-                  {cancellationSummary().map((line) => (
+                  {cancellationSummary(space).map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>

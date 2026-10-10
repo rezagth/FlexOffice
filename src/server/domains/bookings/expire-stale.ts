@@ -10,6 +10,7 @@ import { sendDueBookingReminders } from "@/server/domains/notifications/booking-
 import { issueMissingInvoiceDocuments } from "@/server/domains/invoicing/issue";
 import { sendReviewInvitations } from "@/server/domains/reviews/reviews";
 import { runMonthlyCommissionStatements } from "@/server/domains/invoicing/monthly-statements";
+import { runDuePayouts } from "@/server/domains/payouts/run-payouts";
 
 /**
  * A request the landlord has not answered expires after this delay, or at
@@ -135,6 +136,12 @@ export async function runBookingMaintenance() {
     logError({ event: "booking.maintenance_commission_statements_failed", error });
     return null;
   });
+  // Pays landlords at their schedule boundary (weekly or monthly): a no-op
+  // between boundaries.
+  const payouts = await runDuePayouts().catch((error) => {
+    logError({ event: "booking.maintenance_payouts_failed", error });
+    return null;
+  });
   await purgeExpiredPersonalData(); // GDPR retention (SEC-10) — never throws, logs its own result.
-  return { holds, requests, completed, refunds, reminders, reviewInvitations, invoices, commissionStatements };
+  return { holds, requests, completed, refunds, reminders, reviewInvitations, invoices, commissionStatements, payouts };
 }

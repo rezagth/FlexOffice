@@ -2,7 +2,12 @@ import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, NotFoundError } from "@/server/lib/errors";
 import { logError } from "@/server/lib/logger";
-import { clientCancellationRefund } from "@/lib/cancellation-policy";
+import {
+  cancellationWindowLabel,
+  clientCancellationRefund,
+  landlordCancellationPenaltyCents,
+} from "@/lib/cancellation-policy";
+import { recordCancellationPenalty } from "@/server/domains/payouts/lines";
 import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
 import { issueRefund } from "@/server/domains/payments/refunds";
 import {
@@ -112,6 +117,7 @@ export async function cancelBookingAsClient(clientUserId: string, bookingId: str
     priceAmountCents: booking.priceAmountCents,
     commissionAmountCents: booking.commissionAmountCents,
     startsAt: booking.startsAt,
+    cancellationWindowHours: booking.cancellationWindowHours,
   });
 
   const claimed = await prisma.booking.updateMany({
@@ -126,7 +132,11 @@ export async function cancelBookingAsClient(clientUserId: string, bookingId: str
         paymentId: booking.payment.id,
         amountCents: refundCents,
         funding: "LANDLORD",
-        reason: `Annulation par le client (${tier === "FULL" ? "plus de 48 h avant" : "entre 48 h et 24 h avant"})`,
+        reason: `Annulation par le client (${
+          tier === "FULL"
+            ? "hors délai d'annulation"
+            : `à moins de ${cancellationWindowLabel(booking.cancellationWindowHours)} du début : 50 %`
+        })`,
         actorUserId: clientUserId,
       });
     } catch (error) {
@@ -172,8 +182,9 @@ export async function cancelBookingAsLandlord(organizationId: string, actorUserI
   });
   if (claimed.count === 0) throw new ConflictError("Cette réservation vient de changer d'état. Rechargez la page.");
 
-  // The client gets everything back; the landlord's share is taken back and
-  // the platform gives up its commission (decided 06/10/2026).
+  // The client gets everything back, commission included (decided
+  // 06/10/2026); inside the cancellation window the landlord then owes that
+  // commission (decided 10/10/2026, see the penalty below).
   try {
     await issueRefund({
       paymentId: booking.payment.id,
@@ -187,13 +198,25 @@ export async function cancelBookingAsLandlord(organizationId: string, actorUserI
     throw error;
   }
 
+  // Inside the cancellation window the landlord owes the commission the
+  // platform gave up: a negative line, deducted from their next payout.
+  const penaltyCents = landlordCancellationPenaltyCents({
+    commissionAmountCents: booking.commissionAmountCents,
+    startsAt: booking.startsAt,
+    cancellationWindowHours: booking.cancellationWindowHours,
+  });
+  await recordCancellationPenalty({ organizationId, bookingId: booking.id, amountCents: penaltyCents });
+
   await recordAudit({
     event: "booking.cancelled_by_landlord",
     actorUserId,
     organizationId,
-    metadata: { bookingId: booking.id, refundCents: booking.payment.amountCents },
+    metadata: { bookingId: booking.id, refundCents: booking.payment.amountCents, penaltyCents },
   });
-  await sendBookingCancelledByLandlord(emailContext(booking, booking.payment.amountCents, false));
+  await sendBookingCancelledByLandlord({
+    ...emailContext(booking, booking.payment.amountCents, false),
+    landlordPenaltyCents: penaltyCents,
+  });
   return { status: "CANCELLED" as const, refundCents: booking.payment.amountCents };
 }
 

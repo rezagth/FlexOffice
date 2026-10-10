@@ -1,8 +1,4 @@
-import {
-  FULL_REFUND_MIN_HOURS,
-  PARTIAL_REFUND_MIN_HOURS,
-  PARTIAL_REFUND_PERCENT,
-} from "@/lib/cancellation-policy";
+import { INSIDE_WINDOW_REFUND_PERCENT } from "@/lib/cancellation-policy";
 import { REVIEW_WINDOW_DAYS } from "@/lib/review-policy";
 import { COMMISSION_RATE } from "@/server/domains/payments/constants";
 import { BOOKING_EXPIRY_HOURS } from "@/server/domains/bookings/expire-stale";
@@ -70,7 +66,7 @@ export const FAQ: FaqCategory[] = [
         question: "Puis-je annuler ma réservation ?",
         answer: [
           "Oui, depuis « Mes réservations ». Une demande pas encore acceptée s'annule toujours gratuitement.",
-          `Pour une réservation confirmée : plus de ${FULL_REFUND_MIN_HOURS} h avant le début, la location vous est remboursée intégralement ; entre ${FULL_REFUND_MIN_HOURS} h et ${PARTIAL_REFUND_MIN_HOURS} h, ${PARTIAL_REFUND_PERCENT} % ; moins de ${PARTIAL_REFUND_MIN_HOURS} h avant, aucun remboursement. Les frais de service ne sont pas remboursables. Le montant exact est affiché avant que vous confirmiez l'annulation.`,
+          `Chaque espace indique son délai d'annulation (aucun, 2 jours, 7 jours ou 1 mois). Pour une réservation confirmée, en dehors de ce délai, la location vous est remboursée, hors frais de service ; à l'intérieur du délai, ${INSIDE_WINDOW_REFUND_PERCENT} % du prix est remboursé. Le montant exact est affiché avant que vous confirmiez l'annulation.`,
           "Si c'est l'entreprise qui annule, vous êtes remboursé intégralement, frais de service compris.",
         ],
         links: [{ href: "/cgv", label: "Conditions générales de vente" }],
@@ -132,8 +128,8 @@ export const FAQ: FaqCategory[] = [
         id: "paiement",
         question: "Quand et comment suis-je payé ?",
         answer: [
-          "Le client est débité au moment où vous acceptez sa demande. Votre part (le prix, commission déduite) est transférée sur votre compte de paiement Stripe, puis versée sur votre compte bancaire selon le calendrier de versement de ce compte.",
-          "Vous configurez ce compte une seule fois, depuis votre espace bailleur : Stripe vous demande vos coordonnées bancaires et vérifie votre identité, comme la réglementation l'impose.",
+          "Le client est débité au moment où vous acceptez sa demande. MakomSpace conserve la somme jusqu'à la fin du séjour (et 24 h de délai de signalement), puis vous verse votre part, commission déduite, en début de semaine ou en début de mois selon votre choix dans « Versements ».",
+          "Vous suivez chaque versement avec son détail par réservation dans votre espace, sans passer par un autre site. Une seule vérification d'identité et de coordonnées bancaires est demandée à la première configuration, comme la réglementation l'impose.",
         ],
       },
       {
