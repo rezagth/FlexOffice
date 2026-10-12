@@ -71,6 +71,7 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
     clientUserId?: string;
     createdAt?: Date;
     endsInHours?: number;
+    cancellationWindowHours?: number;
   }) {
     const ownSpace = await fixtures.createTestSpace(orgId, propertyId, { status: "PUBLISHED" });
     const startsAt = hoursFromNow(opts.startsInHours);
@@ -88,6 +89,7 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
         purpose: "Test",
         priceAmountCents: 10000,
         commissionAmountCents: 1500,
+        ...(opts.cancellationWindowHours !== undefined ? { cancellationWindowHours: opts.cancellationWindowHours } : {}),
         ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
       },
     });
@@ -187,6 +189,7 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
       const disputes = await prisma.dispute.findMany({ where: { bookingId: { in: bookings.map((b) => b.id) } }, select: { id: true } });
       await prisma.disputeEvent.deleteMany({ where: { disputeId: { in: disputes.map((d) => d.id) } } });
       await prisma.dispute.deleteMany({ where: { id: { in: disputes.map((d) => d.id) } } });
+      await prisma.payoutLine.deleteMany({ where: { organizationId: orgId } });
       await prisma.payment.deleteMany({ where: { organizationId: orgId } });
       await prisma.booking.deleteMany({ where: { organizationId: orgId } });
     }
@@ -335,16 +338,24 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
       expect(await sumKeptAmounts({ bookingId: confirmed.id })).toEqual({ grossCents: 1500, netCents: 0, commissionCents: 1500 });
     });
 
-    it("between 48 h and 24 h: half of the landlord's share", async () => {
+    it("inside the window (48 h): half of the price back, commission kept from the other half", async () => {
       const confirmed = await insertBooking({ status: "CONFIRMED", startsInHours: 30 });
-      expect((await cancel.cancelBookingAsClient(clientId, confirmed.id)).refundCents).toBe(4250);
+      expect((await cancel.cancelBookingAsClient(clientId, confirmed.id)).refundCents).toBe(5000);
+      expect(provider.refundPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ amountCents: 5000, funding: "LANDLORD" })
+      );
     });
 
-    it("less than 24 h: cancelled, nothing refunded", async () => {
-      const confirmed = await insertBooking({ status: "CONFIRMED", startsInHours: 10 });
-      expect((await cancel.cancelBookingAsClient(clientId, confirmed.id)).refundCents).toBe(0);
-      expect(provider.refundPayment).not.toHaveBeenCalled();
-      expect((await reload(confirmed.id)).status).toBe("CANCELLED");
+    it("a 7 day window: 5 days before is already inside, 9 days before is outside", async () => {
+      const inside = await insertBooking({ status: "CONFIRMED", startsInHours: 120, cancellationWindowHours: 168 });
+      expect((await cancel.cancelBookingAsClient(clientId, inside.id)).refundCents).toBe(5000);
+      const outside = await insertBooking({ status: "CONFIRMED", startsInHours: 216, cancellationWindowHours: 168 });
+      expect((await cancel.cancelBookingAsClient(clientId, outside.id)).refundCents).toBe(8500);
+    });
+
+    it("no window: even an hour before, the price is refunded except the commission", async () => {
+      const confirmed = await insertBooking({ status: "CONFIRMED", startsInHours: 1, cancellationWindowHours: 0 });
+      expect((await cancel.cancelBookingAsClient(clientId, confirmed.id)).refundCents).toBe(8500);
     });
 
     it("another client's booking is a 404", async () => {
@@ -399,7 +410,8 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
       await cancel.cancelBookingAsClient(clientId, confirmed.id);
       const { sumKeptAmounts } = await import("@/server/domains/payments/settled-amounts");
       const kept = await sumKeptAmounts({ bookingId: confirmed.id });
-      expect(kept).toEqual({ grossCents: 5750, netCents: 4250, commissionCents: 1500 });
+      // Client got 50 € back; the platform keeps its 15 €, the landlord 35 €.
+      expect(kept).toEqual({ grossCents: 5000, netCents: 3500, commissionCents: 1500 });
     });
   });
 
@@ -445,6 +457,25 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
       expect(row.payment?.refunds[0]).toMatchObject({ landlordReversalCents: 8500, applicationFeeRefunded: true });
       const { sumKeptAmounts } = await import("@/server/domains/payments/settled-amounts");
       expect(await sumKeptAmounts({ bookingId: confirmed.id })).toEqual({ grossCents: 0, netCents: 0, commissionCents: 0 });
+    });
+
+    it("inside the window, the landlord owes the commission: a negative payout line", async () => {
+      const confirmed = await insertBooking({ status: "CONFIRMED", startsInHours: 30 });
+      await cancel.cancelBookingAsLandlord(orgId, landlordUserId, confirmed.id);
+      const lines = await prisma.payoutLine.findMany({ where: { bookingId: confirmed.id } });
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatchObject({ kind: "CANCELLATION_PENALTY", amountCents: -1500, payoutId: null });
+      expect(emails.sendBookingCancelledByLandlord).toHaveBeenLastCalledWith(
+        expect.objectContaining({ landlordPenaltyCents: 1500 })
+      );
+    });
+
+    it("outside the window, or with no window, the landlord owes nothing", async () => {
+      const outside = await insertBooking({ status: "CONFIRMED", startsInHours: 72 });
+      await cancel.cancelBookingAsLandlord(orgId, landlordUserId, outside.id);
+      const noWindow = await insertBooking({ status: "CONFIRMED", startsInHours: 3, cancellationWindowHours: 0 });
+      await cancel.cancelBookingAsLandlord(orgId, landlordUserId, noWindow.id);
+      expect(await prisma.payoutLine.count({ where: { bookingId: { in: [outside.id, noWindow.id] } } })).toBe(0);
     });
 
     it("a pending request must be refused, not cancelled", async () => {

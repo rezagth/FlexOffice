@@ -80,6 +80,7 @@ function publicSpaceScalars() {
     halfDayPriceCents: true,
     dayPriceCents: true,
     discountPercent: true,
+    cancellationWindowHours: true,
     timezone: true,
     status: true,
   } as const;

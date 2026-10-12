@@ -91,6 +91,7 @@ export default async function PropertySpaceDetailPage({
           dayPrice: (space.dayPriceCents / 100).toString(),
           discountPercent: space.discountPercent?.toString() ?? "",
           accessInstructions: space.accessInstructions ?? "",
+          cancellationWindowHours: String(space.cancellationWindowHours),
           timezone: space.timezone,
         }}
       />

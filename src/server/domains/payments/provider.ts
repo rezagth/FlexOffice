@@ -15,12 +15,13 @@ export type CreatePaymentIntentParams = {
   bookingId: string;
   amountCents: number;
   /** The platform's commission, computed server-side
-   * (computeCommissionCents). Collected as the Stripe application fee: the
-   * connected account receives `amountCents - applicationFeeCents`. */
+   * (computeCommissionCents). Stays on the platform: the landlord is paid
+   * `amountCents - applicationFeeCents` later, by a payout (see
+   * domains/payouts), once the stay is over. */
   applicationFeeCents: number;
-  /** Organization.stripeAccountId — the connected account that will
-   * eventually receive the transfer, net of the platform's commission.
-   * Ignored by providers that don't support Connect yet. */
+  /** Organization.stripeAccountId — kept for the check that the landlord
+   * can be paid. Since 10/10/2026 the charge is made on the platform
+   * account and no transfer happens at capture. */
   connectedAccountId?: string | null;
   /** The client's email, so Stripe emails its own hosted receipt on capture.
    * Ignored by providers that don't support it (the mock has no receipt). */
@@ -63,16 +64,31 @@ export type CancellationReason =
   | "abandoned";
 
 /**
- * Who funds a refund (decided 06/10/2026):
- * - LANDLORD: the refunded amount is taken back from the landlord's
- *   transfer; the platform keeps its commission. Used for client
- *   cancellations and partial dispute refunds. The amount can never
- *   exceed what the landlord received.
- * - LANDLORD_AND_FEE: full refund; the landlord's share is taken back and
+ * Who funds a refund (decided 06/10/2026, adapted 10/10/2026 — the money
+ * stays on the platform until the landlord's payout, so a refund before the
+ * payout simply reduces what the landlord will earn):
+ * - LANDLORD: the refunded amount comes out of the landlord's share; the
+ *   platform keeps its commission. Used for client cancellations and
+ *   partial dispute refunds. The amount can never exceed the landlord's share.
+ * - LANDLORD_AND_FEE: full refund; the landlord's share is cancelled and
  *   the platform refunds its own commission. Used when the landlord
- *   cancels, and for a full dispute refund.
+ *   cancels (who then owes the commission inside the cancellation window,
+ *   see domains/payouts), and for a full dispute refund.
  */
 export type RefundFunding = "LANDLORD" | "LANDLORD_AND_FEE";
+
+export type CreateTransferParams = {
+  /** Organization.stripeAccountId of the landlord being paid. */
+  connectedAccountId: string;
+  amountCents: number;
+  /** Stable per payout (our Payout row id). */
+  idempotencyKey: string;
+  description: string;
+};
+
+export type TransferResult = {
+  providerTransferId: string;
+};
 
 export type RefundParams = {
   providerPaymentIntentId: string;
@@ -90,8 +106,10 @@ export type RefundOutcome = {
    * its own authority, real Stripe refunds are only final once a verified
    * `refund.updated`/`charge.refunded` webhook event confirms it. */
   outcome: "succeeded" | "processing";
-  /** Whether the landlord's transfer was reversed — false when the
-   * payment had no transfer (legacy, pre-Connect): the platform bore it. */
+  /** Whether the refund reduces the landlord's share — true for a payment
+   * held on the platform (the normal case since 10/10/2026), and for a legacy
+   * destination charge whose transfer was reversed; false when the payment
+   * had a transfer that could not be reversed: the platform bore it. */
   reversedFromLandlord: boolean;
   applicationFeeRefunded: boolean;
 };
@@ -142,6 +160,11 @@ export interface PaymentProvider {
     providerPaymentIntentId: string,
     reason: CancellationReason
   ): Promise<CapturePaymentOutcome>;
+
+  /** Pays a landlord what the platform owes them (a payout). Idempotent on
+   * `idempotencyKey`: a retried call never pays twice. Throws when the
+   * provider refuses. */
+  createTransfer(params: CreateTransferParams): Promise<TransferResult>;
 
   /** Refunds part or all of a captured payment intent. `amountCents` and
    * `funding` are always decided server-side (see payments/refunds.ts),

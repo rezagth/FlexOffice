@@ -12,12 +12,14 @@ const piCancel = vi.fn();
 const piRetrieve = vi.fn();
 const refundCreate = vi.fn();
 const accountRetrieve = vi.fn();
+const transferCreate = vi.fn();
 
 vi.mock("stripe", () => ({
   default: class {
     paymentIntents = { create: piCreate, cancel: piCancel, retrieve: piRetrieve, capture: vi.fn() };
     refunds = { create: refundCreate };
     accounts = { retrieve: accountRetrieve };
+    transfers = { create: transferCreate };
     webhooks = { constructEvent: vi.fn() };
   },
 }));
@@ -28,14 +30,14 @@ process.env.STRIPE_WEBHOOK_SECRET = "whsec_x";
 const { StripePaymentProvider } = await import("@/server/domains/payments/stripe-provider");
 
 beforeEach(() => {
-  for (const mock of [piCreate, piCancel, piRetrieve, refundCreate, accountRetrieve]) mock.mockReset();
+  for (const mock of [piCreate, piCancel, piRetrieve, refundCreate, accountRetrieve, transferCreate]) mock.mockReset();
   piCreate.mockResolvedValue({ id: "pi_1", client_secret: "cs_1" });
   refundCreate.mockResolvedValue({ id: "re_1" });
   piRetrieve.mockResolvedValue({ transfer_data: { destination: "acct_1" }, application_fee_amount: 1500 });
 });
 
 describe("createPaymentIntent", () => {
-  it("collects the commission as application fee and transfers the rest to the landlord", async () => {
+  it("charges the platform account: no destination, no application fee (money is held until the payout)", async () => {
     const result = await new StripePaymentProvider().createPaymentIntent({
       bookingId: "b1",
       amountCents: 10000,
@@ -43,23 +45,42 @@ describe("createPaymentIntent", () => {
       connectedAccountId: "acct_1",
     });
 
-    expect(piCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        amount: 10000,
-        capture_method: "manual",
-        application_fee_amount: 1500,
-        transfer_data: { destination: "acct_1" },
-      }),
-      { idempotencyKey: "booking:b1:intent" }
-    );
+    const [args, options] = piCreate.mock.calls[0];
+    expect(args).toMatchObject({ amount: 10000, capture_method: "manual", transfer_group: "booking:b1" });
+    expect(args).not.toHaveProperty("transfer_data");
+    expect(args).not.toHaveProperty("application_fee_amount");
+    expect(options).toEqual({ idempotencyKey: "booking:b1:intent" });
     expect(result).toEqual({ providerPaymentIntentId: "pi_1", clientSecret: "cs_1", requiresClientConfirmation: true });
   });
 
-  it("refuses to charge without a connected account", async () => {
+  it("refuses an invalid commission", async () => {
     await expect(
-      new StripePaymentProvider().createPaymentIntent({ bookingId: "b1", amountCents: 10000, applicationFeeCents: 1500 })
-    ).rejects.toMatchObject({ status: 409 });
+      new StripePaymentProvider().createPaymentIntent({ bookingId: "b1", amountCents: 10000, applicationFeeCents: 20000 })
+    ).rejects.toThrow();
     expect(piCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("createTransfer", () => {
+  it("pays the landlord's connected account, idempotent per payout", async () => {
+    transferCreate.mockResolvedValue({ id: "tr_1" });
+    const result = await new StripePaymentProvider().createTransfer({
+      connectedAccountId: "acct_1",
+      amountCents: 12345,
+      idempotencyKey: "payout-1",
+      description: "Versement",
+    });
+    const [args, options] = transferCreate.mock.calls[0];
+    expect(args).toMatchObject({ amount: 12345, currency: "eur", destination: "acct_1" });
+    expect(options).toEqual({ idempotencyKey: "payout:payout-1" });
+    expect(result).toEqual({ providerTransferId: "tr_1" });
+  });
+
+  it("refuses a zero or negative amount", async () => {
+    await expect(
+      new StripePaymentProvider().createTransfer({ connectedAccountId: "acct_1", amountCents: 0, idempotencyKey: "p", description: "x" })
+    ).rejects.toThrow();
+    expect(transferCreate).not.toHaveBeenCalled();
   });
 });
 
@@ -104,16 +125,28 @@ describe("refundPayment", () => {
     expect(result.applicationFeeRefunded).toBe(true);
   });
 
-  it("a legacy payment without transfer is refunded by the platform, and says so", async () => {
+  it("a payment held on the platform is refunded from the platform balance and reduces the landlord's share", async () => {
     piRetrieve.mockResolvedValue({ transfer_data: null, application_fee_amount: null });
     const result = await new StripePaymentProvider().refundPayment({
-      providerPaymentIntentId: "pi_old",
+      providerPaymentIntentId: "pi_held",
       amountCents: 5000,
       funding: "LANDLORD",
       idempotencyKey: "row-3",
     });
     expect(refundCreate.mock.calls[0][0]).not.toHaveProperty("reverse_transfer");
-    expect(result.reversedFromLandlord).toBe(false);
+    expect(refundCreate.mock.calls[0][0]).not.toHaveProperty("refund_application_fee");
+    expect(result).toMatchObject({ reversedFromLandlord: true, applicationFeeRefunded: false });
+  });
+
+  it("a full refund held on the platform also gives the commission back, in the ledger", async () => {
+    piRetrieve.mockResolvedValue({ transfer_data: null, application_fee_amount: null });
+    const result = await new StripePaymentProvider().refundPayment({
+      providerPaymentIntentId: "pi_held",
+      amountCents: 10000,
+      funding: "LANDLORD_AND_FEE",
+      idempotencyKey: "row-4",
+    });
+    expect(result).toMatchObject({ reversedFromLandlord: true, applicationFeeRefunded: true });
   });
 });
 

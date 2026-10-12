@@ -89,7 +89,7 @@ export async function getLandlordOnboarding(
   // 2. Payouts — only when the platform takes real payments.
   if (stripeEnabled) {
     let state: OnboardingStepState = "todo";
-    let description = "Renseignez vos coordonnées bancaires auprès de Stripe pour être payé de vos réservations.";
+    let description = "Enregistrez vos coordonnées bancaires pour être payé de vos réservations.";
     try {
       const status = await getAccountStatus(organizationId);
       if (status.connected && status.chargesEnabled && status.payoutsEnabled) {
@@ -97,7 +97,7 @@ export async function getLandlordOnboarding(
         description = "Vos versements sont activés.";
       } else if (status.connected && status.detailsSubmitted) {
         state = "waiting";
-        description = "Stripe vérifie vos informations : vous n'avez rien à faire pour l'instant.";
+        description = "Nos équipes de paiement vérifient vos informations : vous n'avez rien à faire pour l'instant.";
       }
     } catch (error) {
       // Stripe unreachable: the step stays open, the page still renders.

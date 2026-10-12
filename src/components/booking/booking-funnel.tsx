@@ -10,11 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { StripeCardStep } from "./stripe-card-step";
 import { formatCents } from "@/lib/format";
-import {
-  FULL_REFUND_MIN_HOURS,
-  PARTIAL_REFUND_MIN_HOURS,
-  PARTIAL_REFUND_PERCENT,
-} from "@/lib/cancellation-policy";
+import { cancellationPolicyLines, DEFAULT_CANCELLATION_WINDOW_HOURS } from "@/lib/cancellation-policy";
 import { CGV_VERSION } from "@/lib/legal-versions";
 import { DEFAULT_TIMEZONE } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
@@ -79,6 +75,7 @@ export function BookingFunnel({
   slots,
   capacity,
   timeZone = DEFAULT_TIMEZONE,
+  cancellationWindowHours = DEFAULT_CANCELLATION_WINDOW_HOURS,
 }: {
   spaceId: string;
   spaceName: string;
@@ -87,6 +84,8 @@ export function BookingFunnel({
   capacity: number;
   /** The space's IANA zone — slot hours are shown in it. */
   timeZone?: string;
+  /** The space's cancellation window, in hours before the start. */
+  cancellationWindowHours?: number;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<SlotKind | null>(null);
@@ -259,14 +258,9 @@ export function BookingFunnel({
             <div className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">Conditions d&apos;annulation</p>
               <ul className="mt-1 list-disc pl-5">
-                <li>Gratuite tant que l&apos;entreprise n&apos;a pas accepté votre demande.</li>
-                <li>
-                  Une fois la réservation confirmée : remboursement intégral plus de{" "}
-                  {FULL_REFUND_MIN_HOURS} h avant le début, {PARTIAL_REFUND_PERCENT} % entre{" "}
-                  {FULL_REFUND_MIN_HOURS} h et {PARTIAL_REFUND_MIN_HOURS} h, aucun remboursement
-                  à moins de {PARTIAL_REFUND_MIN_HOURS} h.
-                </li>
-                <li>Les frais de service MakomSpace ne sont pas remboursables.</li>
+                {cancellationPolicyLines(cancellationWindowHours).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
               </ul>
             </div>
           </>

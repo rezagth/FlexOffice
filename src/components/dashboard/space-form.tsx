@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
 import { COMMON_TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezone";
+import { CANCELLATION_WINDOW_OPTIONS, DEFAULT_CANCELLATION_WINDOW_HOURS } from "@/lib/cancellation-policy";
 import { SpacePhotoManager } from "@/components/dashboard/space-photo-manager";
 
 const WEEKDAY_LABELS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -39,6 +40,8 @@ export type SpaceFormValues = {
    * fields so the input can be blank rather than defaulting to "0". */
   discountPercent: string;
   accessInstructions: string;
+  /** "0", "48", "168" or "720" — see lib/cancellation-policy.ts. */
+  cancellationWindowHours: string;
   timezone: string;
 };
 
@@ -55,6 +58,7 @@ const EMPTY: SpaceFormValues = {
   dayPrice: "",
   discountPercent: "",
   accessInstructions: "",
+  cancellationWindowHours: String(DEFAULT_CANCELLATION_WINDOW_HOURS),
   timezone: DEFAULT_TIMEZONE,
 };
 
@@ -151,6 +155,7 @@ export function SpaceForm({
       halfDayPriceCents: toCents(values.halfDayPrice),
       dayPriceCents: toCents(values.dayPrice),
       discountPercent: values.discountPercent === "" ? null : Number(values.discountPercent),
+      cancellationWindowHours: Number(values.cancellationWindowHours),
       ...(values.accessInstructions ? { accessInstructions: values.accessInstructions } : {}),
       ...(values.timezone ? { timezone: values.timezone } : {}),
       // Only sent on creation — see the `properties` prop doc comment.
@@ -377,6 +382,23 @@ export function SpaceForm({
             value={values.discountPercent}
             onChange={(e) => set("discountPercent")(e.target.value)}
           />
+        </Field>
+        <Field
+          label="Délai d'annulation"
+          htmlFor="cancellationWindowHours"
+          hint="Avant ce délai, le locataire est remboursé (hors frais de service). À l'intérieur du délai, il récupère 50 % du prix. Si vous annulez vous-même à l'intérieur du délai, le locataire est remboursé à 100 % et les frais de service restent à votre charge, déduits de votre prochain versement."
+        >
+          <Select
+            id="cancellationWindowHours"
+            value={values.cancellationWindowHours}
+            onChange={(e) => set("cancellationWindowHours")(e.target.value)}
+          >
+            {CANCELLATION_WINDOW_OPTIONS.map((option) => (
+              <option key={option.hours} value={option.hours}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
         </Field>
       </Card>
 

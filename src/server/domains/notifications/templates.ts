@@ -141,6 +141,9 @@ export type CancellationEmailContext = BookingEmailContext & {
   refundAmountCents: number;
   /** True when no payment had been captured yet (authorization released). */
   beforeCapture: boolean;
+  /** Commission the landlord owes after cancelling inside the cancellation
+   * window, in cents (0 or absent: nothing owed). */
+  landlordPenaltyCents?: number;
 };
 
 function refundSentence(ctx: CancellationEmailContext): string {
@@ -189,7 +192,11 @@ export function bookingCancelledByLandlordNoticeTemplate(ctx: CancellationEmailC
       `Vous avez annulé la réservation de ${ctx.clientName} pour « ${ctx.spaceName} » ${slot(ctx)}.`,
       ctx.beforeCapture
         ? "Aucun paiement n'avait encore été encaissé."
-        : `Le client est remboursé intégralement (${formatCents(ctx.refundAmountCents)}) ; le montant qui vous avait été versé est repris sur votre compte.`,
+        : `Le client est remboursé intégralement (${formatCents(ctx.refundAmountCents)}) ; la réservation ne vous sera pas versée.${
+            ctx.landlordPenaltyCents
+              ? ` Votre annulation intervient dans le délai d'annulation de l'espace : les frais de service de MakomSpace (${formatCents(ctx.landlordPenaltyCents)}) restent à votre charge et seront déduits de votre prochain versement.`
+              : ""
+          }`,
     ],
     action: { label: "Voir mes réservations", path: LANDLORD_REQUESTS_PATH },
   });

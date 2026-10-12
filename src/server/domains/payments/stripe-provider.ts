@@ -5,6 +5,8 @@ import type {
   CapturePaymentOutcome,
   CreatePaymentIntentParams,
   CreatePaymentIntentResult,
+  CreateTransferParams,
+  TransferResult,
   PaymentProvider,
   RefundOutcome,
   RefundParams,
@@ -36,12 +38,6 @@ export class StripePaymentProvider implements PaymentProvider {
   }
 
   async createPaymentIntent(params: CreatePaymentIntentParams): Promise<CreatePaymentIntentResult> {
-    // Defence in depth: createBooking() already called
-    // assertConnectedAccountCanBeCharged(). Without a destination the whole
-    // amount would stay on the platform with no payout planned.
-    if (!params.connectedAccountId) {
-      throw new ConflictError(LANDLORD_NOT_PAYABLE);
-    }
     if (
       !Number.isInteger(params.applicationFeeCents) ||
       params.applicationFeeCents < 0 ||
@@ -53,13 +49,13 @@ export class StripePaymentProvider implements PaymentProvider {
     // capture_method: "manual" — authorize now, capture only once the
     // landlord accepts the request (see accept-reject.ts).
     //
-    // Destination charge with an application fee: Stripe transfers the full
-    // amount to the landlord's connected account on capture, then collects
-    // `application_fee_amount` (our commission) back to the platform. The
-    // landlord nets `amount - fee`; the platform keeps the fee and pays the
-    // Stripe processing fees out of it. Without `application_fee_amount`
-    // (as before 06/10/2026) the landlord received 100% and the platform
-    // nothing — while our ledger recorded a 15% commission.
+    // Charge on the PLATFORM account, no destination (decided 10/10/2026):
+    // the money stays with the platform until the stay is over, then a
+    // payout (domains/payouts) transfers the landlord's share, net of the
+    // commission, on the schedule the landlord chose. Before that date a
+    // refund simply reduces what will be paid out; nothing has to be taken
+    // back from a connected account. `transfer_group` ties the later
+    // transfer to this booking in the Stripe Dashboard.
     const intent = await this.stripe.paymentIntents.create(
       {
         amount: params.amountCents,
@@ -67,8 +63,7 @@ export class StripePaymentProvider implements PaymentProvider {
         capture_method: "manual",
         metadata: { bookingId: params.bookingId },
         automatic_payment_methods: { enabled: true },
-        application_fee_amount: params.applicationFeeCents,
-        transfer_data: { destination: params.connectedAccountId },
+        transfer_group: `booking:${params.bookingId}`,
         ...(params.receiptEmail ? { receipt_email: params.receiptEmail } : {}),
       },
       // A retried POST /api/bookings for the same booking row must not
@@ -111,18 +106,40 @@ export class StripePaymentProvider implements PaymentProvider {
     return { outcome: "processing" };
   }
 
+  async createTransfer(params: CreateTransferParams): Promise<TransferResult> {
+    if (!Number.isInteger(params.amountCents) || params.amountCents <= 0) {
+      throw new Error("A transfer amount must be a positive integer number of cents");
+    }
+    const transfer = await this.stripe.transfers.create(
+      {
+        amount: params.amountCents,
+        currency: "eur",
+        destination: params.connectedAccountId,
+        description: params.description,
+        metadata: { payout_row_id: params.idempotencyKey },
+      },
+      // Same key on every retry: Stripe returns the transfer it already made.
+      { idempotencyKey: `payout:${params.idempotencyKey}` }
+    );
+    return { providerTransferId: transfer.id };
+  }
+
   async refundPayment(params: RefundParams): Promise<RefundOutcome> {
-    // A payment taken before Connect onboarding was enforced has no
-    // transfer to reverse — refunding with reverse_transfer would fail, so
-    // the platform bears that refund (and says so in the returned outcome).
+    // Since 10/10/2026 the charge sits on the platform account, so there is
+    // no transfer to reverse: the refund just leaves the platform balance
+    // and reduces what the landlord will be paid. A legacy destination
+    // charge (made before that date) still reverses its transfer.
     const intent = await this.stripe.paymentIntents.retrieve(params.providerPaymentIntentId);
     const hasTransfer = Boolean(intent.transfer_data?.destination);
     const refundFee = params.funding === "LANDLORD_AND_FEE" && Boolean(intent.application_fee_amount);
+    // Held on the platform: the commission is "refunded" in our ledger (the
+    // landlord's share is cancelled and the whole price goes back to the
+    // client) without any provider-side fee to refund.
+    const heldOnPlatform = !hasTransfer;
 
-    // With a destination charge the full amount was transferred to the
-    // landlord, so `reverse_transfer` takes back exactly the refunded
-    // amount from them. `refund_application_fee` additionally gives the
-    // commission back (landlord cancellation, full dispute refund).
+    // Legacy destination charge only: `reverse_transfer` takes back exactly
+    // the refunded amount from the landlord and `refund_application_fee`
+    // gives the commission back.
     let refund: Stripe.Refund;
     try {
       refund = await this.stripe.refunds.create(
@@ -151,8 +168,8 @@ export class StripePaymentProvider implements PaymentProvider {
     return {
       providerRefundId: refund.id,
       outcome: "processing",
-      reversedFromLandlord: hasTransfer,
-      applicationFeeRefunded: refundFee,
+      reversedFromLandlord: hasTransfer || heldOnPlatform,
+      applicationFeeRefunded: refundFee || (heldOnPlatform && params.funding === "LANDLORD_AND_FEE"),
     };
   }
 

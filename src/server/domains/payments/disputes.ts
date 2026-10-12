@@ -61,8 +61,9 @@ export function stripeDashboardDisputeUrl(providerDisputeId: string): string {
 /**
  * Records a real Stripe chargeback for visibility, and alerts the landlord
  * and the platform operators by e-mail when it is first seen. The platform absorbs chargeback losses (confirmed business
- * decision): no automatic `reverse_transfer` against the partner's Connect
- * balance, no booking/payment state change. Idempotent via
+ * decision): nothing is taken back from the partner, no booking/payment
+ * state change. Since 10/10/2026 the money sits on the platform until the
+ * payout, and an open dispute holds the earning back (payouts/run-payouts.ts). Idempotent via
  * `providerDisputeId` — `charge.dispute.created/updated/closed` all funnel
  * through here, and Stripe can retry any of them.
  */

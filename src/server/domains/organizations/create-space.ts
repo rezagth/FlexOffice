@@ -69,6 +69,9 @@ export async function createSpace(organizationId: string, input: CreateSpaceInpu
       // second save through the edit form.
       discountPercent: input.discountPercent ?? null,
       accessInstructions: input.accessInstructions,
+      ...(input.cancellationWindowHours !== undefined
+        ? { cancellationWindowHours: input.cancellationWindowHours }
+        : {}),
       ...(input.timezone ? { timezone: input.timezone } : {}),
       status: "DRAFT",
     },

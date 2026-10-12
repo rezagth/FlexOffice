@@ -64,6 +64,7 @@ export default async function EditSpacePage({ params }: { params: Promise<{ id: 
           dayPrice: (space.dayPriceCents / 100).toString(),
           discountPercent: space.discountPercent?.toString() ?? "",
           accessInstructions: space.accessInstructions ?? "",
+          cancellationWindowHours: String(space.cancellationWindowHours),
           timezone: space.timezone,
         }}
       />

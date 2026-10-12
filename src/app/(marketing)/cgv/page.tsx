@@ -110,8 +110,10 @@ export default function CgvPage() {
         <p>
           La commission est déduite du montant reversé au Partenaire. Elle est acquise
           dès la confirmation de la réservation et reste due en cas d&apos;annulation
-          imputable au Client ; elle est remboursée en cas d&apos;annulation par le
-          Partenaire ou de force majeure (article 8). Le premier jour de chaque mois, une
+          imputable au Client ; elle est remboursée au Client en cas d&apos;annulation
+          par le Partenaire ou de force majeure, la commission étant alors facturée au
+          Partenaire lorsque l&apos;annulation intervient dans le délai d&apos;annulation
+          qu&apos;il a choisi (article 8). Le premier jour de chaque mois, une
           facture de commission récapitulant les commissions conservées au titre du mois
           précédent, remboursements déduits, est émise par MakomSpace et mise à disposition
           du Partenaire dans son espace. Elle est acquittée, la commission ayant été
@@ -164,11 +166,22 @@ export default function CgvPage() {
           MakomSpace ne collecte ni ne conserve aucune donnée de carte bancaire.
         </p>
         <p>
-          Le reversement au Partenaire intervient après déduction de la commission,
-          selon la périodicité indiquée dans son espace et sous réserve de la
-          transmission des informations exigées par le prestataire de paiement au titre
-          de ses obligations de connaissance du client et de lutte contre le
-          blanchiment.
+          Le Client n&apos;est débité qu&apos;après l&apos;acceptation de sa demande par le
+          Partenaire. La somme encaissée est conservée par MakomSpace jusqu&apos;à la fin du
+          séjour, puis pendant le délai de signalement de vingt-quatre (24) heures prévu à
+          l&apos;article 9.
+        </p>
+        <p>
+          Le reversement au Partenaire intervient ensuite, après déduction de la
+          commission, en début de semaine ou en début de mois selon le choix du
+          Partenaire dans son espace, avec un détail par réservation (téléchargeable). Il
+          est effectué depuis le compte de MakomSpace, sans que le Partenaire n&apos;ait à
+          gérer lui-même un compte auprès du prestataire de paiement, et sous réserve de
+          la transmission des informations exigées par ce prestataire au titre de ses
+          obligations de connaissance du client et de lutte contre le blanchiment. Un
+          litige ouvert ou un remboursement en cours suspend le reversement des sommes
+          concernées ; les sommes dues par le Partenaire à MakomSpace (notamment article
+          8.2) sont déduites des reversements suivants.
         </p>
         <p>
           En cas de retard de paiement d&apos;une somme due à MakomSpace par un
@@ -184,24 +197,26 @@ export default function CgvPage() {
         <Sub title="8.1 Par le Client">
           <p>
             Une demande non encore acceptée par le Partenaire peut être annulée
-            sans frais : l&apos;autorisation est libérée et aucun montant n&apos;est
-            débité. Pour une réservation confirmée, la commission de MakomSpace
-            constitue des frais de service non remboursables, et le montant revenant
-            au Partenaire est remboursé selon le délai restant avant le début du
-            créneau : plus de quarante-huit (48) heures avant, remboursement
-            intégral de ce montant ; entre quarante-huit (48) et vingt-quatre (24)
-            heures avant, remboursement de cinquante pour cent (50 %) de ce montant ;
-            moins de vingt-quatre (24) heures avant, aucun remboursement, le
-            créneau ayant été rendu indisponible pour d&apos;autres Clients.
+            sans frais : aucun montant n&apos;est débité. Pour une réservation
+            acceptée, chaque espace précise son délai d&apos;annulation, choisi par le
+            Partenaire : aucun délai, quarante-huit (48) heures, sept (7) jours ou un
+            (1) mois avant le début du créneau. Le Client qui annule avant le début de
+            ce délai (ou si l&apos;espace n&apos;en prévoit pas) est remboursé du prix,
+            les frais de service de MakomSpace restant acquis. Le Client qui annule
+            pendant ce délai est remboursé de cinquante pour cent (50 %) du prix, dans
+            la limite du montant revenant au Partenaire ; la commission de MakomSpace et
+            le solde reviennent respectivement à MakomSpace et au Partenaire.
           </p>
         </Sub>
         <Sub title="8.2 Par le Partenaire">
           <p>
-            Le Partenaire qui annule une réservation confirmée expose son Client à un
-            remboursement intégral immédiat, commission comprise ; le montant qui
-            avait été versé au Partenaire est repris sur son compte de paiement. Les annulations répétées peuvent entraîner
-            le déréférencement des annonces concernées et la suspension du compte, dans
-            les conditions de préavis prévues aux conditions générales
+            Le Partenaire qui annule une réservation acceptée expose son Client à un
+            remboursement intégral immédiat, frais de service compris. Lorsque
+            l&apos;annulation intervient pendant le délai d&apos;annulation de
+            l&apos;espace, la commission de MakomSpace est mise à la charge du
+            Partenaire et déduite de ses reversements. Les annulations répétées peuvent
+            entraîner le déréférencement des annonces concernées et la suspension du
+            compte, dans les conditions de préavis prévues aux conditions générales
             d&apos;utilisation.
           </p>
         </Sub>

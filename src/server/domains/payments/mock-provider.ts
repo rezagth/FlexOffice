@@ -6,6 +6,8 @@ import type {
   CapturePaymentOutcome,
   CreatePaymentIntentParams,
   CreatePaymentIntentResult,
+  CreateTransferParams,
+  TransferResult,
   PaymentProvider,
   RefundOutcome,
   RefundParams,
@@ -51,6 +53,11 @@ export class MockPaymentProvider implements PaymentProvider {
     void providerPaymentIntentId;
     void reason;
     return { outcome: "succeeded" };
+  }
+
+  async createTransfer(params: CreateTransferParams): Promise<TransferResult> {
+    void params;
+    return { providerTransferId: `mock_tr_${crypto.randomUUID()}` };
   }
 
   async refundPayment(params: RefundParams): Promise<RefundOutcome> {

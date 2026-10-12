@@ -152,6 +152,9 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
         purpose: input.purpose,
         priceAmountCents,
         commissionAmountCents,
+        // The promise made to this client: later edits of the space do not
+        // change the cancellation terms of a booking already requested.
+        cancellationWindowHours: space.cancellationWindowHours,
         cgvVersion: CGV_VERSION,
         cgvAcceptedAt: new Date(),
       },

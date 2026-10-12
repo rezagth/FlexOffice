@@ -9,4 +9,4 @@
 export const TERMS_VERSION = "2026-10-07";
 
 /** Version of the CGV (conditions générales de vente) accepted at booking. */
-export const CGV_VERSION = "2026-10-06";
+export const CGV_VERSION = "2026-10-10";

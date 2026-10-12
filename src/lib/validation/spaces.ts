@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidTimeZone } from "@/lib/timezone";
+import { isCancellationWindowHours } from "@/lib/cancellation-policy";
 
 export const spaceTypeEnum = z.enum(["MEETING_ROOM", "DESK", "TRAINING_ROOM"]);
 
@@ -128,6 +129,13 @@ const spaceBaseFields = {
     .nullable()
     .optional(),
   accessInstructions: z.string().trim().max(2000).optional(),
+  // Hours before the start inside which a client cancelling gets half of the
+  // price back: 0 (none), 48, 168 or 720. See lib/cancellation-policy.ts.
+  cancellationWindowHours: z
+    .number()
+    .int()
+    .refine(isCancellationWindowHours, "Délai d'annulation inconnu.")
+    .optional(),
   // The zone the opening hours are written in. Validated against the
   // runtime's own IANA database rather than a hand-kept list, so a typo is
   // rejected instead of silently resolving to UTC.

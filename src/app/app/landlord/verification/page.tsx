@@ -145,20 +145,20 @@ export default async function VerificationPage() {
 
       {connectStatus && (
         <Card className="flex flex-col gap-2 p-5">
-          <h2 className="text-lg font-medium">Paiement</h2>
+          <h2 className="text-lg font-medium">Versements</h2>
           {connectStatus.connected && connectStatus.chargesEnabled && connectStatus.payoutsEnabled ? (
             <p className="text-sm text-primary">
-              Compte Stripe connecté — vous recevez vos reversements normalement.
+              Coordonnées bancaires enregistrées — vos versements partent normalement. Suivez-les dans l&apos;onglet « Versements ».
             </p>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
                 {connectStatus.connected
-                  ? "Compte Stripe créé, mais l'inscription n'est pas terminée : vos réservations ne peuvent pas encore être reversées."
-                  : "Connectez un compte Stripe pour recevoir le reversement de vos réservations."}
+                  ? "L'enregistrement de vos coordonnées bancaires n'est pas terminé : vos réservations ne peuvent pas encore vous être versées."
+                  : "Enregistrez vos coordonnées bancaires (formulaire sécurisé de notre prestataire de paiement, une seule fois) pour recevoir vos versements."}
               </p>
               <StripeConnectButton
-                label={connectStatus.connected ? "Terminer l'inscription Stripe" : "Connecter Stripe"}
+                label={connectStatus.connected ? "Terminer l'enregistrement" : "Enregistrer mes coordonnées bancaires"}
               />
             </>
           )}
