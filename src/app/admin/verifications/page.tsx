@@ -4,8 +4,8 @@ import { listVerificationsForAdmin } from "@/server/domains/verification/get";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
 import {
+  activityTypeLabel,
   HOLDER_TYPE_LABELS,
-  LANDLORD_ACTIVITY_TYPE_LABELS,
   VERIFICATION_STATUS_LABELS,
 } from "@/lib/format";
 
@@ -46,7 +46,7 @@ export default async function AdminVerificationsPage() {
                   <p className="font-medium text-foreground">{v.organization.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {HOLDER_TYPE_LABELS[v.organization.holderType]} ·{" "}
-                    {LANDLORD_ACTIVITY_TYPE_LABELS[v.activityType]} · {v._count.documents}{" "}
+                    {activityTypeLabel(v.activityType)} · {v._count.documents}{" "}
                     document{v._count.documents > 1 ? "s" : ""}
                   </p>
                 </div>
@@ -74,7 +74,7 @@ export default async function AdminVerificationsPage() {
                   <p className="font-medium text-foreground">{v.organization.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {HOLDER_TYPE_LABELS[v.organization.holderType]} ·{" "}
-                    {LANDLORD_ACTIVITY_TYPE_LABELS[v.activityType]}
+                    {activityTypeLabel(v.activityType)}
                   </p>
                 </div>
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

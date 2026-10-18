@@ -2,9 +2,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AuthContext } from "@/server/auth/rbac";
 import type { MembershipSummary } from "@/server/auth/active-context";
+import { countUnreadNotifications } from "@/server/domains/notifications/in-app";
 import { ModeSwitcher } from "./mode-switcher";
 import { SignOutButton } from "./sign-out-button";
-import { CollapsibleSidebar, SidebarNav } from "@/components/ui/sidebar-nav";
+import { CollapsibleSidebar, SidebarNav, type SidebarNavItem } from "@/components/ui/sidebar-nav";
 import { BrandLogo } from "@/components/brand/brand-logo";
 
 /**
@@ -23,11 +24,12 @@ import { BrandLogo } from "@/components/brand/brand-logo";
  * requirement — see src/server/auth/page-guards.ts.
  */
 
-type NavItem = { href: string; label: string };
+type NavItem = SidebarNavItem;
 
 function tenantNav(): NavItem[] {
   return [
     { href: "/app", label: "Accueil" },
+    { href: "/app/notifications", label: "Notifications" },
     { href: "/search", label: "Rechercher" },
     { href: "/app/bookings", label: "Réservations" },
     { href: "/app/favorites", label: "Favoris" },
@@ -39,7 +41,10 @@ function tenantNav(): NavItem[] {
 }
 
 function landlordNav(capabilities: AuthContext["capabilities"]): NavItem[] {
-  const items: NavItem[] = [{ href: "/app", label: "Accueil" }];
+  const items: NavItem[] = [
+    { href: "/app", label: "Accueil" },
+    { href: "/app/notifications", label: "Notifications" },
+  ];
 
   if (capabilities.has("landlord:manage_verification")) {
     items.push({ href: "/app/landlord/verification", label: "Vérification" });
@@ -71,7 +76,7 @@ function landlordNav(capabilities: AuthContext["capabilities"]): NavItem[] {
   return items;
 }
 
-export function AppShell({
+export async function AppShell({
   ctx,
   organizations,
   children,
@@ -82,6 +87,10 @@ export function AppShell({
 }) {
   const isLandlordMode = ctx.activeMode === "LANDLORD";
   const navItems = isLandlordMode ? landlordNav(ctx.capabilities) : tenantNav();
+  const unreadCount = await countUnreadNotifications(ctx.userId);
+  const navItemsWithBadge = navItems.map((item) =>
+    item.href === "/app/notifications" ? { ...item, badge: unreadCount } : item
+  );
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
@@ -103,7 +112,7 @@ export function AppShell({
           activeOrgId={ctx.activeOrgId}
         />
 
-        <SidebarNav items={navItems} label="Navigation de l'espace" />
+        <SidebarNav items={navItemsWithBadge} label="Navigation de l'espace" />
 
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           {/* Shown so an administrator can reach the back office without

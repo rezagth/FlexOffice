@@ -6,7 +6,13 @@ import { useState, type ReactNode } from "react";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type SidebarNavItem = { href: string; label: string };
+export type SidebarNavItem = {
+  href: string;
+  label: string;
+  /** Shown next to the label — the unread notification count, so far the
+   * only user of this. Omitted (or 0) renders no badge at all. */
+  badge?: number;
+};
 
 /**
  * The item a pathname belongs to: the longest href that is the pathname or
@@ -45,7 +51,17 @@ export function SidebarNav({ items, label }: { items: SidebarNavItem[]; label: s
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
-            {item.label}
+            <span className="flex items-center justify-between gap-2">
+              {item.label}
+              {!!item.badge && (
+                <span
+                  aria-label={`${item.badge} non lues`}
+                  className="inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-xs font-semibold leading-none text-accent-foreground"
+                >
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
+            </span>
           </Link>
         );
       })}

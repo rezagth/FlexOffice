@@ -1,8 +1,10 @@
 import { requirePageAdmin } from "@/server/auth/page-guards";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { countUnreadNotifications } from "@/server/domains/notifications/in-app";
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Vue d'ensemble" },
+  { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/users", label: "Utilisateurs" },
   { href: "/admin/organizations", label: "Entreprises" },
   { href: "/admin/verifications", label: "Vérifications" },
@@ -18,9 +20,13 @@ const NAV_ITEMS = [
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const ctx = await requirePageAdmin();
+  const unreadCount = await countUnreadNotifications(ctx.userId);
+  const navItems = NAV_ITEMS.map((item) =>
+    item.href === "/admin/notifications" ? { ...item, badge: unreadCount } : item
+  );
 
   return (
-    <DashboardShell navItems={NAV_ITEMS} roleLabel="Back-office admin" userName={ctx.name}>
+    <DashboardShell navItems={navItems} roleLabel="Back-office admin" userName={ctx.name}>
       {children}
     </DashboardShell>
   );

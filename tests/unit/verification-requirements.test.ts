@@ -88,6 +88,16 @@ describe("requiredDocumentTypes", () => {
     }
   });
 
+  /** PRD V1.1, R71-R74 — a company verified only to rent, never to let a
+   * property: no ownership/sublease question applies. */
+  it("company + no activity (tenant-only): Kbis + CNI du représentant légal, nothing property-related", () => {
+    expect(requiredDocumentTypes("COMPANY", null)).toEqual(["K_BIS", "LEGAL_REPRESENTATIVE_ID"]);
+  });
+
+  it("isRealEstateProfessional never adds the carte T for a tenant-only company", () => {
+    expect(requiredDocumentTypes("COMPANY", null, true)).toEqual(["K_BIS", "LEGAL_REPRESENTATIVE_ID"]);
+  });
+
   it("every required type is a real VerificationDocumentType", () => {
     for (const holderType of ["INDIVIDUAL", "COMPANY"] as const) {
       for (const activityType of ["OWNER", "OPERATOR"] as const) {
@@ -140,6 +150,11 @@ describe("hasAllRequiredDocuments", () => {
     expect(
       hasAllRequiredDocuments("COMPANY", "OPERATOR", [...threeOfFour, "SUBLEASE_AUTHORIZATION"])
     ).toBe(true);
+  });
+
+  it("a tenant-only company (no activity type) is complete with just Kbis + représentant légal", () => {
+    expect(hasAllRequiredDocuments("COMPANY", null, ["K_BIS"])).toBe(false);
+    expect(hasAllRequiredDocuments("COMPANY", null, ["K_BIS", "LEGAL_REPRESENTATIVE_ID"])).toBe(true);
   });
 });
 

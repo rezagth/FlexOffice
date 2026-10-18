@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/server/lib/errors";
 import { notifyVerificationDecision } from "@/server/domains/notifications/send-notifications";
+import { createInAppNotification } from "@/server/domains/notifications/in-app";
 
 /**
  * Admin review of a submitted dossier.
@@ -97,6 +98,13 @@ export async function approveVerification(verificationId: string, actorUserId: s
     metadata: { verificationId },
   });
   await notifyVerificationDecision(verificationId, { kind: "APPROVED" });
+  await createInAppNotification({
+    recipientProfileId: verification.requestedByProfileId,
+    type: "VERIFICATION_APPROVED",
+    title: "Société vérifiée",
+    body: "Votre dossier de vérification a été approuvé.",
+    link: "/app/account",
+  });
 }
 
 /**
@@ -139,4 +147,11 @@ export async function rejectVerification(
     metadata: { verificationId, reason },
   });
   await notifyVerificationDecision(verificationId, { kind: "REJECTED", reason });
+  await createInAppNotification({
+    recipientProfileId: verification.requestedByProfileId,
+    type: "VERIFICATION_REJECTED",
+    title: "Dossier de vérification à compléter",
+    body: reason,
+    link: "/app/account",
+  });
 }

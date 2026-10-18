@@ -8,6 +8,7 @@ import {
   sendBookingRejected,
 } from "@/server/domains/notifications/send-booking-emails";
 import type { BookingEmailContext } from "@/server/domains/notifications/templates";
+import { createInAppNotification } from "@/server/domains/notifications/in-app";
 import type { CancellationReason } from "./provider";
 import { issueRefund } from "./refunds";
 import { issueInvoiceDocumentsSafely } from "@/server/domains/invoicing/issue";
@@ -58,8 +59,12 @@ export async function applyPaymentOutcome(
   }
 
   if (outcome === "captured") {
-    const result = await finalize(payment, "SUCCEEDED", "CONFIRMED", () =>
-      sendBookingConfirmed(emailContext(payment))
+    const result = await finalize(
+      payment,
+      "SUCCEEDED",
+      "CONFIRMED",
+      () => sendBookingConfirmed(emailContext(payment)),
+      "BOOKING_CONFIRMED"
     );
     if (result !== "applied") await refundOrphanCapture(payment, result);
     return;
@@ -68,18 +73,44 @@ export async function applyPaymentOutcome(
   // "canceled" and "failed" both mean no capture happened — same terminal
   // state for Booking/Payment, distinguished only in the audit metadata and
   // in the e-mail: an expiry ("abandoned") is not a landlord refusal.
-  const notify =
-    cancellationReason === "abandoned"
-      ? () => sendBookingExpired(emailContext(payment))
-      : () => sendBookingRejected(emailContext(payment));
-  await finalize(payment, "FAILED", "REJECTED", notify, cancellationReason ?? outcome);
+  const expired = cancellationReason === "abandoned";
+  const notify = expired
+    ? () => sendBookingExpired(emailContext(payment))
+    : () => sendBookingRejected(emailContext(payment));
+  await finalize(
+    payment,
+    "FAILED",
+    "REJECTED",
+    notify,
+    expired ? "BOOKING_EXPIRED" : "BOOKING_REJECTED",
+    cancellationReason ?? outcome
+  );
 }
+
+const IN_APP_NOTIFICATION_COPY: Record<
+  "BOOKING_CONFIRMED" | "BOOKING_REJECTED" | "BOOKING_EXPIRED",
+  { title: string; body: (spaceName: string) => string }
+> = {
+  BOOKING_CONFIRMED: {
+    title: "Réservation confirmée",
+    body: (spaceName) => `Votre réservation pour « ${spaceName} » a été acceptée.`,
+  },
+  BOOKING_REJECTED: {
+    title: "Réservation refusée",
+    body: (spaceName) => `Votre demande pour « ${spaceName} » a été refusée.`,
+  },
+  BOOKING_EXPIRED: {
+    title: "Réservation expirée",
+    body: (spaceName) => `Votre demande pour « ${spaceName} » a expiré faute de réponse.`,
+  },
+};
 
 async function finalize(
   payment: PaymentWithBooking,
   paymentStatus: "SUCCEEDED" | "FAILED",
   bookingStatus: "CONFIRMED" | "REJECTED",
   notify: () => Promise<void>,
+  notificationType: "BOOKING_CONFIRMED" | "BOOKING_REJECTED" | "BOOKING_EXPIRED",
   reason?: string
 ) {
   // Only an authorized payment (REQUIRES_CAPTURE) is finalized here. A
@@ -126,6 +157,14 @@ async function finalize(
   });
 
   await notify();
+  const copy = IN_APP_NOTIFICATION_COPY[notificationType];
+  await createInAppNotification({
+    recipientProfileId: payment.booking.clientUserId,
+    type: notificationType,
+    title: copy.title,
+    body: copy.body(payment.booking.space.name),
+    link: "/app/bookings",
+  });
   return "applied" as const;
 }
 

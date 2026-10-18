@@ -109,6 +109,14 @@ export const LANDLORD_ACTIVITY_TYPE_LABELS: Record<string, string> = {
   OPERATOR: "Exploitant",
 };
 
+/** `activityType` is null on a dossier that verifies a company as a renter
+ * only (PRD V1.1, R71-R74) — it is not letting a property, so neither
+ * "Propriétaire" nor "Exploitant" applies. */
+export function activityTypeLabel(activityType: string | null): string {
+  if (activityType === null) return "Société locataire";
+  return LANDLORD_ACTIVITY_TYPE_LABELS[activityType] ?? activityType;
+}
+
 export const HOLDER_TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: "Particulier",
   COMPANY: "Société",

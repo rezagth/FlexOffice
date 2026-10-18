@@ -17,7 +17,9 @@ export async function createDraftVerification(
   params: {
     organizationId: string;
     requestedByProfileId: string;
-    activityType: LandlordActivityType;
+    /** Null for a dossier opened to verify a company that only rents spaces
+     * (PRD V1.1, R71-R74) — see requirements.ts. */
+    activityType: LandlordActivityType | null;
     isRealEstateProfessional?: boolean;
   }
 ) {
@@ -51,7 +53,7 @@ export async function createDraftVerification(
 export async function getOrCreateDraftVerification(params: {
   organizationId: string;
   requestedByProfileId: string;
-  activityType: LandlordActivityType;
+  activityType: LandlordActivityType | null;
   isRealEstateProfessional?: boolean;
 }) {
   const latest = await prisma.landlordVerification.findFirst({

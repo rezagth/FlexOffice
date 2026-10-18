@@ -6,8 +6,8 @@ import { Card } from "@/components/ui/card";
 import { VerificationDocumentViewer } from "@/components/dashboard/verification-document-viewer";
 import { VerificationReviewActions } from "@/components/dashboard/verification-review-actions";
 import {
+  activityTypeLabel,
   HOLDER_TYPE_LABELS,
-  LANDLORD_ACTIVITY_TYPE_LABELS,
   VERIFICATION_STATUS_LABELS,
   formatDateTime,
 } from "@/lib/format";
@@ -38,7 +38,7 @@ export default async function AdminVerificationDetailPage({
         <h1 className="text-2xl font-semibold text-foreground">{verification.organization.name}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {HOLDER_TYPE_LABELS[verification.organization.holderType]} ·{" "}
-          {LANDLORD_ACTIVITY_TYPE_LABELS[verification.activityType]}
+          {activityTypeLabel(verification.activityType)}
           {verification.isRealEstateProfessional && " · Professionnel de l'immobilier"}
         </p>
       </div>

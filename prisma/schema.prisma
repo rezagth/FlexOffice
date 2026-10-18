@@ -113,6 +113,7 @@ model Profile {
   supportTickets SupportTicket[]
   spaceReviews   SpaceReview[]
   supportReplies SupportTicketReply[]
+  notifications  Notification[]
 
   @@index([organizationId])
   @@index([activeOrganizationId])
@@ -152,7 +153,12 @@ model LandlordVerification {
   requestedByProfileId String  @map("requested_by_profile_id") @db.Uuid
   requestedBy          Profile @relation("VerificationRequestedBy", fields: [requestedByProfileId], references: [id])
 
-  activityType LandlordActivityType @map("activity_type")
+  /// Null for a dossier opened to verify a company that only rents spaces
+  /// (PRD V1.1, R71-R74) — "owns vs. operates the property" has no meaning
+  /// for a tenant company, since it is not providing a property at all. Set
+  /// for every landlord dossier, same as before (lib/validation/landlord.ts
+  /// still requires it on that path).
+  activityType LandlordActivityType? @map("activity_type")
   status       VerificationStatus   @default(DRAFT)
   /// Only meaningful when the organization's holderType is COMPANY — an
   /// individual cannot hold a French real-estate professional card. Not
@@ -1294,4 +1300,38 @@ model PayoutLine {
   @@unique([bookingId, kind])
   @@index([organizationId, payoutId])
   @@map("payout_lines")
+}
+
+/// PRD V1.1, R67-R69 — the in-app notification center. Deliberately thin: no
+/// per-type table, no templating engine. The caller renders the final French
+/// text once at creation time (never recomputed, never re-fetched from
+/// another record), which is also what keeps a notification from ever
+/// including a phone number or a SIRET in clear — the caller that writes
+/// `title`/`body` is the one place that rule can be enforced (R69).
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_REJECTED
+  BOOKING_EXPIRED
+  VERIFICATION_APPROVED
+  VERIFICATION_REJECTED
+}
+
+model Notification {
+  id                 String           @id @default(uuid()) @db.Uuid
+  recipientProfileId String           @map("recipient_profile_id") @db.Uuid
+  recipient          Profile          @relation(fields: [recipientProfileId], references: [id], onDelete: Cascade)
+  type               NotificationType
+  title              String
+  /// Short enough to read in a dropdown; never a document, never PII beyond
+  /// what the recipient already sees elsewhere (R69).
+  body               String?
+  /// Relative in-app path the notification opens — never an absolute URL
+  /// (open-redirect surface), checked at creation, not display time.
+  link               String?
+  readAt             DateTime?        @map("read_at") @db.Timestamptz(3)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([recipientProfileId, readAt])
+  @@index([recipientProfileId, createdAt])
+  @@map("notifications")
 }

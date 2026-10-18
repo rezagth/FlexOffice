@@ -13,37 +13,56 @@ import type {
  * silently disagree about what "complete" means.
  *
  * Kept as code, not a database table or constraint: the mapping is exactly
- * four rows and change to it is a product decision, not data — see the
+ * five rows and change to it is a product decision, not data — see the
  * `VerificationDocumentType` enum's own comment on why the document type
  * list itself stays open-ended (OTHER) while this mapping stays precise.
  *
- * THE FOUR SCENARIOS, MATCHING THE BRIEF EXACTLY
+ * THE FOUR LANDLORD SCENARIOS, MATCHING THE BRIEF EXACTLY
  *   individual + owner     CNI + acte de propriété
  *   individual + operator  CNI + autorisation de sous-location
  *   company + owner        Kbis + TVA + CNI du représentant légal
  *   company + operator     Kbis + TVA + CNI du représentant légal
  *                             + autorisation de sous-location
  *
- * A FIFTH AXIS — REAL ESTATE PROFESSIONALS
+ * A FIFTH SCENARIO — A COMPANY THAT ONLY RENTS (PRD V1.1, R71-R74)
+ * `activityType: null` — this dossier verifies a company as a renter, not as
+ * a landlord: it is not providing a property, so neither "owns" nor
+ * "operates" applies, and there is nothing to prove a lease or sublet
+ * authorization over. `INDIVIDUAL` has no equivalent here: an individual
+ * renter is never asked to verify a company that does not exist — R72/R73
+ * only ever gate a COMPANY profile, never a plain individual tenant.
+ *
+ * A SIXTH AXIS — REAL ESTATE PROFESSIONALS
  * `isRealEstateProfessional` adds the French "carte professionnelle" (carte
  * T) on top of whatever the company scenario already required. Only
  * meaningful for a COMPANY (an individual cannot hold that card) — a `true`
  * value on an INDIVIDUAL dossier is simply ignored here rather than
  * rejected, since the become-landlord form already only offers the checkbox
- * on the company step.
+ * on the company step. Never applies to the tenant-only scenario either: a
+ * "carte T" is about letting property, which a tenant-only company does not
+ * do.
  */
 export function requiredDocumentTypes(
   holderType: HolderType,
-  activityType: LandlordActivityType,
+  activityType: LandlordActivityType | null,
   isRealEstateProfessional = false
 ): readonly VerificationDocumentType[] {
   if (holderType === "INDIVIDUAL") {
-    return activityType === "OWNER"
-      ? (["IDENTITY_DOCUMENT", "OWNERSHIP_PROOF"] as const)
-      : (["IDENTITY_DOCUMENT", "SUBLEASE_AUTHORIZATION"] as const);
+    // An individual tenant is never asked to verify a company (R72/R73
+    // only gates companies), so activityType is always set here in
+    // practice — this mirrors the pre-existing OWNER default rather than
+    // inventing a new rule for a combination that should not occur.
+    return activityType === "OPERATOR"
+      ? (["IDENTITY_DOCUMENT", "SUBLEASE_AUTHORIZATION"] as const)
+      : (["IDENTITY_DOCUMENT", "OWNERSHIP_PROOF"] as const);
   }
 
-  // COMPANY
+  // COMPANY, renting only — no property, nothing to own or sublet.
+  if (activityType === null) {
+    return ["K_BIS", "LEGAL_REPRESENTATIVE_ID"] as const;
+  }
+
+  // COMPANY, letting (owner or operator of the property).
   const base =
     activityType === "OWNER"
       ? (["K_BIS", "VAT_PROOF", "LEGAL_REPRESENTATIVE_ID"] as const)
@@ -68,7 +87,7 @@ export function requiredDocumentTypes(
  */
 export function hasAllRequiredDocuments(
   holderType: HolderType,
-  activityType: LandlordActivityType,
+  activityType: LandlordActivityType | null,
   uploadedTypes: readonly VerificationDocumentType[],
   isRealEstateProfessional = false
 ): boolean {
@@ -80,7 +99,7 @@ export function hasAllRequiredDocuments(
 /** The required types not yet covered by an upload. For error messages and UI. */
 export function missingDocumentTypes(
   holderType: HolderType,
-  activityType: LandlordActivityType,
+  activityType: LandlordActivityType | null,
   uploadedTypes: readonly VerificationDocumentType[],
   isRealEstateProfessional = false
 ): VerificationDocumentType[] {

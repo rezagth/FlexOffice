@@ -15,6 +15,7 @@ import type { CreatePaymentIntentResult } from "@/server/domains/payments/provid
 import { computeDaySlots } from "./availability";
 import { MAX_OPEN_REQUESTS_PER_CLIENT, PAYMENT_HOLD_MINUTES, releaseAbandonedPaymentHolds } from "./payment-holds";
 import { assertParticipantsFitCapacity } from "./booking-invariants";
+import { assertClientCompanyIsVerified } from "@/server/domains/organizations/company-verification-guard";
 import type { CreateBookingInput } from "@/lib/validation/bookings";
 
 // Prisma 7 + @prisma/adapter-pg surface an unmapped Postgres error (like an
@@ -70,6 +71,10 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
     where: { id: space.organizationId },
   });
   const clientUser = await prisma.profile.findUniqueOrThrow({ where: { id: clientUserId } });
+
+  // R72/R73: an unverified company cannot book, whether or not it also
+  // lets spaces — checked before any payment work starts.
+  await assertClientCompanyIsVerified(clientUserId);
 
   const daySlots = await computeDaySlots(input.spaceId, input.date);
   if (!daySlots) throw new ConflictError("This space is closed on the requested date");

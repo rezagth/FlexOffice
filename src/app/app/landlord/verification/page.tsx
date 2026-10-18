@@ -10,8 +10,8 @@ import { VerificationDossier } from "@/components/dashboard/verification-dossier
 import { StripeConnectButton } from "@/components/dashboard/stripe-connect-button";
 import { getAccountStatus } from "@/server/domains/payments/stripe-connect";
 import {
+  activityTypeLabel,
   HOLDER_TYPE_LABELS,
-  LANDLORD_ACTIVITY_TYPE_LABELS,
   VERIFICATION_STATUS_LABELS,
   formatDateTime,
 } from "@/lib/format";
@@ -74,7 +74,7 @@ export default async function VerificationPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {verification.organization.name} ·{" "}
           {HOLDER_TYPE_LABELS[verification.organization.holderType]} ·{" "}
-          {LANDLORD_ACTIVITY_TYPE_LABELS[verification.activityType]}
+          {activityTypeLabel(verification.activityType)}
           {verification.isRealEstateProfessional && " · Professionnel de l'immobilier"}
         </p>
       </div>
