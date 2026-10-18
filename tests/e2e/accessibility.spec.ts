@@ -2,37 +2,51 @@ import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "./fixtures";
 
 /**
- * PRD V1.1, R43 — the search type filter (SpaceTypeFilter, R5/R6's
- * "café / poste" auto-uncheck) scanned on its own: it is the one piece of
- * /search that is both new and interactive (Radix checkboxes wired to
- * client-side state reacting to the capacity field), so it gets a scoped
- * check in addition to the whole-page scan below.
+ * PRD V1.1, R43 — the search type filter (SpaceTypeFilter) scanned on its
+ * own: it is the one interactive piece of /search new in this lot — the
+ * capacity field only appears once a type is chosen, and raising capacity to
+ * 6+ on "Bureau" switches the type to "Salle de réunion" with a visible,
+ * reversible notice (R3-R6) — so it gets a scoped check in addition to the
+ * whole-page scan below.
  */
 test("accessibilité — filtre de type d'espace (/search)", async ({ decidedVisitor: page }) => {
   await page.goto("/search");
   await page.waitForLoadState("networkidle");
 
-  const fieldset = page.getByRole("group", { name: "Type d'espace" });
-  await expect(fieldset).toBeVisible();
+  const typeSelect = page.getByLabel("Type d'espace");
+  await expect(typeSelect).toBeVisible();
+  // Keyboard-operable: a native <select> is focusable and reachable by Tab.
+  await typeSelect.focus();
+  await expect(typeSelect).toBeFocused();
 
-  const checkboxes = fieldset.getByRole("checkbox");
-  await expect(checkboxes).toHaveCount(3);
-  for (const name of ["Café / poste", "Bureau", "Salles de réunion"]) {
-    await expect(fieldset.getByRole("checkbox", { name })).toBeVisible();
-  }
+  const capacityField = page.getByLabel("Capacité minimale");
+  await expect(capacityField).toHaveCount(0);
 
-  // Keyboard-operable, not just mouse-clickable: Tab reaches each checkbox,
-  // Space toggles it, and the visible/accessible state (aria-checked, since
-  // Radix's Checkbox.Root is a <button role="checkbox">) agree.
-  const cafeCheckbox = fieldset.getByRole("checkbox", { name: "Café / poste" });
-  await cafeCheckbox.focus();
-  await expect(cafeCheckbox).toBeFocused();
-  const wasChecked = (await cafeCheckbox.getAttribute("aria-checked")) === "true";
-  await page.keyboard.press("Space");
-  await expect(cafeCheckbox).toHaveAttribute("aria-checked", String(!wasChecked));
+  await typeSelect.selectOption("DESK");
+  await expect(capacityField).toBeVisible();
+
+  await typeSelect.selectOption("");
+  await expect(capacityField).toHaveCount(0);
+
+  // The auto-switch: Bureau + 6 people becomes Salle de réunion, announced
+  // (role="status") and reversible without the dropdown fighting the user.
+  const filtersForm = page.getByRole("search", { name: "Filtres de recherche" });
+  await typeSelect.selectOption("DESK");
+  await capacityField.fill("6");
+  await expect(typeSelect).toHaveValue("MEETING_ROOM");
+  const notice = filtersForm.getByRole("status").filter({ hasText: "Salle de réunion" });
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "Revenir à Bureau" }).click();
+  await expect(typeSelect).toHaveValue("DESK");
+
+  // "Salle de formation" is never auto-switched, whatever the capacity.
+  await typeSelect.selectOption("TRAINING_ROOM");
+  await capacityField.fill("50");
+  await expect(typeSelect).toHaveValue("TRAINING_ROOM");
+  await expect(filtersForm.getByRole("status").filter({ hasText: "Salle de réunion" })).toHaveCount(0);
 
   const results = await new AxeBuilder({ page })
-    .include("fieldset")
+    .include('[aria-label="Filtres de recherche"]')
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
   const blocking = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");

@@ -104,7 +104,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     search.city ||
       search.date ||
       search.capacity ||
-      search.types.length ||
+      search.type ||
       search.maxPriceCents ||
       search.amenities.length
   );
@@ -144,7 +144,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
             <Label htmlFor="search-date">Date</Label>
             <Input id="search-date" type="date" name="date" defaultValue={search.date} />
           </div>
-          <SpaceTypeFilter defaultCapacity={search.capacity} defaultTypes={search.types} />
+          <SpaceTypeFilter defaultType={search.type} defaultCapacity={search.capacity} />
           <div className="flex min-w-0 flex-col gap-1.5">
             <Label htmlFor="search-max-price">Prix max. / jour (€)</Label>
             <Input

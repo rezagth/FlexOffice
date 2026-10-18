@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  expandTypeBuckets,
   parseSpaceSearchParams,
   searchPageHref,
   searchParamsToRecord,
@@ -14,7 +13,7 @@ describe("parseSpaceSearchParams", () => {
       capacity: undefined,
       amenities: [],
       date: undefined,
-      types: [],
+      type: undefined,
       maxPriceCents: undefined,
       sort: "relevance",
       page: 1,
@@ -28,7 +27,7 @@ describe("parseSpaceSearchParams", () => {
       capacity: "6",
       amenities: ["WIFI", "PARKING"],
       date: "2026-10-12",
-      type: ["DESK", "MEETING_ROOM"],
+      type: "TRAINING_ROOM",
       maxPrice: "250",
       sort: "price_desc",
       page: "3",
@@ -40,7 +39,7 @@ describe("parseSpaceSearchParams", () => {
       capacity: 6,
       amenities: ["WIFI", "PARKING"],
       date: "2026-10-12",
-      types: ["DESK", "MEETING_ROOM"],
+      type: "TRAINING_ROOM",
       maxPriceCents: 25_000,
       sort: "price_desc",
       page: 3,
@@ -53,7 +52,7 @@ describe("parseSpaceSearchParams", () => {
       capacity: "-2",
       amenities: ["WIFI", "DROP TABLE", "WIFI"],
       date: "2026-02-31",
-      type: ["BALLROOM"],
+      type: "BALLROOM",
       maxPrice: "abc",
       sort: "random",
       page: "0",
@@ -65,7 +64,7 @@ describe("parseSpaceSearchParams", () => {
       capacity: undefined,
       amenities: ["WIFI"],
       date: undefined,
-      types: [],
+      type: undefined,
       maxPriceCents: undefined,
       sort: "relevance",
       page: 1,
@@ -98,31 +97,5 @@ describe("searchPageHref", () => {
   it("leaves page 1 implicit", () => {
     expect(searchPageHref({ city: "Paris", page: "4" }, 1)).toBe("/search?city=Paris");
     expect(searchPageHref({}, 1)).toBe("/search");
-  });
-});
-
-describe("expandTypeBuckets", () => {
-  it("expands 'Salles de réunion' to both meeting rooms and training rooms (R3)", () => {
-    expect(expandTypeBuckets(["MEETING_ROOM"]).sort()).toEqual(["MEETING_ROOM", "TRAINING_ROOM"]);
-  });
-
-  it("leaves café/poste and bureau as themselves", () => {
-    expect(expandTypeBuckets(["CAFE_SPOT"])).toEqual(["CAFE_SPOT"]);
-    expect(expandTypeBuckets(["DESK"])).toEqual(["DESK"]);
-  });
-
-  it("means every type when no bucket is checked — same convention as amenities", () => {
-    expect(expandTypeBuckets([])).toEqual([]);
-  });
-
-  it("drops an unknown bucket instead of throwing", () => {
-    expect(expandTypeBuckets(["BALLROOM"])).toEqual([]);
-  });
-
-  it("deduplicates across buckets", () => {
-    expect(expandTypeBuckets(["MEETING_ROOM", "MEETING_ROOM"]).sort()).toEqual([
-      "MEETING_ROOM",
-      "TRAINING_ROOM",
-    ]);
   });
 });

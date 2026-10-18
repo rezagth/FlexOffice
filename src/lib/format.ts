@@ -37,7 +37,6 @@ export const SPACE_TYPE_LABELS: Record<string, string> = {
   MEETING_ROOM: "Salle de réunion",
   DESK: "Bureau",
   TRAINING_ROOM: "Espace de formation",
-  CAFE_SPOT: "Café / poste",
 };
 
 export const PROPERTY_TYPE_LABELS: Record<string, string> = {

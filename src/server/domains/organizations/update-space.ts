@@ -2,7 +2,7 @@ import type { Space } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
-import { capacityViolation, pricingViolation, type UpdateSpaceInput } from "@/lib/validation/spaces";
+import { pricingViolation, type UpdateSpaceInput } from "@/lib/validation/spaces";
 
 /**
  * Fields a client sees on the public listing and that an administrator
@@ -65,15 +65,6 @@ export async function applySpaceUpdate(
     discountPercent: input.discountPercent === undefined ? existing.discountPercent : input.discountPercent,
   });
   if (violation) throw new ValidationError(violation.message);
-
-  // Same "merge with what's stored" rule as pricing above (R4): a partial
-  // payload that sends only `type` or only `capacity` is still judged
-  // against the space it would actually produce, not against itself alone.
-  const capacityIssue = capacityViolation(
-    input.type ?? existing.type,
-    input.capacity ?? existing.capacity
-  );
-  if (capacityIssue) throw new ValidationError(capacityIssue);
 
   const changed = changedModeratedFields(existing, input);
   const backToReview = existing.status === "PUBLISHED" && changed.length > 0;

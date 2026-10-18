@@ -1,21 +1,8 @@
 import { z } from "zod";
 import { isValidTimeZone } from "@/lib/timezone";
 import { isCancellationWindowHours } from "@/lib/cancellation-policy";
-import { SPACE_TYPE_LABELS } from "@/lib/format";
 
-export const spaceTypeEnum = z.enum(["MEETING_ROOM", "DESK", "TRAINING_ROOM", "CAFE_SPOT"]);
-
-/** Capacity bounds narrower than the generic 1-1000, by type (PRD V1.1,
- * R3-R4): a café/poste is a single shared workstation, one or two people —
- * not a fixed value, the partner still declares which. Every other type
- * keeps the generic range. */
-export const CAPACITY_RANGE_BY_TYPE: Partial<Record<string, { min: number; max: number }>> = {
-  CAFE_SPOT: { min: 1, max: 2 },
-};
-
-export function capacityBoundsForType(type: string): { min: number; max: number } {
-  return CAPACITY_RANGE_BY_TYPE[type] ?? { min: 1, max: 1000 };
-}
+export const spaceTypeEnum = z.enum(["MEETING_ROOM", "DESK", "TRAINING_ROOM"]);
 
 export const spaceAmenityEnum = z.enum([
   "WIFI",
@@ -130,8 +117,6 @@ const spaceBaseFields = {
   address: z.string().trim().min(1).max(255),
   city: z.string().trim().min(1).max(120),
   postalCode: z.string().trim().regex(/^\d{5}$/, "Le code postal doit contenir 5 chiffres"),
-  // Generic bound here; a narrower per-type range (café/poste) is enforced
-  // by refineCapacity() below, since it depends on `type`.
   capacity: z.number().int().min(1).max(1000),
   amenities: z.array(spaceAmenityEnum).max(spaceAmenityEnum.options.length),
   halfDayPriceCents: priceCents,
@@ -169,37 +154,10 @@ function refinePricing(
   if (violation) ctx.addIssue({ code: "custom", path: [violation.field], message: violation.message });
 }
 
-/**
- * Type/capacity consistency (R4). Mirrors pricingViolation(): a pure check
- * shared by the Zod schemas and the service layer (a partial update must be
- * checked against the stored type/capacity it does not resend — see
- * organizations/update-space.ts). Returns a French message, or null.
- */
-export function capacityViolation(type: string, capacity: number): string | null {
-  const { min, max } = capacityBoundsForType(type);
-  if (capacity >= min && capacity <= max) return null;
-  const label = SPACE_TYPE_LABELS[type] ?? type;
-  return min === max
-    ? `${label} accueille ${min} personne${min > 1 ? "s" : ""}.`
-    : `${label} accueille entre ${min} et ${max} personnes.`;
-}
-
-/** Only fires when both `type` and `capacity` are in the payload — on a
- * partial update missing one of the two, the service layer judges it
- * against the stored space instead (it alone knows the other value). */
-function refineCapacity(space: { type?: string; capacity?: number }, ctx: z.RefinementCtx) {
-  if (space.type === undefined || space.capacity === undefined) return;
-  const violation = capacityViolation(space.type, space.capacity);
-  if (violation) ctx.addIssue({ code: "custom", path: ["capacity"], message: violation });
-}
-
 /** A new space's fields, without the property it belongs to — for routes
  * that take the property from the URL. (Zod 4 refuses `.omit()` on a
  * refined schema, hence two schemas rather than one derived from the other.) */
-export const createSpaceFieldsSchema = z.object(spaceBaseFields).superRefine((space, ctx) => {
-  refinePricing(space, ctx);
-  refineCapacity(space, ctx);
-});
+export const createSpaceFieldsSchema = z.object(spaceBaseFields).superRefine(refinePricing);
 
 export const createSpaceSchema = z
   .object({
@@ -208,27 +166,21 @@ export const createSpaceSchema = z
     // space is created from a property's page, or with one picked explicitly.
     propertyId: z.uuid(),
   })
-  .superRefine((space, ctx) => {
-    refinePricing(space, ctx);
-    refineCapacity(space, ctx);
-  });
+  .superRefine(refinePricing);
 export type CreateSpaceInput = z.infer<typeof createSpaceSchema>;
 
-/** Partial: the after-discount minimum and the type/capacity consistency are
- * checked here only when the payload carries enough to judge them (both
- * prices; both type and capacity), and against the stored values in the
+/** Partial: the after-discount minimum is checked here when the payload
+ * carries all three pricing fields, and against the stored values in the
  * service layer otherwise (organizations/update-space.ts). */
 export const updateSpaceSchema = z
   .object(spaceBaseFields)
   .partial()
   .superRefine((space, ctx) => {
-    if (space.halfDayPriceCents !== undefined && space.dayPriceCents !== undefined) {
-      refinePricing(
-        { halfDayPriceCents: space.halfDayPriceCents, dayPriceCents: space.dayPriceCents, discountPercent: space.discountPercent },
-        ctx
-      );
-    }
-    refineCapacity(space, ctx);
+    if (space.halfDayPriceCents === undefined || space.dayPriceCents === undefined) return;
+    refinePricing(
+      { halfDayPriceCents: space.halfDayPriceCents, dayPriceCents: space.dayPriceCents, discountPercent: space.discountPercent },
+      ctx
+    );
   });
 export type UpdateSpaceInput = z.infer<typeof updateSpaceSchema>;
 

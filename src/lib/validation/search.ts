@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SPACE_AMENITY_LABELS } from "@/lib/format";
+import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
 
 /**
  * Public space search parameters (UX-15 / UX-25 / FCT-23), shared by the
@@ -27,34 +27,8 @@ export const SEARCH_SORT_LABELS: Record<SearchSort, string> = {
   price_desc: "Prix décroissant",
 };
 
+const SPACE_TYPES = Object.keys(SPACE_TYPE_LABELS);
 const AMENITIES = new Set(Object.keys(SPACE_AMENITY_LABELS));
-
-/**
- * The search type filter's 3 checkboxes (PRD V1.1, R3/R5/R6/R11) — a
- * narrower, UX-facing grouping than `SpaceType`: "Salles de réunion" quietly
- * covers `TRAINING_ROOM` too, so the filter never offers a separate box for
- * it. Order matters: it is the display order of the checkboxes.
- */
-export const SEARCH_TYPE_BUCKETS = ["CAFE_SPOT", "DESK", "MEETING_ROOM"] as const;
-export type SearchTypeBucket = (typeof SEARCH_TYPE_BUCKETS)[number];
-
-const SEARCH_TYPE_BUCKET_SET: ReadonlySet<string> = new Set(SEARCH_TYPE_BUCKETS);
-
-const BUCKET_EXPANSION: Record<SearchTypeBucket, readonly string[]> = {
-  CAFE_SPOT: ["CAFE_SPOT"],
-  DESK: ["DESK"],
-  MEETING_ROOM: ["MEETING_ROOM", "TRAINING_ROOM"],
-};
-
-/**
- * The real `SpaceType` values matching the checked buckets, deduplicated.
- * An empty `buckets` array means every bucket — same "absent = no filter"
- * convention as `amenities` — so callers never need a separate "all" case.
- */
-export function expandTypeBuckets(buckets: readonly string[]): string[] {
-  if (buckets.length === 0) return [];
-  return [...new Set(buckets.flatMap((bucket) => BUCKET_EXPANSION[bucket as SearchTypeBucket] ?? []))];
-}
 
 export type SpaceSearchParams = {
   city?: string;
@@ -62,9 +36,7 @@ export type SpaceSearchParams = {
   capacity?: number;
   amenities: string[];
   date?: string;
-  /** Checked type-filter buckets (see SEARCH_TYPE_BUCKETS) — empty means
-   * every type. */
-  types: string[];
+  type?: string;
   /** Upper bound on the full-day list price, in cents. */
   maxPriceCents?: number;
   sort: SearchSort;
@@ -106,6 +78,11 @@ const schema = z.object({
   lng: z.coerce.number().min(-180).max(180).optional().catch(undefined),
   capacity: optionalInt(1, 1000),
   date: isoDate.optional().catch(undefined),
+  type: z
+    .string()
+    .refine((value) => SPACE_TYPES.includes(value))
+    .optional()
+    .catch(undefined),
   // Entered in euros in the form; converted to cents below.
   maxPrice: optionalInt(1, 100_000),
   sort: z.enum(SEARCH_SORTS).catch("relevance"),
@@ -131,6 +108,7 @@ export function parseSpaceSearchParams(raw: RawParams): SpaceSearchParams {
     lng: first(raw.lng) || undefined,
     capacity: first(raw.capacity) || undefined,
     date: first(raw.date) || undefined,
+    type: first(raw.type) || undefined,
     maxPrice: first(raw.maxPrice) || undefined,
     sort: first(raw.sort) ?? "relevance",
     page: first(raw.page) ?? 1,
@@ -147,8 +125,7 @@ export function parseSpaceSearchParams(raw: RawParams): SpaceSearchParams {
     // nothing. Deduplicated and bounded by the enum itself.
     amenities: [...new Set(all(raw.amenities).filter((value) => AMENITIES.has(value)))],
     date: parsed.date,
-    // Same "unknown values dropped" convention as amenities.
-    types: [...new Set(all(raw.type).filter((value) => SEARCH_TYPE_BUCKET_SET.has(value)))],
+    type: parsed.type,
     maxPriceCents: parsed.maxPrice != null ? parsed.maxPrice * 100 : undefined,
     sort: parsed.sort,
     page: parsed.page,

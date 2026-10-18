@@ -1,114 +1,99 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SEARCH_TYPE_BUCKETS, type SearchTypeBucket } from "@/lib/validation/search";
+import { Select } from "@/components/ui/select";
+import { SPACE_TYPE_LABELS } from "@/lib/format";
 
-const BUCKET_LABELS: Record<SearchTypeBucket, string> = {
-  CAFE_SPOT: "Café / poste",
-  DESK: "Bureau",
-  // Covers espaces de formation too — the filter never offers a separate box
-  // for them (PRD V1.1, R3).
-  MEETING_ROOM: "Salles de réunion",
-};
-
-const UNCHECK_CAFE_AT = 3;
-const PRIORITIZE_MEETING_ROOMS_AT = 6;
+const AUTO_SWITCH_TO_MEETING_ROOM_AT = 6;
 
 /**
- * The search form's "Capacité minimale" input and its 3 type checkboxes,
- * together: PRD V1.1 R5/R6 react to one from the other (entering 3+ people
- * unchecks "Café / poste"; 6+ checks "Salles de réunion"), which only a
- * client component sharing state between the two fields can do.
+ * PRD V1.1, R3-R6: "Capacité minimale" only makes sense once a type is
+ * chosen, so it stays hidden until then (café/poste was never a space type —
+ * it was only an illustration in the landing page's comparison block, R1/R2
+ * — so this filter has exactly the 3 real SpaceType values).
  *
- * A default, not a lock (R6): the visitor can always recheck a box the
- * threshold unchecked. Once they touch a box by hand, the threshold stops
- * touching it back for the rest of this visit to the page.
+ * Raising the capacity to 6+ while "Bureau" is selected switches the type to
+ * "Salle de réunion", with a visible notice — a default suggestion, not a
+ * lock: picking "Bureau" again from the dropdown is never fought back,
+ * whatever the capacity. "Salle de formation" has no such behavior; it is
+ * never switched into or out of automatically.
  *
  * Still a classic GET-submitted form otherwise — no submit handler here, the
- * checkboxes and the number input are native fields with `name`s the
- * surrounding `<form>` in /search collects on submit (same pattern as
- * search-geolocation.tsx).
+ * select and the number input are native fields the surrounding `<form>` in
+ * /search collects on submit (same pattern as search-geolocation.tsx). The
+ * capacity input only exists in the DOM once a type is chosen, so it is
+ * simply absent from the submission otherwise — consistent with "no type
+ * means no capacity filter either".
  */
 export function SpaceTypeFilter({
+  defaultType,
   defaultCapacity,
-  defaultTypes,
 }: {
+  defaultType?: string;
   defaultCapacity?: number;
-  /** Checked buckets from the URL; empty means every box starts checked. */
-  defaultTypes: string[];
 }) {
+  const [type, setType] = useState(defaultType ?? "");
   const [capacity, setCapacity] = useState(defaultCapacity != null ? String(defaultCapacity) : "");
-  const [checked, setChecked] = useState<ReadonlySet<SearchTypeBucket>>(
-    () => new Set(defaultTypes.length ? (defaultTypes as SearchTypeBucket[]) : SEARCH_TYPE_BUCKETS)
-  );
-  // Buckets the visitor toggled by hand: a threshold never overrides those.
-  const touched = useRef<Set<SearchTypeBucket>>(new Set());
+  const [autoSwitched, setAutoSwitched] = useState(false);
 
-  function toggle(bucket: SearchTypeBucket) {
-    touched.current.add(bucket);
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(bucket)) next.delete(bucket);
-      else next.add(bucket);
-      return next;
-    });
+  function onTypeChange(value: string) {
+    setType(value);
+    setAutoSwitched(false);
   }
 
   function onCapacityChange(raw: string) {
     setCapacity(raw);
     const value = Number(raw);
-    if (!raw || !Number.isFinite(value)) return;
-
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (value >= UNCHECK_CAFE_AT && !touched.current.has("CAFE_SPOT")) {
-        next.delete("CAFE_SPOT");
-      }
-      if (value >= PRIORITIZE_MEETING_ROOMS_AT && !touched.current.has("MEETING_ROOM")) {
-        next.add("MEETING_ROOM");
-      }
-      return next;
-    });
+    const crossesThreshold = raw !== "" && Number.isFinite(value) && value >= AUTO_SWITCH_TO_MEETING_ROOM_AT;
+    if (type === "DESK" && crossesThreshold) {
+      setType("MEETING_ROOM");
+      setAutoSwitched(true);
+    }
   }
 
   return (
     <>
       <div className="flex min-w-0 flex-col gap-1.5">
-        <Label htmlFor="search-capacity">Capacité minimale</Label>
-        <Input
-          id="search-capacity"
-          type="number"
-          name="capacity"
-          min={1}
-          inputMode="numeric"
-          value={capacity}
-          onChange={(e) => onCapacityChange(e.target.value)}
-          placeholder="Ex. 10"
-        />
+        <Label htmlFor="search-type">Type d&apos;espace</Label>
+        <Select id="search-type" name="type" value={type} onChange={(e) => onTypeChange(e.target.value)}>
+          <option value="">Tous les types</option>
+          {Object.entries(SPACE_TYPE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
       </div>
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-medium text-foreground">Type d&apos;espace</legend>
-        <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
-          {SEARCH_TYPE_BUCKETS.map((bucket) => (
-            <div key={bucket} className="flex items-center gap-2">
-              <Checkbox
-                id={`type-${bucket}`}
-                name="type"
-                value={bucket}
-                checked={checked.has(bucket)}
-                onCheckedChange={() => toggle(bucket)}
-              />
-              <Label htmlFor={`type-${bucket}`} className="font-normal">
-                {BUCKET_LABELS[bucket]}
-              </Label>
-            </div>
-          ))}
+      {type && (
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <Label htmlFor="search-capacity">Capacité minimale</Label>
+          <Input
+            id="search-capacity"
+            type="number"
+            name="capacity"
+            min={1}
+            inputMode="numeric"
+            value={capacity}
+            onChange={(e) => onCapacityChange(e.target.value)}
+            placeholder="Ex. 10"
+          />
+          {autoSwitched && (
+            <p role="status" className="text-xs text-muted-foreground">
+              Basculé sur « Salle de réunion » pour {capacity || "ce nombre de"} personnes.{" "}
+              <button
+                type="button"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+                onClick={() => onTypeChange("DESK")}
+              >
+                Revenir à Bureau
+              </button>
+            </p>
+          )}
         </div>
-      </fieldset>
+      )}
     </>
   );
 }

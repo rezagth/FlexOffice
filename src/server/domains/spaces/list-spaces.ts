@@ -7,9 +7,8 @@ import {
 import { recordSearchEvent } from "@/server/domains/analytics/search-events";
 import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import { isSpaceAvailableOnDate } from "@/server/domains/bookings/availability";
-import { SPACE_AMENITY_LABELS } from "@/lib/format";
+import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
 import {
-  expandTypeBuckets,
   SEARCH_MAX_PAGE,
   SEARCH_MAX_PAGE_SIZE,
   SEARCH_PAGE_SIZE,
@@ -143,9 +142,8 @@ export type PublishedSpaceSearch = {
   capacity?: number;
   amenities?: string[];
   date?: string;
-  /** Checked type-filter buckets (see lib/validation/search.ts); empty or
-   * absent means every type. */
-  types?: string[];
+  /** A SpaceType value; anything else is ignored. */
+  type?: string;
   /** Upper bound on the full-day list price, in cents. */
   maxPriceCents?: number;
   sort?: SearchSort;
@@ -173,6 +171,8 @@ export type PublishedSpacesPage<T> = {
  * same trade-off the previous fixed `take: 50` made, with a higher ceiling.
  */
 export const IN_MEMORY_CANDIDATE_CAP = 100;
+
+const VALID_SPACE_TYPES = new Set(Object.keys(SPACE_TYPE_LABELS));
 
 function normalizePaging(params: PublishedSpaceSearch) {
   const pageSize = Math.min(
@@ -234,7 +234,7 @@ function compareDistance(a: { distanceKm: number | null }, b: { distanceKm: numb
 export async function searchPublishedSpaces(params: PublishedSpaceSearch = {}) {
   const { page, pageSize } = normalizePaging(params);
   const sort: SearchSort = params.sort ?? "relevance";
-  const expandedTypes = expandTypeBuckets(params.types ?? []);
+  const type = params.type && VALID_SPACE_TYPES.has(params.type) ? params.type : undefined;
   const maxPriceCents =
     params.maxPriceCents != null && params.maxPriceCents > 0 ? params.maxPriceCents : undefined;
 
@@ -245,7 +245,7 @@ export async function searchPublishedSpaces(params: PublishedSpaceSearch = {}) {
       (space) =>
         (!city || space.city.toLowerCase().includes(city)) &&
         (!params.capacity || space.capacity >= params.capacity) &&
-        (expandedTypes.length === 0 || expandedTypes.includes(space.type)) &&
+        (!type || space.type === type) &&
         (!maxPriceCents || space.dayPriceCents <= maxPriceCents)
     ).map((space) => ({ ...space, distanceKm: null as number | null }));
     if (sort === "price_asc") matches.sort((a, b) => a.dayPriceCents - b.dayPriceCents);
@@ -260,7 +260,7 @@ export async function searchPublishedSpaces(params: PublishedSpaceSearch = {}) {
     ...(params.city ? { city: { contains: params.city, mode: "insensitive" as const } } : {}),
     ...(params.capacity ? { capacity: { gte: params.capacity } } : {}),
     ...(amenityFilter.length ? { amenities: { hasEvery: amenityFilter } } : {}),
-    ...(expandedTypes.length ? { type: { in: expandedTypes as SpaceType[] } } : {}),
+    ...(type ? { type: type as SpaceType } : {}),
     ...(maxPriceCents ? { dayPriceCents: { lte: maxPriceCents } } : {}),
   };
   const orderBy =
