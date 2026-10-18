@@ -385,14 +385,75 @@ describe.skipIf(!hasDatabase)("Phase 5 — property/space media, amenities, hour
       });
       const ctx = await actorFor(user.id);
 
-      const archived = await archiveSpace(space.id, ctx);
+      const { space: archived, upcomingBookings } = await archiveSpace(space.id, ctx);
       expect(archived.status).toBe("ARCHIVED");
+      expect(upcomingBookings).toBe(0);
 
       const stillThere = await prisma.space.findUnique({ where: { id: space.id } });
       expect(stillThere).not.toBeNull();
 
       await prisma.space.deleteMany({ where: { id: space.id } });
       await deleteTestUser(user.id);
+    });
+
+    it("R63 — leaves an upcoming booking untouched and removes the space from search", async () => {
+      const { searchPublishedSpaces } = await import("@/server/domains/spaces/list-spaces");
+      const landlord = await createTestUser();
+      const client = await createTestUser();
+      const org = await landlordOrgFor(landlord.id);
+      const property = await propertyFor(landlord.id, org.id);
+      const uniqueCity = `ArchiveTestCity-${uniqueSuffix()}`;
+      const space = await createSpace(org.id, {
+        propertyId: property.id,
+        name: "Salle avec réservation à venir",
+        type: "MEETING_ROOM",
+        description: "Fixture",
+        address: "1 rue de Test",
+        city: uniqueCity,
+        postalCode: "75001",
+        capacity: 4,
+        amenities: [],
+        halfDayPriceCents: 5000,
+        dayPriceCents: 9000,
+      });
+      await prisma.space.update({ where: { id: space.id }, data: { status: "PUBLISHED" } });
+      await prisma.organization.update({ where: { id: org.id }, data: { status: "VERIFIED" } });
+
+      const startsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const booking = await prisma.booking.create({
+        data: {
+          spaceId: space.id,
+          organizationId: org.id,
+          clientUserId: client.id,
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + 3_600_000),
+          status: "CONFIRMED",
+          participantsCount: 2,
+          purpose: "R63 fixture",
+          priceAmountCents: 9000,
+          originalPriceAmountCents: 9000,
+          commissionAmountCents: 1350,
+        },
+      });
+
+      const beforeSearch = await searchPublishedSpaces({ city: uniqueCity });
+      expect(beforeSearch.spaces.map((s) => s.id)).toContain(space.id);
+
+      const ctx = await actorFor(landlord.id);
+      const { upcomingBookings } = await archiveSpace(space.id, ctx);
+      expect(upcomingBookings).toBe(1);
+
+      const unchanged = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
+      expect(unchanged.status).toBe("CONFIRMED");
+      expect(unchanged.startsAt).toEqual(startsAt);
+
+      const afterSearch = await searchPublishedSpaces({ city: uniqueCity });
+      expect(afterSearch.spaces.map((s) => s.id)).not.toContain(space.id);
+
+      await prisma.booking.deleteMany({ where: { id: booking.id } });
+      await prisma.space.deleteMany({ where: { id: space.id } });
+      await deleteTestUser(landlord.id);
+      await deleteTestUser(client.id);
     });
   });
 

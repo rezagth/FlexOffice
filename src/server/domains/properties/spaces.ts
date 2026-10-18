@@ -1,5 +1,5 @@
 import { prisma } from "@/server/db/prisma";
-import { NotFoundError } from "@/server/lib/errors";
+import { ConflictError, NotFoundError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
 import type { AuthContext } from "@/server/auth/rbac";
 import type { Capability } from "@/server/auth/capabilities";
@@ -7,6 +7,28 @@ import { requirePropertyManageAccess } from "@/server/domains/properties/access"
 import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import type { UpdateSpaceInput } from "@/lib/validation/spaces";
 import { applySpaceUpdate } from "@/server/domains/organizations/update-space";
+
+/** Bookings on a space that the landlord is still on the hook to honor —
+ * R63: withdrawing a space never cancels these, so a partner should at
+ * least see how many there are before (archiveSpace) and after
+ * (getUpcomingBookingsForSpace) withdrawing. */
+const ONGOING_BOOKING_STATUSES = ["AWAITING_PAYMENT", "PENDING", "CONFIRMED"] as const;
+
+export async function countUpcomingBookings(spaceId: string): Promise<number> {
+  return prisma.booking.count({
+    where: { spaceId, status: { in: [...ONGOING_BOOKING_STATUSES] }, startsAt: { gt: new Date() } },
+  });
+}
+
+/** For the archived-space read-only view: what the partner is still
+ * committed to. */
+export async function getUpcomingBookingsForSpace(spaceId: string) {
+  return prisma.booking.findMany({
+    where: { spaceId, status: { in: [...ONGOING_BOOKING_STATUSES] }, startsAt: { gt: new Date() } },
+    include: { clientUser: { select: { name: true, email: true } } },
+    orderBy: { startsAt: "asc" },
+  });
+}
 
 /**
  * Resolves a space by id and authorizes the caller through its PROPERTY —
@@ -66,18 +88,38 @@ export async function updateSpaceViaProperty(spaceId: string, ctx: AuthContext, 
  * Phase 1 publication states and this phase does not touch them). Reuses
  * the existing `ARCHIVED` value of `SpaceStatus` rather than adding a
  * second status axis.
+ *
+ * R63 — space withdrawal rule: removes the space from the catalogue
+ * immediately (ARCHIVED already blocks new bookings, same PUBLISHED-only
+ * gate as any other non-published status — createBooking.ts). Existing
+ * bookings are never touched here: the landlord remains committed to
+ * honoring them, same as moderate-space.ts's unpublishSpace() and
+ * suspension.ts's suspendOrganization() both already do, by explicit
+ * design. A landlord who wants to also cancel an upcoming booking does so
+ * through the existing, separate landlord-cancellation flow
+ * (bookings/cancel.ts), which already refunds the client in full and
+ * charges the landlord the commission if inside the cancellation window.
+ *
+ * Admin-forced withdrawal (with a mandatory reason and its own audit
+ * trail) is a distinct, not-yet-built feature — out of scope here.
  */
 export async function archiveSpace(spaceId: string, ctx: AuthContext) {
-  const space = await prisma.space.update({
-    where: { id: spaceId },
+  const upcomingBookings = await countUpcomingBookings(spaceId);
+
+  const updated = await prisma.space.updateMany({
+    where: { id: spaceId, status: { not: "ARCHIVED" } },
     data: { status: "ARCHIVED" },
   });
+  if (updated.count === 0) {
+    throw new ConflictError("Cet espace est déjà archivé.");
+  }
+  const space = await prisma.space.findUniqueOrThrow({ where: { id: spaceId } });
 
   await recordAudit({
     event: "space.archived",
     actorUserId: ctx.userId,
     organizationId: ctx.activeOrgId,
-    metadata: { spaceId, propertyId: space.propertyId },
+    metadata: { spaceId, propertyId: space.propertyId, upcomingBookings },
   });
-  return space;
+  return { space, upcomingBookings };
 }

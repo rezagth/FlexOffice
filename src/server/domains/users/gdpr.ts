@@ -310,8 +310,14 @@ export async function deleteOrAnonymizeProfile(userId: string) {
   // so a half-done anonymization cannot be committed. Keep the two in step.
   const tombstoneEmail = `deleted-${crypto.randomUUID()}@officeflex.invalid`;
 
-  await prisma.$transaction([
+  const [, { count: notificationsErased }] = await prisma.$transaction([
     prisma.favorite.deleteMany({ where: { userId } }),
+    // Cascades automatically on a hard delete (notifications_recipient_profile_id_fkey
+    // is ON DELETE CASCADE) — explicit here because the anonymize path never
+    // deletes the profile row, so nothing would otherwise clear them. Their
+    // title/body can restate booking or review details; no reason to keep
+    // them once the account itself is gone.
+    prisma.notification.deleteMany({ where: { recipientProfileId: userId } }),
     prisma.supportTicket.updateMany({
       where: ticketScope,
       data: { email: tombstoneEmail, subject: ERASED_TEXT, message: ERASED_TEXT },
@@ -366,6 +372,7 @@ export async function deleteOrAnonymizeProfile(userId: string) {
       retainedPropertiesCreated: propertyCreatedCount,
       retainedPropertyHolderRows: propertyHolderCount,
       erasedMessages: messageCount,
+      erasedNotifications: notificationsErased,
       kycDocumentsPurged,
     },
   });

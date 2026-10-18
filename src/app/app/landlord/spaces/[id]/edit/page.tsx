@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { requirePageLandlordOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import { SpaceForm, type WeekdayHours } from "@/components/dashboard/space-form";
 import { SubmitSpaceButton } from "@/components/dashboard/submit-space-button";
+import { Card } from "@/components/ui/card";
 import { SPACE_STATUS_LABELS } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -46,27 +48,41 @@ export default async function EditSpacePage({ params }: { params: Promise<{ id: 
         )}
       </div>
 
-      <SpaceForm
-        spaceId={space.id}
-        initialHours={initialHours}
-        initialPhotos={initialPhotos}
-        initialPropertyId={space.propertyId}
-        initialValues={{
-          name: space.name,
-          type: space.type,
-          description: space.description,
-          address: space.address,
-          city: space.city,
-          postalCode: space.postalCode,
-          capacity: String(space.capacity),
-          amenities: space.amenities,
-          halfDayPrice: (space.halfDayPriceCents / 100).toString(),
-          dayPrice: (space.dayPriceCents / 100).toString(),
-          accessInstructions: space.accessInstructions ?? "",
-          cancellationWindowHours: String(space.cancellationWindowHours),
-          timezone: space.timezone,
-        }}
-      />
+      {space.status === "ARCHIVED" ? (
+        <Card className="flex flex-col gap-2 p-5">
+          <h2 className="text-lg font-medium">Espace archivé — lecture seule</h2>
+          <p className="text-sm text-muted-foreground">
+            Cet espace n&apos;est plus proposé à la réservation et ne peut plus être modifié. Pour
+            consulter ses réservations à venir, ouvrez-le depuis{" "}
+            <Link href={`/app/landlord/properties/${space.propertyId}/spaces/${space.id}`} className="underline">
+              la fiche de votre bien
+            </Link>
+            .
+          </p>
+        </Card>
+      ) : (
+        <SpaceForm
+          spaceId={space.id}
+          initialHours={initialHours}
+          initialPhotos={initialPhotos}
+          initialPropertyId={space.propertyId}
+          initialValues={{
+            name: space.name,
+            type: space.type,
+            description: space.description,
+            address: space.address,
+            city: space.city,
+            postalCode: space.postalCode,
+            capacity: String(space.capacity),
+            amenities: space.amenities,
+            halfDayPrice: (space.halfDayPriceCents / 100).toString(),
+            dayPrice: (space.dayPriceCents / 100).toString(),
+            accessInstructions: space.accessInstructions ?? "",
+            cancellationWindowHours: String(space.cancellationWindowHours),
+            timezone: space.timezone,
+          }}
+        />
+      )}
     </div>
   );
 }

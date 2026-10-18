@@ -1,8 +1,10 @@
 import { requirePageAdmin } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
+import { ButtonLink } from "@/components/ui/button";
 import { formatCents } from "@/lib/format";
 import { sumKeptAmounts } from "@/server/domains/payments/settled-amounts";
+import { listReviewQueue } from "@/server/domains/admin/review-queue";
 import {
   getActiveSpacesCount,
   getAverageOccupancyRate,
@@ -34,6 +36,7 @@ export default async function AdminDashboardPage() {
     conversionRate,
     occupancyRate,
     responseTimeHours,
+    reviewQueue,
   ] = await Promise.all([
     prisma.organization.count(),
     getActiveSpacesCount(),
@@ -43,7 +46,9 @@ export default async function AdminDashboardPage() {
     getSearchToBookingConversionRate(),
     getAverageOccupancyRate(),
     getAverageResponseTimeHours(),
+    listReviewQueue(),
   ]);
+  const overdueCount = reviewQueue.filter((item) => item.overdue).length;
 
   return (
     <div className="flex flex-col gap-8">
@@ -53,6 +58,23 @@ export default async function AdminDashboardPage() {
           Indicateurs globaux de la plateforme MakomSpace.
         </p>
       </div>
+
+      <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">À traiter</p>
+          <p className="mt-1 text-2xl font-semibold">
+            {reviewQueue.length}
+            {overdueCount > 0 && (
+              <span className="ml-2 text-sm font-medium text-danger">
+                dont {overdueCount} depuis plus de 48 h
+              </span>
+            )}
+          </p>
+        </div>
+        <ButtonLink href="/admin/review-queue" variant="outline" size="sm">
+          Voir la file
+        </ButtonLink>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-5">

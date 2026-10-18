@@ -4,6 +4,7 @@ import { countUnreadNotifications } from "@/server/domains/notifications/in-app"
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Vue d'ensemble" },
+  { href: "/admin/review-queue", label: "À traiter" },
   { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/users", label: "Utilisateurs" },
   { href: "/admin/organizations", label: "Entreprises" },

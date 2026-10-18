@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requirePageLandlordOrg } from "@/server/auth/page-guards";
 import { getPropertyDetail } from "@/server/domains/properties/get";
-import { getSpaceForProperty } from "@/server/domains/properties/spaces";
+import { countUpcomingBookings, getSpaceForProperty, getUpcomingBookingsForSpace } from "@/server/domains/properties/spaces";
 import { organizationManagesProperty } from "@/server/domains/properties/access";
 import { SpaceForm, type WeekdayHours } from "@/components/dashboard/space-form";
 import { SubmitSpaceButton } from "@/components/dashboard/submit-space-button";
@@ -10,6 +10,7 @@ import { ArchiveSpaceButton } from "@/components/dashboard/archive-space-button"
 import { ClosureForm } from "@/components/dashboard/closure-form";
 import { DeleteClosureButton } from "@/components/dashboard/delete-closure-button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/dashboard/states";
 import { SPACE_STATUS_LABELS, formatDateTime } from "@/lib/format";
 
 export const metadata = { title: "Détail de l'espace — MakomSpace" };
@@ -42,6 +43,12 @@ export default async function PropertySpaceDetailPage({
   const space = await getSpaceForProperty(propertyId, spaceId).catch(() => null);
   if (!space) notFound();
 
+  const isArchived = space.status === "ARCHIVED";
+  const [upcomingBookingsCount, upcomingBookings] = await Promise.all([
+    isArchived ? 0 : countUpcomingBookings(space.id),
+    isArchived ? getUpcomingBookingsForSpace(space.id) : Promise.resolve([]),
+  ]);
+
   const initialHours: WeekdayHours[] = WEEKDAYS.map((weekday) => ({
     weekday,
     slots: space.openingHours
@@ -68,58 +75,112 @@ export default async function PropertySpaceDetailPage({
             <SubmitSpaceButton spaceId={space.id} />
           )}
           {space.status !== "ARCHIVED" && (
-            <ArchiveSpaceButton propertyId={propertyId} spaceId={space.id} />
+            <ArchiveSpaceButton
+              propertyId={propertyId}
+              spaceId={space.id}
+              upcomingBookingsCount={upcomingBookingsCount}
+            />
           )}
         </div>
       </div>
 
-      <SpaceForm
-        spaceId={space.id}
-        initialHours={initialHours}
-        initialPhotos={space.spacePhotos}
-        initialPropertyId={propertyId}
-        initialValues={{
-          name: space.name,
-          type: space.type,
-          description: space.description,
-          address: space.address,
-          city: space.city,
-          postalCode: space.postalCode,
-          capacity: String(space.capacity),
-          amenities: space.amenities,
-          halfDayPrice: (space.halfDayPriceCents / 100).toString(),
-          dayPrice: (space.dayPriceCents / 100).toString(),
-          accessInstructions: space.accessInstructions ?? "",
-          cancellationWindowHours: String(space.cancellationWindowHours),
-          timezone: space.timezone,
-        }}
-      />
-
-      <Card className="flex flex-col gap-4 p-5">
-        <h2 className="text-lg font-medium">Fermetures exceptionnelles</h2>
-        <p className="text-sm text-muted-foreground">
-          Bloque une période sur le calendrier de cet espace (congés, maintenance).
-        </p>
-        {space.closures.length > 0 && (
-          <div className="flex flex-col gap-2">
-            {space.closures.map((closure) => (
-              <div
-                key={closure.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2"
-              >
-                <div className="text-sm">
-                  <p className="font-medium text-foreground">{closure.reason}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(closure.startsAt)} → {formatDateTime(closure.endsAt)}
-                  </p>
-                </div>
-                <DeleteClosureButton spaceId={space.id} closureId={closure.id} />
+      {isArchived ? (
+        <>
+          <Card className="flex flex-col gap-2 p-5">
+            <h2 className="text-lg font-medium">Espace archivé — lecture seule</h2>
+            <p className="text-sm text-muted-foreground">
+              Cet espace n&apos;est plus proposé à la réservation et ne peut plus être modifié. Ses
+              factures et son historique restent consultables ; les réservations déjà faites ne
+              sont pas annulées, vous restez engagé à les honorer.
+            </p>
+            <dl className="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Nom</dt>
+                <dd className="font-medium text-foreground">{space.name}</dd>
               </div>
-            ))}
-          </div>
-        )}
-        <ClosureForm spaceId={space.id} />
-      </Card>
+              <div>
+                <dt className="text-muted-foreground">Adresse</dt>
+                <dd className="font-medium text-foreground">
+                  {space.address}, {space.postalCode} {space.city}
+                </dd>
+              </div>
+            </dl>
+          </Card>
+
+          <Card className="flex flex-col gap-4 p-5">
+            <h2 className="text-lg font-medium">Réservations à venir sur cet espace</h2>
+            {upcomingBookings.length === 0 ? (
+              <EmptyState
+                title="Aucune réservation à venir"
+                description="Toutes les réservations faites sur cet espace avant son archivage sont passées ou terminées."
+              />
+            ) : (
+              <div className="flex flex-col gap-2">
+                {upcomingBookings.map((booking) => (
+                  <div key={booking.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2">
+                    <div className="text-sm">
+                      <p className="font-medium text-foreground">{booking.clientUser.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(booking.startsAt)} → {formatDateTime(booking.endsAt)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      ) : (
+        <>
+          <SpaceForm
+            spaceId={space.id}
+            initialHours={initialHours}
+            initialPhotos={space.spacePhotos}
+            initialPropertyId={propertyId}
+            initialValues={{
+              name: space.name,
+              type: space.type,
+              description: space.description,
+              address: space.address,
+              city: space.city,
+              postalCode: space.postalCode,
+              capacity: String(space.capacity),
+              amenities: space.amenities,
+              halfDayPrice: (space.halfDayPriceCents / 100).toString(),
+              dayPrice: (space.dayPriceCents / 100).toString(),
+              accessInstructions: space.accessInstructions ?? "",
+              cancellationWindowHours: String(space.cancellationWindowHours),
+              timezone: space.timezone,
+            }}
+          />
+
+          <Card className="flex flex-col gap-4 p-5">
+            <h2 className="text-lg font-medium">Fermetures exceptionnelles</h2>
+            <p className="text-sm text-muted-foreground">
+              Bloque une période sur le calendrier de cet espace (congés, maintenance).
+            </p>
+            {space.closures.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {space.closures.map((closure) => (
+                  <div
+                    key={closure.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2"
+                  >
+                    <div className="text-sm">
+                      <p className="font-medium text-foreground">{closure.reason}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(closure.startsAt)} → {formatDateTime(closure.endsAt)}
+                      </p>
+                    </div>
+                    <DeleteClosureButton spaceId={space.id} closureId={closure.id} />
+                  </div>
+                ))}
+              </div>
+            )}
+            <ClosureForm spaceId={space.id} />
+          </Card>
+        </>
+      )}
     </div>
   );
 }

@@ -206,6 +206,9 @@ describe.skipIf(!hasDatabase)("GDPR erasure, export and retention", () => {
     await prisma.supportTicket.create({ data: { userId: client.id, email: client.email, subject: "Aide", message: "Je suis Jean Dupont" } });
     // Sent signed out, with the same address in another case.
     await prisma.supportTicket.create({ data: { email: client.email.toUpperCase(), subject: "Avant inscription", message: "Bonjour" } });
+    const notification = await prisma.notification.create({
+      data: { recipientProfileId: client.id, type: "BOOKING_CONFIRMED", title: "Réservation confirmée" },
+    });
     const kyc = await orgWithKyc(client.id);
 
     // A shared organization: another active member still needs its files.
@@ -225,6 +228,12 @@ describe.skipIf(!hasDatabase)("GDPR erasure, export and retention", () => {
     const messages = await prisma.message.findMany({ where: { conversationId: conversation.id } });
     expect(messages.find((m) => m.senderUserId === client.id)?.body).toBe(gdpr.ERASED_TEXT);
     expect(messages.find((m) => m.senderUserId === landlordId)?.body).toBe("Bien reçu");
+
+    // Notifications are never deleted automatically by the anonymize path
+    // (the profile row survives) — cleared explicitly instead of lingering
+    // forever with their original text, readable by an account that can
+    // never sign in again anyway.
+    expect(await prisma.notification.findUnique({ where: { id: notification.id } })).toBeNull();
 
     const tickets = await prisma.supportTicket.findMany({ where: { OR: [{ userId: client.id }, { email: profile.email }] } });
     expect(tickets).toHaveLength(2);

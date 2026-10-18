@@ -58,6 +58,13 @@ export async function applySpaceUpdate(
   input: UpdateSpaceInput,
   audit: { actorUserId?: string | null; organizationId: string | null }
 ) {
+  // R63 — a withdrawn space is read-only: nothing left to moderate, and
+  // "editing" an archived listing back to life would bypass the deliberate
+  // withdrawal. Create a new space instead.
+  if (existing.status === "ARCHIVED") {
+    throw new ConflictError("Un espace archivé ne peut plus être modifié.");
+  }
+
   const changed = changedModeratedFields(existing, input);
   const backToReview = existing.status === "PUBLISHED" && changed.length > 0;
 
