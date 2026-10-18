@@ -46,12 +46,12 @@ beforeEach(() => {
 });
 
 describe("PATCH /api/account/profile (FCT-18)", () => {
-  it("updates the session's own profile, ignoring any id or email in the body", async () => {
+  it("updates the session's own profile, ignoring any id, email or phone in the body (phone moved to the code-confirmed flow, 2B)", async () => {
     const res = await patchProfile(
-      request("/api/account/profile", "PATCH", { name: "Sam", phone: "", id: "user-b", email: "x@y.z" })
+      request("/api/account/profile", "PATCH", { name: "Sam", phone: "0600000000", id: "user-b", email: "x@y.z" })
     );
     expect(res.status).toBe(200);
-    expect(updateOwnProfileMock).toHaveBeenCalledWith("user-a", { name: "Sam", phone: null });
+    expect(updateOwnProfileMock).toHaveBeenCalledWith("user-a", { name: "Sam" });
   });
 
   it("requires a session", async () => {

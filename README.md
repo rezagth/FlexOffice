@@ -663,6 +663,16 @@ coupés** — ils y deviendraient des incidents (audit du 06/10/2026) :
 
 En `pnpm dev` et dans les tests, rien ne change : zéro configuration.
 
+**`PHONE_VERIFICATION_REQUIRED`** (défaut `true`) — aucun vrai fournisseur SMS
+n'est branché pour l'instant, seul `MockSmsProvider` existe
+(`src/server/domains/sms/`) et il refuse de tourner en production réelle. À
+`true`, `assertProfileIsComplete()` exige un téléphone vérifié (par code)
+avant une réservation ou une publication ; à `false`, un téléphone renseigné
+suffit, comme avant la vérification par SMS. **À passer à `false` en
+production tant qu'aucun vrai fournisseur SMS n'est branché ; repasser à
+`true` dès qu'il l'est.** Jamais déduit automatiquement de la présence ou de
+l'absence d'un fournisseur — un choix explicite, posé par l'opérateur.
+
 `getAuthContext()` distingue explicitement quatre situations : démo assumée,
 utilisateur non authentifié, configuration absente hors production, et panne
 réelle d'infrastructure. Seule la dernière lève une erreur (503, rendue par

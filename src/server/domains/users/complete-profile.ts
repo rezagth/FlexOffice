@@ -8,12 +8,16 @@ import { createOrganizationWithVerification } from "@/server/domains/organizatio
 
 /**
  * PRD V1.1, R15/R62 — `/app/complete-profile`'s submission, for an existing
- * account whose `accountNeed`/`holderType`/phone were never recorded (it
- * predates migration 20261018143000, or signed up through the pre-wizard
+ * account whose `accountNeed`/`holderType` were never recorded (it predates
+ * migration 20261018143000, or signed up through the pre-wizard
  * `/api/auth/register`). Mirrors `registerFromWizard()`'s post-signup half
  * exactly (same `needsOrganization()` call, same
  * `createOrganizationWithVerification()` shape) — this account already
  * exists, so only that half applies; there is no Supabase signUp() step.
+ *
+ * Does NOT touch `phone`/`phoneVerifiedAt` (2B) — that's handled by the
+ * separate code-confirmed flow in phone-verification.ts, embedded as its
+ * own component on the same page rather than a field of this schema.
  *
  * Only creates an organization when the account doesn't already have an
  * ACTIVE membership in one — an account that already has a company or a
@@ -31,7 +35,7 @@ export async function completeExistingProfile(
 
   await prisma.profile.update({
     where: { id: userId },
-    data: { accountNeed: input.need, holderType: input.holderType, phone: input.phone },
+    data: { accountNeed: input.need, holderType: input.holderType },
   });
   await recordAudit({
     event: "user.profile_completed",

@@ -15,7 +15,9 @@ import { focusFirstError, formErrorMessage, issuesToFieldErrors } from "./form-e
 /**
  * PRD V1.1, R15/R62 — one page, not a wizard: this is a completion screen
  * for an account that already exists, so it only asks what's actually
- * missing (never `name`/`email`/`password`, already on the account).
+ * missing (never `name`/`email`/`password`, already on the account — nor
+ * `phone`, 2B: that's AccountPhoneForm, rendered alongside this on the same
+ * page, since it needs its own code-confirmation step).
  *
  * Company/address fields only show when `!hasOrganization` — an account that
  * already belongs to an organization keeps it (complete-profile.ts never
@@ -28,7 +30,6 @@ type FormState = {
   holderType: "INDIVIDUAL" | "COMPANY" | "";
   activityType: "OWNER" | "OPERATOR" | "";
   isRealEstateProfessional: boolean;
-  phone: string;
   legalName: string;
   siret: string;
   siren: string;
@@ -43,7 +44,6 @@ const ORDER = [
   "need",
   "holderType",
   "activityType",
-  "phone",
   "legalName",
   "siret",
   "siren",
@@ -61,7 +61,6 @@ function toPayload(form: FormState) {
     holderType: form.holderType || undefined,
     activityType: form.activityType || undefined,
     isRealEstateProfessional: form.isRealEstateProfessional,
-    phone: orUndef(form.phone),
     legalName: orUndef(form.legalName),
     siret: orUndef(form.siret),
     siren: orUndef(form.siren),
@@ -76,13 +75,11 @@ function toPayload(form: FormState) {
 export function CompleteProfileForm({
   initialNeed,
   initialHolderType,
-  initialPhone,
   hasOrganization,
   backHref,
 }: {
   initialNeed: "SEARCH" | "PUBLISH" | "";
   initialHolderType: "INDIVIDUAL" | "COMPANY" | "";
-  initialPhone: string;
   hasOrganization: boolean;
   backHref: string;
 }) {
@@ -92,7 +89,6 @@ export function CompleteProfileForm({
     holderType: initialHolderType,
     activityType: "",
     isRealEstateProfessional: false,
-    phone: initialPhone,
     legalName: "",
     siret: "",
     siren: "",
@@ -276,10 +272,6 @@ export function CompleteProfileForm({
           )}
         </fieldset>
       )}
-
-      <FormField id="phone" label="Téléphone" error={errors.phone}>
-        <Input type="tel" autoComplete="tel" required {...fieldProps("phone")} />
-      </FormField>
 
       {showCompanyFields && (
         <div className="flex flex-col gap-4 rounded-xl border border-border p-4">

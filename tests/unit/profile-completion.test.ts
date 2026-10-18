@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isProfileComplete } from "@/server/domains/users/profile-completion";
 
 const { organizationMemberFindFirst } = vi.hoisted(() => ({ organizationMemberFindFirst: vi.fn() }));
@@ -12,19 +12,57 @@ beforeEach(() => {
   organizationMemberFindFirst.mockReset();
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("isProfileComplete", () => {
-  it("is true only once phone, accountNeed and holderType are all set", () => {
-    expect(isProfileComplete({ phone: "0600000000", accountNeed: "SEARCH", holderType: "INDIVIDUAL" })).toBe(true);
+  it("requires a VERIFIED phone when PHONE_VERIFICATION_REQUIRED is unset (default true)", () => {
+    expect(
+      isProfileComplete({ phone: "0600000000", phoneVerifiedAt: null, accountNeed: "SEARCH", holderType: "INDIVIDUAL" })
+    ).toBe(false);
+    expect(
+      isProfileComplete({
+        phone: "0600000000",
+        phoneVerifiedAt: new Date(),
+        accountNeed: "SEARCH",
+        holderType: "INDIVIDUAL",
+      })
+    ).toBe(true);
   });
 
-  it("is false when the phone is missing or blank", () => {
-    expect(isProfileComplete({ phone: null, accountNeed: "SEARCH", holderType: "INDIVIDUAL" })).toBe(false);
-    expect(isProfileComplete({ phone: "   ", accountNeed: "SEARCH", holderType: "INDIVIDUAL" })).toBe(false);
+  it("requires only a FILLED phone when PHONE_VERIFICATION_REQUIRED=false", () => {
+    vi.stubEnv("PHONE_VERIFICATION_REQUIRED", "false");
+    expect(
+      isProfileComplete({ phone: "0600000000", phoneVerifiedAt: null, accountNeed: "SEARCH", holderType: "INDIVIDUAL" })
+    ).toBe(true);
+    expect(
+      isProfileComplete({ phone: null, phoneVerifiedAt: null, accountNeed: "SEARCH", holderType: "INDIVIDUAL" })
+    ).toBe(false);
+    expect(
+      isProfileComplete({ phone: "   ", phoneVerifiedAt: null, accountNeed: "SEARCH", holderType: "INDIVIDUAL" })
+    ).toBe(false);
   });
 
-  it("is false when accountNeed or holderType was never answered (R15 — predates the column)", () => {
-    expect(isProfileComplete({ phone: "0600000000", accountNeed: null, holderType: "INDIVIDUAL" })).toBe(false);
-    expect(isProfileComplete({ phone: "0600000000", accountNeed: "SEARCH", holderType: null })).toBe(false);
+  it("fails closed: any value other than the exact string \"false\" still requires verification", () => {
+    vi.stubEnv("PHONE_VERIFICATION_REQUIRED", "nonsense");
+    expect(
+      isProfileComplete({ phone: "0600000000", phoneVerifiedAt: null, accountNeed: "SEARCH", holderType: "INDIVIDUAL" })
+    ).toBe(false);
+  });
+
+  it("is false when accountNeed or holderType was never answered (R15 — predates the column), regardless of the phone switch", () => {
+    expect(
+      isProfileComplete({
+        phone: "0600000000",
+        phoneVerifiedAt: new Date(),
+        accountNeed: null,
+        holderType: "INDIVIDUAL",
+      })
+    ).toBe(false);
+    expect(
+      isProfileComplete({ phone: "0600000000", phoneVerifiedAt: new Date(), accountNeed: "SEARCH", holderType: null })
+    ).toBe(false);
   });
 });
 

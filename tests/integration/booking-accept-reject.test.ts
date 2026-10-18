@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hasDatabase } from "./helpers/should-run";
+import { uniquePhone } from "./helpers/test-fixtures";
 
 /**
  * Object-level authorization and idempotency for the partner's accept /
@@ -63,13 +64,14 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
       `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
       clientUserId,
       `accept-client-${suffix}@test.local`,
-      JSON.stringify({ role: "CLIENT", name: "Accept Client", phone: "0600000000" })
+      JSON.stringify({ role: "CLIENT", name: "Accept Client", phone: uniquePhone() })
     );
-    // handle_new_user never sets account_need/holder_type (R15) — set
-    // directly, same as a completed /app/complete-profile would.
+    // handle_new_user never sets account_need/holder_type (R15) or
+    // phone_verified_at (2B) — set directly, same as a completed
+    // /app/complete-profile + phone verification would.
     await prisma.profile.update({
       where: { id: clientUserId },
-      data: { accountNeed: "SEARCH", holderType: "INDIVIDUAL" },
+      data: { accountNeed: "SEARCH", holderType: "INDIVIDUAL", phoneVerifiedAt: new Date() },
     });
 
     const propertyA = await prisma.property.create({

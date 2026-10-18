@@ -157,19 +157,18 @@ export const signupWizardSchema = z
 export type SignupWizardInput = z.infer<typeof signupWizardSchema>;
 
 /**
- * PRD V1.1, R15/R22/R62 — `/app/complete-profile`, for an account whose
- * `need`/`holderType` were never recorded (predates this column) or whose
- * phone is still missing. Same rules as the signup wizard minus the
- * signup-only fields (`name`/`email`/`password`/`acceptTerms` all already
- * exist on the account), plus `phone` becomes required here: by the time
- * this screen is reached, completing it is the whole point (R22/R24 already
- * requires it before a booking; see profile-completion-guard.ts).
+ * PRD V1.1, R15/R62 — `/app/complete-profile`, for an account whose
+ * `need`/`holderType` were never recorded (predates this column). Same rules
+ * as the signup wizard minus the signup-only fields (`name`/`email`/
+ * `password`/`acceptTerms` all already exist on the account) and minus
+ * `phone` (2B): a phone number is no longer collected as plain text
+ * anywhere — it only changes through the code-confirmed flow in
+ * phone-verification.ts, which this screen embeds as its own component
+ * rather than a schema field.
  */
-export const completeProfileSchema = z.object(sharedFields).superRefine((data, ctx) => {
-  applySharedRefinements(data, ctx);
-  if (!data.phone || data.phone.trim().length === 0) {
-    ctx.addIssue({ code: "custom", path: ["phone"], message: "Numéro de téléphone requis." });
-  }
-});
+export const completeProfileSchema = z
+  .object(sharedFields)
+  .omit({ phone: true })
+  .superRefine(applySharedRefinements);
 
 export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;

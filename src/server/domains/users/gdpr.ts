@@ -326,6 +326,10 @@ export async function deleteOrAnonymizeProfile(userId: string) {
         name: "Compte supprimé",
         email: tombstoneEmail,
         phone: null,
+        // 2B invariant: any path that changes `phone` outside
+        // phone-verification.ts's own flow must null this back out — a
+        // cleared number is certainly not still verified.
+        phoneVerifiedAt: null,
         deletedAt: new Date(),
       },
     }),

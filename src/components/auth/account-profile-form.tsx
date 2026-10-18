@@ -8,13 +8,13 @@ import { Button } from "@/components/ui/button";
 import { describedBy, FormField, FormMessage } from "./form-field";
 import { focusFirstError, formErrorMessage, issuesToFieldErrors } from "./form-errors";
 
-const ORDER = ["name", "phone"];
+const ORDER = ["name"];
 
-/** Name and phone (FCT-18). */
-export function AccountProfileForm({ initialName, initialPhone }: { initialName: string; initialPhone: string }) {
+/** Name only (FCT-18) — `phone` moved to AccountPhoneForm (2B): it changes
+ * only through the code-confirmed flow, never a free-text PATCH here. */
+export function AccountProfileForm({ initialName }: { initialName: string }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
-  const [phone, setPhone] = useState(initialPhone);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
@@ -22,7 +22,7 @@ export function AccountProfileForm({ initialName, initialPhone }: { initialName:
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
-    const parsed = updateProfileSchema.safeParse({ name, phone });
+    const parsed = updateProfileSchema.safeParse({ name });
     if (!parsed.success) {
       const next = fieldErrors(parsed.error);
       setErrors(next);
@@ -35,7 +35,7 @@ export function AccountProfileForm({ initialName, initialPhone }: { initialName:
       const response = await fetch("/api/account/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone }),
+        body: JSON.stringify({ name }),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
@@ -64,17 +64,6 @@ export function AccountProfileForm({ initialName, initialPhone }: { initialName:
           aria-describedby={describedBy("name", errors.name)}
           value={name}
           onChange={(e) => setName(e.target.value)}
-        />
-      </FormField>
-      <FormField id="phone" label="Téléphone (optionnel)" error={errors.phone}>
-        <Input
-          id="phone"
-          type="tel"
-          autoComplete="tel"
-          aria-invalid={errors.phone ? true : undefined}
-          aria-describedby={describedBy("phone", errors.phone)}
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
         />
       </FormField>
       <Button type="submit" size="sm" disabled={pending} className="self-start">

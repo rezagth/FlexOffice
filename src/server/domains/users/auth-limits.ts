@@ -17,4 +17,6 @@ export const ACCOUNT_RATE_LIMITS = {
   profileUpdate: { limit: 30, windowSeconds: 3600 } satisfies RateLimitConfig,
   /** E-mail change requests, per account — each one sends two e-mails. */
   emailChange: { limit: 5, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** 2B — codes requested, per account: "3 envois par heure." */
+  phoneCodeRequest: { limit: 3, windowSeconds: 3600 } satisfies RateLimitConfig,
 } as const;

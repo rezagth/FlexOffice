@@ -6,14 +6,18 @@ import { NotFoundError, ValidationError } from "@/server/lib/errors";
 import { logError, logEvent } from "@/server/lib/logger";
 
 /**
- * Edits the caller's own name and phone (FCT-18). Scoped by the session's
- * user id in the `where`; an anonymized profile is never editable (the
- * GDPR tombstone must stay a tombstone).
+ * Edits the caller's own name (FCT-18). Scoped by the session's user id in
+ * the `where`; an anonymized profile is never editable (the GDPR tombstone
+ * must stay a tombstone).
+ *
+ * `phone` is NOT editable here any more (2B) — it only changes through
+ * phone-verification.ts's own code-confirmed flow, so a verified number
+ * (`phoneVerifiedAt`) can never be silently invalidated by a free-text edit.
  */
 export async function updateOwnProfile(userId: string, input: UpdateProfileInput) {
   const result = await prisma.profile.updateMany({
     where: { id: userId, deletedAt: null },
-    data: { name: input.name, phone: input.phone },
+    data: { name: input.name },
   });
   if (result.count === 0) throw new NotFoundError("Profil introuvable.");
 
@@ -22,7 +26,7 @@ export async function updateOwnProfile(userId: string, input: UpdateProfileInput
   await recordAudit({
     event: "user.profile_updated",
     actorUserId: userId,
-    metadata: { fields: ["name", "phone"] },
+    metadata: { fields: ["name"] },
   });
 
   return prisma.profile.findUniqueOrThrow({
@@ -82,6 +86,11 @@ export async function getOwnProfile(userId: string) {
       name: true,
       email: true,
       phone: true,
+      // 2B — read by profile-completion.ts (gated by
+      // isPhoneVerificationRequired()) and by the phone verification UI to
+      // decide which of the two flows (first verification vs. number
+      // change) applies.
+      phoneVerifiedAt: true,
       termsAcceptedAt: true,
       termsVersion: true,
       // R15/R62 — read by the completion screen and its gates

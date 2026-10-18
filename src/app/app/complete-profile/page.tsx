@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requirePageAuth } from "@/server/auth/page-guards";
 import { Card } from "@/components/ui/card";
+import { AccountPhoneForm } from "@/components/auth/account-phone-form";
 import { CompleteProfileForm } from "@/components/auth/complete-profile-form";
 import { safeRedirectPath } from "@/lib/validation/redirect";
 import { isCompanyInfoComplete, isProfileComplete } from "@/server/domains/users/profile-completion";
@@ -44,14 +45,20 @@ export default async function CompleteProfilePage({
           compte reste accessible normalement en attendant.
         </p>
       </div>
-      <Card className="p-5">
+      <Card className="flex flex-col gap-6 p-5">
         <CompleteProfileForm
           initialNeed={profile?.accountNeed ?? ""}
           initialHolderType={profile?.holderType ?? ""}
-          initialPhone={profile?.phone ?? ""}
           hasOrganization={Boolean(existingMembership)}
           backHref={backHref}
         />
+        <div className="border-t border-border pt-6">
+          <h2 className="mb-4 text-sm font-medium text-foreground">Téléphone</h2>
+          <AccountPhoneForm
+            phone={profile?.phone ?? null}
+            phoneVerifiedAt={profile?.phoneVerifiedAt?.toISOString() ?? null}
+          />
+        </div>
       </Card>
     </div>
   );

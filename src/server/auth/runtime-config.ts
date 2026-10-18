@@ -101,3 +101,18 @@ export function resetRuntimeConfigForTests() {
 export function isProductionDeployment(): boolean {
   return process.env.NODE_ENV === "production" && !isDemoModeRequested();
 }
+
+/**
+ * PRD V1.1, 2B — an explicit, operator-set switch, never inferred from
+ * whether an SMS provider happens to be configured. Only `MockSmsProvider`
+ * exists today (sms/mock-provider.ts) and it refuses to run in a real
+ * production deployment — so until a real provider is wired in, a
+ * production deployment MUST set this to "false" itself (documented in
+ * .env.example and README.md) rather than have the code silently relax the
+ * requirement because no provider is available. Defaults to "true": a
+ * deployment that forgets to set this fails closed (requires a verified
+ * phone), not open.
+ */
+export function isPhoneVerificationRequired(): boolean {
+  return process.env.PHONE_VERIFICATION_REQUIRED !== "false";
+}

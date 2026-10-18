@@ -50,7 +50,20 @@ model Profile {
   id             String        @id @db.Uuid
   email          String        @unique
   name           String
+  /// Unverified: can be filled freely (see register-wizard.ts, become-landlord.ts).
+  /// Only `phone-verification.ts` may change it once `phoneVerifiedAt` is set
+  /// — any other path that touches it must null `phoneVerifiedAt` back out.
+  /// A partial unique index (migration 20261018150000, not expressible in
+  /// Prisma's schema DSL — same reasoning as the booking EXCLUDE constraint)
+  /// guarantees a verified number is never shared by two profiles.
   phone          String?
+  /// 2B, R25-R30/R47/R51 — null until `phone` has actually been proven
+  /// reachable via a code (phone-verification.ts). Read by
+  /// profile-completion.ts, gated by
+  /// runtime-config.ts's `isPhoneVerificationRequired()` — an explicit,
+  /// operator-set switch, never inferred from provider availability.
+  phoneVerifiedAt DateTime? @map("phone_verified_at") @db.Timestamptz(3)
+  phoneVerificationCodes PhoneVerificationCode[]
   /// R15 — what the account declared at signup ("je cherche" / "je publie"),
   /// or since completed via /app/complete-profile for an account that
   /// predates this column. Null only for such a not-yet-completed account;
@@ -1332,6 +1345,7 @@ enum NotificationType {
   BOOKING_EXPIRED
   VERIFICATION_APPROVED
   VERIFICATION_REJECTED
+  PHONE_VERIFIED
 }
 
 model Notification {
@@ -1352,4 +1366,40 @@ model Notification {
   @@index([recipientProfileId, readAt])
   @@index([recipientProfileId, createdAt])
   @@map("notifications")
+}
+
+/// 2B — which fact a code proves. INITIAL_VERIFICATION: the account has
+/// never had a verified phone, `phone` on this row IS the candidate number.
+/// NUMBER_CHANGE: the account already has a verified phone and wants a
+/// different one (R51) — the code is sent to the CURRENT (already-verified)
+/// number, `phone` on this row is that current number, and `pendingNewPhone`
+/// is the number applied once the code validates.
+enum PhoneVerificationPurpose {
+  INITIAL_VERIFICATION
+  NUMBER_CHANGE
+}
+
+model PhoneVerificationCode {
+  id        String                   @id @default(uuid()) @db.Uuid
+  profileId String                   @map("profile_id") @db.Uuid
+  profile   Profile                  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  purpose   PhoneVerificationPurpose
+  /// The number the code was actually sent to — see enum doc above.
+  phone     String
+  /// Only set for NUMBER_CHANGE.
+  pendingNewPhone String?            @map("pending_new_phone")
+  /// Never the code itself — see phone-verification.ts for the hashing and
+  /// the constant-time comparison at confirmation.
+  codeHash  String                   @map("code_hash")
+  expiresAt DateTime                 @map("expires_at") @db.Timestamptz(3)
+  /// Wrong-code guesses against THIS row. 5 exhausts it (confirmed dead, a
+  /// correct 6th guess is never even checked) — a fresh request starts over.
+  attempts  Int                      @default(0)
+  /// Single-use: set the moment a correct code is accepted. A code with this
+  /// set is never valid again, win or lose.
+  consumedAt DateTime?               @map("consumed_at") @db.Timestamptz(3)
+  createdAt DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([profileId, consumedAt])
+  @@map("phone_verification_codes")
 }

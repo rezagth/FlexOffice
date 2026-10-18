@@ -64,7 +64,7 @@ export async function getLandlordOnboarding(
   const [profile, organization, verification, propertyCount, spaces] = await Promise.all([
     prisma.profile.findUniqueOrThrow({
       where: { id: profileId },
-      select: { phone: true, accountNeed: true, holderType: true },
+      select: { phone: true, phoneVerifiedAt: true, accountNeed: true, holderType: true },
     }),
     prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { status: true } }),
     prisma.landlordVerification.findFirst({

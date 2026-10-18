@@ -103,18 +103,17 @@ describe("completeProfileSchema", () => {
     need: "SEARCH" as const,
     holderType: "INDIVIDUAL" as const,
     isRealEstateProfessional: false,
-    phone: "0600000000",
   };
 
-  it("accepts a minimal individual completion with a phone", () => {
+  it("accepts a minimal individual completion", () => {
     expect(completeProfileSchema.safeParse(VALID).success).toBe(true);
   });
 
-  it("requires a phone, unlike the signup schema where it's optional", () => {
-    const result = completeProfileSchema.safeParse({ ...VALID, phone: undefined });
-    expect(result.success).toBe(false);
-    if (result.success) return;
-    expect(result.error.issues.some((i) => i.path[0] === "phone")).toBe(true);
+  it("has no phone field (2B) — that's the separate code-confirmed flow in phone-verification.ts", () => {
+    const result = completeProfileSchema.safeParse({ ...VALID, phone: "not validated here" });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).not.toHaveProperty("phone");
   });
 
   it("ignores fields it doesn't declare (name/email/password) — an existing account already has those", () => {

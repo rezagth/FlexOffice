@@ -35,58 +35,42 @@ function chooseRadio(name: string) {
 }
 
 describe("CompleteProfileForm", () => {
-  it("pre-fills phone and the already-answered need/holderType", () => {
+  it("pre-fills the already-answered need/holderType", () => {
     render(
-      <CompleteProfileForm
-        initialNeed="SEARCH"
-        initialHolderType="INDIVIDUAL"
-        initialPhone="0600000000"
-        hasOrganization={false}
-        backHref=""
-      />
+      <CompleteProfileForm initialNeed="SEARCH" initialHolderType="INDIVIDUAL" hasOrganization={false} backHref="" />
     );
     expect(screen.getByRole("radio", { name: "Je cherche un espace" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("radio", { name: "Un particulier" }).getAttribute("aria-checked")).toBe("true");
-    expect((screen.getByLabelText("Téléphone") as HTMLInputElement).value).toBe("0600000000");
+  });
+
+  it("has no phone field — that's AccountPhoneForm, rendered separately", () => {
+    render(<CompleteProfileForm initialNeed="" initialHolderType="" hasOrganization={false} backHref="" />);
+    expect(screen.queryByLabelText("Téléphone")).toBeNull();
   });
 
   it("shows company fields only for COMPANY and only when there is no organization yet", () => {
     const { rerender } = render(
-      <CompleteProfileForm initialNeed="" initialHolderType="" initialPhone="" hasOrganization={false} backHref="" />
+      <CompleteProfileForm initialNeed="" initialHolderType="" hasOrganization={false} backHref="" />
     );
     expect(screen.queryByLabelText("Raison sociale")).toBeNull();
     chooseRadio("Une société");
     expect(screen.getByLabelText("Raison sociale")).not.toBeNull();
 
     rerender(
-      <CompleteProfileForm
-        initialNeed=""
-        initialHolderType="COMPANY"
-        initialPhone=""
-        hasOrganization={true}
-        backHref=""
-      />
+      <CompleteProfileForm initialNeed="" initialHolderType="COMPANY" hasOrganization={true} backHref="" />
     );
     expect(screen.queryByLabelText("Raison sociale")).toBeNull();
   });
 
   it("requires activityType only for PUBLISH, and only when there is no organization yet", () => {
-    render(
-      <CompleteProfileForm initialNeed="" initialHolderType="" initialPhone="" hasOrganization={false} backHref="" />
-    );
+    render(<CompleteProfileForm initialNeed="" initialHolderType="" hasOrganization={false} backHref="" />);
     chooseRadio("Je publie un espace");
     expect(screen.getByRole("radio", { name: "Propriétaire" })).not.toBeNull();
   });
 
   it("does not ask activityType again for an account that already has an organization", () => {
     render(
-      <CompleteProfileForm
-        initialNeed="PUBLISH"
-        initialHolderType="INDIVIDUAL"
-        initialPhone="0600000000"
-        hasOrganization={true}
-        backHref=""
-      />
+      <CompleteProfileForm initialNeed="PUBLISH" initialHolderType="INDIVIDUAL" hasOrganization={true} backHref="" />
     );
     expect(screen.queryByRole("radio", { name: "Propriétaire" })).toBeNull();
   });
@@ -98,21 +82,20 @@ describe("CompleteProfileForm", () => {
       <CompleteProfileForm
         initialNeed=""
         initialHolderType=""
-        initialPhone=""
         hasOrganization={false}
         backHref="/spaces/demo/booking"
       />
     );
     chooseRadio("Je cherche un espace");
     chooseRadio("Un particulier");
-    fireEvent.change(screen.getByLabelText("Téléphone"), { target: { value: "0600000000" } });
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/account/complete-profile");
     const body = JSON.parse(init.body);
-    expect(body).toMatchObject({ need: "SEARCH", holderType: "INDIVIDUAL", phone: "0600000000" });
+    expect(body).toMatchObject({ need: "SEARCH", holderType: "INDIVIDUAL" });
+    expect(body).not.toHaveProperty("phone");
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/spaces/demo/booking"));
   });

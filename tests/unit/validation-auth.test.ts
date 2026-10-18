@@ -113,12 +113,10 @@ describe("account schemas", () => {
     ).toBe(true);
   });
 
-  it("updateProfileSchema normalises an empty phone to null and ignores unknown fields", () => {
-    const parsed = updateProfileSchema.parse({ name: " Sam ", phone: "", id: "someone-else", email: "x@y.z" });
-    expect(parsed).toEqual({ name: "Sam", phone: null });
-    expect(updateProfileSchema.parse({ name: "Sam" }).phone).toBeNull();
+  it("updateProfileSchema only knows about name — phone moved to the code-confirmed flow (2B)", () => {
+    const parsed = updateProfileSchema.parse({ name: " Sam ", phone: "ignored", id: "someone-else", email: "x@y.z" });
+    expect(parsed).toEqual({ name: "Sam" });
     expect(updateProfileSchema.safeParse({ name: "" }).success).toBe(false);
-    expect(updateProfileSchema.safeParse({ name: "Sam", phone: "1".repeat(31) }).success).toBe(false);
   });
 
   it("changeEmailSchema and deleteAccountSchema validate their single field", () => {

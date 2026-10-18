@@ -46,7 +46,12 @@ describe.skipIf(!hasDatabase)("GDPR erasure, export and retention", () => {
   let propertyId: string;
 
   async function user(name: string) {
-    const created = await fixtures.createTestUser({ role: "CLIENT", name, phone: "0600000000" });
+    // No explicit phone: createTestUser() already gives each call its own
+    // unique one (needed since 2B marks it verified by default, and a
+    // shared literal would collide on profiles_verified_phone_unique the
+    // moment a second profile claims it) — this test only cares that
+    // whatever phone is there gets wiped on deletion, not its value.
+    const created = await fixtures.createTestUser({ role: "CLIENT", name });
     userIds.push(created.id);
     return created;
   }

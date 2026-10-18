@@ -100,14 +100,11 @@ export const updatePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(72).optional(),
 });
 
-/** PATCH /api/account/profile — only the fields a user may edit themselves. */
+/** PATCH /api/account/profile — only the fields a user may edit themselves.
+ * `phone` is NOT here (2B): it only changes through the code-confirmed flow
+ * in phone-verification.ts, never a free-text PATCH. */
 export const updateProfileSchema = z.object({
   name: nameSchema,
-  // "" clears the number; stored as NULL rather than an empty string.
-  phone: phoneSchema
-    .nullable()
-    .optional()
-    .transform((value) => (value ? value : null)),
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

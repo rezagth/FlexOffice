@@ -3,6 +3,8 @@ import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/server/lib/errors";
 import { ADMIN_PAGE_SIZE, paginationOffsets } from "@/lib/pagination";
+import { createInAppNotification } from "@/server/domains/notifications/in-app";
+import { isDuplicateVerifiedPhone } from "@/server/domains/users/phone-verification";
 
 /**
  * Back-office user management (FCT-16). Every function is called from a
@@ -93,4 +95,51 @@ export async function reactivateUser(actorUserId: string, targetUserId: string) 
     metadata: { targetUserId },
   });
   return { suspended: false, changed: true };
+}
+
+/**
+ * PRD V1.1, 2B — the support-assisted path for a phone number change when
+ * the OLD (currently verified) number is unreachable: no self-service exists
+ * for this (phone-verification.ts's NUMBER_CHANGE flow requires proving you
+ * still control the old number), so an admin sets the new one directly after
+ * verifying identity out of band. `reason` is mandatory and kept in the
+ * audit log — the actual number is too, deliberately: unlike an in-app
+ * notification (never the full number, R69), an admin-only audit trail
+ * needs it for support traceability.
+ */
+export async function adminSetVerifiedPhone(
+  actorUserId: string,
+  targetUserId: string,
+  newPhone: string,
+  reason: string
+) {
+  const target = await prisma.profile.findUnique({ where: { id: targetUserId } });
+  if (!target) throw new NotFoundError("Utilisateur introuvable");
+  if (target.deletedAt) throw new ConflictError("Ce compte a été supprimé.");
+
+  try {
+    await prisma.profile.update({
+      where: { id: targetUserId },
+      data: { phone: newPhone, phoneVerifiedAt: new Date() },
+    });
+  } catch (error) {
+    if (isDuplicateVerifiedPhone(error)) {
+      throw new ConflictError("Ce numéro est déjà utilisé et vérifié par un autre compte.");
+    }
+    throw error;
+  }
+
+  await recordAudit({
+    event: "admin.phone_set",
+    actorUserId,
+    metadata: { targetUserId, newPhone, reason },
+  });
+  await createInAppNotification({
+    recipientProfileId: targetUserId,
+    type: "PHONE_VERIFIED",
+    title: "Numéro de téléphone mis à jour",
+    body: "Votre numéro de téléphone a été mis à jour par le support, à votre demande.",
+  });
+
+  return { updated: true };
 }

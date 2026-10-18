@@ -6,6 +6,7 @@ import { AccountDataActions } from "@/components/auth/account-data-actions";
 import { AccountEmailForm } from "@/components/auth/account-email-form";
 import { AccountOrganizationForm } from "@/components/auth/account-organization-form";
 import { AccountPasswordForm } from "@/components/auth/account-password-form";
+import { AccountPhoneForm } from "@/components/auth/account-phone-form";
 import { AccountProfileForm } from "@/components/auth/account-profile-form";
 import { FormMessage } from "@/components/auth/form-field";
 import { VERIFICATION_STATUS_LABELS } from "@/lib/format";
@@ -170,7 +171,15 @@ export default async function AccountPage({ searchParams }: PageProps<"/app/acco
 
       <Card className="max-w-lg p-5">
         <h2 className="mb-4 text-lg font-medium">Mes informations</h2>
-        <AccountProfileForm initialName={profile?.name ?? ctx.name} initialPhone={profile?.phone ?? ""} />
+        <AccountProfileForm initialName={profile?.name ?? ctx.name} />
+      </Card>
+
+      <Card className="max-w-lg p-5">
+        <h2 className="mb-4 text-lg font-medium">Téléphone</h2>
+        <AccountPhoneForm
+          phone={profile?.phone ?? null}
+          phoneVerifiedAt={profile?.phoneVerifiedAt?.toISOString() ?? null}
+        />
       </Card>
 
       <Card className="max-w-lg p-5">

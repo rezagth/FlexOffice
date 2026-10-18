@@ -28,6 +28,14 @@ export function uniqueSiret(): string {
   return digits.slice(-14).padStart(14, "1");
 }
 
+/** A shared literal (the old "0600000000" default) would collide on
+ * `profiles_verified_phone_unique` the moment a second profile's phone is
+ * marked verified — every `createTestUser()` call needs its own number. */
+export function uniquePhone(): string {
+  const digits = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  return `0${digits.slice(-9)}`;
+}
+
 export type TestUser = { id: string; email: string };
 
 /**
@@ -44,19 +52,22 @@ export type TestUser = { id: string; email: string };
  * wiped) overrides it explicitly, same as any other field.
  *
  * Also backfills `account_need`/`holder_type` (R15) to a plain complete
- * individual tenant — `handle_new_user` doesn't read either from metadata
- * (it never needed to, they didn't exist until migration 20261018143000), so
- * this can't be done the same way as `phone` above; a direct update after
+ * individual tenant, and `phone_verified_at` (2B) whenever a non-empty
+ * `phone` ends up set — `handle_new_user` doesn't read any of these from
+ * metadata (none of them existed when it was last touched), so none of this
+ * can be done the same way `phone` itself is above; a direct update after
  * the trigger runs is the only way. A test that needs something else
- * (a company, a different need) overrides it with its own
- * `prisma.profile.update()` afterwards, same as it already does for other
- * profile fields.
+ * (a company, a different need, an unverified or absent phone) overrides it
+ * with its own `prisma.profile.update()` afterwards, same as it already does
+ * for other profile fields — passing `phone: ""` in `metadata` (as several
+ * phone-verification tests do) skips the `phoneVerifiedAt` backfill too,
+ * since there is nothing to have verified.
  */
 export async function createTestUser(
   metadata: Record<string, string> = { role: "CLIENT", name: "Test User" }
 ): Promise<TestUser> {
   const email = `test-${uniqueSuffix()}@test.officeflex.local`;
-  const merged = { phone: "0600000000", ...metadata };
+  const merged = { phone: uniquePhone(), ...metadata };
 
   const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
     `INSERT INTO auth.users (id, email, raw_user_meta_data)
@@ -69,7 +80,11 @@ export async function createTestUser(
   if (!id) throw new Error("failed to create test auth user");
   await prisma.profile.update({
     where: { id },
-    data: { accountNeed: "SEARCH", holderType: "INDIVIDUAL" },
+    data: {
+      accountNeed: "SEARCH",
+      holderType: "INDIVIDUAL",
+      ...(merged.phone ? { phoneVerifiedAt: new Date() } : {}),
+    },
   });
   return { id, email };
 }

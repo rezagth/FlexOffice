@@ -15,7 +15,7 @@ export async function assertProfileIsComplete(
 ): Promise<void> {
   const profile = await prisma.profile.findUniqueOrThrow({
     where: { id: userId },
-    select: { phone: true, accountNeed: true, holderType: true },
+    select: { phone: true, phoneVerifiedAt: true, accountNeed: true, holderType: true },
   });
   if (!isProfileComplete(profile)) {
     throw new ForbiddenError(`Complétez votre profil avant de ${action}.`);
