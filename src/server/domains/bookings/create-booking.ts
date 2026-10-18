@@ -76,6 +76,16 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   // lets spaces — checked before any payment work starts.
   await assertClientCompanyIsVerified(clientUserId);
 
+  // R22-R24 (this lot): a booking needs a way to reach the client, so the
+  // phone number must be filled — not verified yet, that's a later lot.
+  // The booking page already redirects to "Mon compte" before this is ever
+  // reached; this is the hard boundary for any caller that skips that page.
+  if (!clientUser.phone?.trim()) {
+    throw new ValidationError(
+      "Ajoutez un numéro de téléphone à votre compte avant de réserver."
+    );
+  }
+
   const daySlots = await computeDaySlots(input.spaceId, input.date);
   if (!daySlots) throw new ConflictError("This space is closed on the requested date");
 

@@ -37,7 +37,7 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
       clientUserId,
       `booking-client-${suffix}@test.local`,
-      JSON.stringify({ role: "CLIENT", name: "Booking Client" })
+      JSON.stringify({ role: "CLIENT", name: "Booking Client", phone: "0600000000" })
     );
 
     const org = await prisma.organization.create({
@@ -214,5 +214,35 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       },
     });
     expect(leftovers).toBe(0);
+  });
+
+  it("rejects a booking when the client has no phone number on file (R22-R24)", async () => {
+    const { ValidationError } = await import("@/server/lib/errors");
+    const phonelessSuffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const phonelessClientId = crypto.randomUUID();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
+      phonelessClientId,
+      `booking-nophone-${phonelessSuffix}@test.local`,
+      JSON.stringify({ role: "CLIENT", name: "Phoneless Client" })
+    );
+
+    try {
+      await expect(
+        createBooking(phonelessClientId, {
+          spaceId,
+          date: "2031-06-16", // another free Monday, untouched by other tests
+          slot: "MORNING",
+          participantsCount: 2,
+          purpose: "Sans téléphone",
+          acceptTerms: true,
+        })
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      const leftovers = await prisma.booking.count({ where: { clientUserId: phonelessClientId } });
+      expect(leftovers).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1`, phonelessClientId);
+    }
   });
 });

@@ -222,6 +222,12 @@ describe.skipIf(!hasDatabase)("company verification — generalized circuit", ()
       expect(error).not.toBeInstanceOf(ForbiddenError);
     }
 
+    // The second createBooking() call above may have actually succeeded
+    // (e.g. with PAYMENT_PROVIDER=mock) rather than failing for an unrelated
+    // reason — in which case it left a real Booking/Payment row referencing
+    // this space, which the FK constraints require clearing first.
+    await prisma.payment.deleteMany({ where: { organizationId: landlordOrg.id } });
+    await prisma.booking.deleteMany({ where: { organizationId: landlordOrg.id } });
     await prisma.space.deleteMany({ where: { id: space.id } });
     await prisma.property.deleteMany({ where: { id: property.id } });
   });

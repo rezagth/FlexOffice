@@ -4,9 +4,13 @@ import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { AccountDataActions } from "@/components/auth/account-data-actions";
 import { AccountEmailForm } from "@/components/auth/account-email-form";
+import { AccountOrganizationForm } from "@/components/auth/account-organization-form";
 import { AccountPasswordForm } from "@/components/auth/account-password-form";
 import { AccountProfileForm } from "@/components/auth/account-profile-form";
 import { FormMessage } from "@/components/auth/form-field";
+import { VERIFICATION_STATUS_LABELS } from "@/lib/format";
+import { safeRedirectPath } from "@/lib/validation/redirect";
+import { listOrganizationIdentitiesForProfile } from "@/server/domains/organizations/get-organization-identity";
 import { getOwnProfile } from "@/server/domains/users/profile";
 
 export const metadata = { title: "Compte — MakomSpace" };
@@ -20,6 +24,8 @@ const ORG_ROLE_LABELS: Record<string, string> = {
   VIEWER: "Lecture seule",
 };
 
+const ORG_ROLES_ALLOWED_TO_EDIT_IDENTITY = new Set(["OWNER", "ADMIN"]);
+
 /**
  * Account page, replacing `/client/profile`.
  *
@@ -32,11 +38,13 @@ const ORG_ROLE_LABELS: Record<string, string> = {
  */
 export default async function AccountPage({ searchParams }: PageProps<"/app/account">) {
   const ctx = await requirePageAuth({ redirectTo: "/app/account" });
-  const [memberships, profile, { email: emailFlag }] = await Promise.all([
+  const [memberships, organizations, profile, { email: emailFlag, redirectTo, reason }] = await Promise.all([
     ctx.isLandlord ? listActiveMemberships(ctx.userId) : Promise.resolve([]),
+    listOrganizationIdentitiesForProfile(ctx.userId),
     getOwnProfile(ctx.userId),
     searchParams,
   ]);
+  const backHref = typeof redirectTo === "string" ? safeRedirectPath(redirectTo, "") : "";
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,6 +56,22 @@ export default async function AccountPage({ searchParams }: PageProps<"/app/acco
             Lien confirmé. Si un second lien a été envoyé à votre autre adresse, cliquez
             aussi dessus : le changement d&apos;adresse prend effet une fois les deux
             confirmés.
+          </FormMessage>
+        </div>
+      )}
+
+      {reason === "phone-required" && (
+        <div className="max-w-lg">
+          <FormMessage tone="info">
+            Ajoutez votre numéro de téléphone ci-dessous pour pouvoir réserver un espace.
+            {backHref && (
+              <>
+                {" "}
+                <ButtonLink href={backHref} size="sm" variant="outline" className="ml-1 align-middle">
+                  Retour à l&apos;espace
+                </ButtonLink>
+              </>
+            )}
           </FormMessage>
         </div>
       )}
@@ -118,6 +142,47 @@ export default async function AccountPage({ searchParams }: PageProps<"/app/acco
             L&apos;invitation de collaborateurs arrive avec la gestion
             professionnelle, dans une prochaine itération.
           </p>
+        </Card>
+      )}
+
+      {organizations.length > 0 && (
+        <Card className="flex max-w-lg flex-col gap-6 p-5">
+          <h2 className="text-lg font-medium text-foreground">Mon entreprise</h2>
+          {organizations.map((organization) => (
+            <div key={organization.id} className="flex flex-col gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0">
+              <div className="flex items-center justify-between gap-4">
+                <span className="truncate font-medium">{organization.name}</span>
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {organization.verificationStatus
+                    ? VERIFICATION_STATUS_LABELS[organization.verificationStatus]
+                    : "Aucune vérification"}
+                </span>
+              </div>
+              {organization.holderType === "COMPANY" &&
+                (ORG_ROLES_ALLOWED_TO_EDIT_IDENTITY.has(organization.orgRole) ? (
+                  <AccountOrganizationForm
+                    organizationId={organization.id}
+                    initialLegalName={organization.legalName ?? ""}
+                    initialSiret={organization.siret ?? ""}
+                  />
+                ) : (
+                  <dl className="flex flex-col gap-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Raison sociale</dt>
+                      <dd className="truncate font-medium">{organization.legalName}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">SIRET</dt>
+                      <dd className="font-medium">{organization.siret}</dd>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Seuls le propriétaire ou un administrateur de l&apos;organisation peuvent
+                      modifier ces informations.
+                    </p>
+                  </dl>
+                ))}
+            </div>
+          ))}
         </Card>
       )}
 

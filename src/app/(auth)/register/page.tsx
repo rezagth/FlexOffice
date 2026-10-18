@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { RegisterForm } from "@/components/auth/register-form";
+import { SignupWizard } from "@/components/auth/signup-wizard";
 import { BrandLogo } from "@/components/brand/brand-logo";
 
 export const metadata = { title: "Inscription — MakomSpace" };
@@ -12,10 +12,10 @@ export default function RegisterPage() {
       </Link>
       <h1 className="text-xl font-semibold text-foreground">Créer un compte</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Choisissez le type de compte qui vous correspond.
+        Quelques étapes pour configurer votre compte.
       </p>
       <div className="mt-6">
-        <RegisterForm />
+        <SignupWizard />
       </div>
       <p className="mt-6 text-sm text-muted-foreground">
         Déjà un compte ?{" "}

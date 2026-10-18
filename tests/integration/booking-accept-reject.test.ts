@@ -63,7 +63,7 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
       `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
       clientUserId,
       `accept-client-${suffix}@test.local`,
-      JSON.stringify({ role: "CLIENT", name: "Accept Client" })
+      JSON.stringify({ role: "CLIENT", name: "Accept Client", phone: "0600000000" })
     );
 
     const propertyA = await prisma.property.create({

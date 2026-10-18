@@ -35,18 +35,26 @@ export type TestUser = { id: string; email: string };
  * matching profile. `metadata` is passed through as `raw_user_meta_data` —
  * i.e. exactly the client-controlled payload the trigger has to treat as
  * hostile.
+ *
+ * Always carries a `phone`, merged under whatever the caller passes: R22-R24
+ * requires one on file before `createBooking()` accepts a request, and most
+ * callers of this fixture don't care about phone at all — without a default
+ * here every one of them would need to add one just to keep booking tests
+ * passing. A caller that does care (e.g. GDPR erasure, asserting it gets
+ * wiped) overrides it explicitly, same as any other field.
  */
 export async function createTestUser(
   metadata: Record<string, string> = { role: "CLIENT", name: "Test User" }
 ): Promise<TestUser> {
   const email = `test-${uniqueSuffix()}@test.officeflex.local`;
+  const merged = { phone: "0600000000", ...metadata };
 
   const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
     `INSERT INTO auth.users (id, email, raw_user_meta_data)
      VALUES (gen_random_uuid(), $1, $2::jsonb)
      RETURNING id`,
     email,
-    JSON.stringify(metadata)
+    JSON.stringify(merged)
   );
 
   const id = rows[0]?.id;

@@ -117,3 +117,25 @@ export const switchModeSchema = z.object({
 });
 
 export type SwitchModeInput = z.infer<typeof switchModeSchema>;
+
+/**
+ * PRD V1.1, R81 — editing a COMPANY-holder organization's legal identity
+ * from "Mon compte". Both fields are always required (not a partial patch):
+ * the form always re-sends the organization's current values alongside any
+ * edit, and domains/organizations/update-organization-identity.ts already
+ * treats an unchanged value as a no-op — simpler than a separate
+ * presence-tracking shape on both ends.
+ */
+export const organizationIdentityFieldsSchema = z.object({
+  legalName: z.string().trim().min(1, "Raison sociale requise.").max(200, "200 caractères maximum."),
+  siret: z
+    .string()
+    .trim()
+    .regex(/^\d{14}$/, "Le SIRET doit contenir 14 chiffres."),
+});
+
+export const updateOrganizationIdentitySchema = organizationIdentityFieldsSchema.extend({
+  organizationId: z.uuid(),
+});
+
+export type UpdateOrganizationIdentityInput = z.infer<typeof updateOrganizationIdentitySchema>;

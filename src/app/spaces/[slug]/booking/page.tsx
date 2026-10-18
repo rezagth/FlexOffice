@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { parseSpaceSearchParams } from "@/lib/validation/search";
 import { getPublishedSpaceBySlug } from "@/server/domains/spaces/list-spaces";
 import { getAuthContext } from "@/server/auth/rbac";
+import { getOwnProfile } from "@/server/domains/users/profile";
 import { computeDaySlots } from "@/server/domains/bookings/availability";
 import { PortalAwareLayout } from "@/components/marketing/portal-aware-layout";
 import { Card } from "@/components/ui/card";
@@ -39,9 +40,19 @@ export default async function BookingPage({
   const [space, ctx] = await Promise.all([getPublishedSpaceBySlug(slug), getAuthContext()]);
   if (!space) notFound();
   const requestedDate = parseSpaceSearchParams({ date: dateParam }).date;
+  const back = `/spaces/${slug}/booking${requestedDate ? `?date=${requestedDate}` : ""}`;
   if (!ctx) {
-    const back = `/spaces/${slug}/booking${requestedDate ? `?date=${requestedDate}` : ""}`;
     redirect(`/login?redirectTo=${encodeURIComponent(back)}`);
+  }
+
+  // R22-R24: a booking needs a way to reach the client — redirect to "Mon
+  // compte" to fill it in, rather than letting the funnel fail at the very
+  // last step (create-booking.ts enforces the same rule server-side).
+  const profile = await getOwnProfile(ctx.userId);
+  if (!profile?.phone?.trim()) {
+    redirect(
+      `/app/account?redirectTo=${encodeURIComponent(back)}&reason=phone-required`
+    );
   }
 
   const date = requestedDate ?? todayIso();
