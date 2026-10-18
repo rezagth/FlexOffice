@@ -67,7 +67,11 @@ function landlordNav(capabilities: AuthContext["capabilities"]): NavItem[] {
   }
   items.push({ href: "/app/messages", label: "Messagerie" });
   if (capabilities.has("landlord:view_revenue")) {
-    items.push({ href: "/app/landlord/revenue", label: "Comptabilité" });
+    // Two distinct pages: KPIs/export (Revenus) vs. the actual accounting
+    // documents — factures, avoirs, factures de commission (Comptabilité).
+    // The latter used to be reachable only via a link from the former.
+    items.push({ href: "/app/landlord/revenue", label: "Revenus" });
+    items.push({ href: "/app/landlord/accounting", label: "Comptabilité" });
     items.push({ href: "/app/landlord/payouts", label: "Versements" });
   }
   items.push({ href: "/app/account", label: "Compte" });
