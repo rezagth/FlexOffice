@@ -30,6 +30,12 @@ export type WizardDraft = {
   postalCode?: string;
   email?: string;
   acceptTerms?: boolean;
+  // 2B, R53-R58 — "page 4", COMPANY only.
+  domiciliationKind?: "MAKOMSPACE" | "THIRD_PARTY";
+  domiciliataireName?: string;
+  domiciliationAddress?: string;
+  domiciliationCity?: string;
+  domiciliationPostalCode?: string;
 };
 
 type StoredEnvelope = { savedAt: number; data: WizardDraft };

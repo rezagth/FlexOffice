@@ -7,6 +7,7 @@ import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, ValidationError } from "@/server/lib/errors";
 import { logError, logEvent } from "@/server/lib/logger";
 import { createOrganizationWithVerification } from "@/server/domains/organizations/create-organization-with-verification";
+import { createDomiciliationRequest } from "@/server/domains/organizations/domiciliation";
 
 /**
  * PRD V1.1, R15-R21 — the paged signup wizard's submission, replacing the
@@ -154,6 +155,30 @@ export async function registerFromWizard(
         organizationId: organization.id,
         metadata: { name: organization.name, source: "signup_wizard" },
       });
+
+      // 2B, R53-R58 — "page 4", COMPANY only (locataires et partenaires
+      // alike). A failure here never fails the signup: the account and its
+      // organization already exist, and domiciliation can be set up
+      // afterwards from "Mon compte" (it is explicitly optional there).
+      if (input.holderType === "COMPANY" && input.domiciliationKind) {
+        try {
+          await createDomiciliationRequest({
+            organizationId: organization.id,
+            actorUserId: user.id,
+            kind: input.domiciliationKind,
+            domiciliataireName: input.domiciliataireName,
+            domiciliationAddress: input.domiciliationAddress,
+            domiciliationCity: input.domiciliationCity,
+            domiciliationPostalCode: input.domiciliationPostalCode,
+          });
+        } catch (domiciliationError) {
+          logError({
+            event: "auth.register_wizard_domiciliation_failed",
+            error: domiciliationError,
+            user_id: user.id,
+          });
+        }
+      }
     } catch (orgError) {
       if (orgError instanceof ConflictError) {
         logEvent({

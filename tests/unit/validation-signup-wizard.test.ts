@@ -96,6 +96,61 @@ describe("signupWizardSchema", () => {
       expect(fields.has(expected)).toBe(true);
     }
   });
+
+  describe("domiciliation (2B, R53-R58)", () => {
+    const VALID_COMPANY = {
+      ...VALID_SIGNUP,
+      holderType: "COMPANY" as const,
+      legalName: "Acme",
+      siret: "12345678900011",
+      legalRepresentativeName: "Jane Doe",
+      address: "1 rue de Test",
+      city: "Paris",
+      postalCode: "75001",
+    };
+
+    it("requires a domiciliationKind for a COMPANY signup, never for INDIVIDUAL", () => {
+      expect(signupWizardSchema.safeParse(VALID_SIGNUP).success).toBe(true); // INDIVIDUAL, no domiciliation needed
+      const result = signupWizardSchema.safeParse(VALID_COMPANY);
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.issues.some((i) => i.path[0] === "domiciliationKind")).toBe(true);
+    });
+
+    it("accepts MAKOMSPACE with no further fields", () => {
+      expect(
+        signupWizardSchema.safeParse({ ...VALID_COMPANY, domiciliationKind: "MAKOMSPACE" }).success
+      ).toBe(true);
+    });
+
+    it("requires the domiciliataire's details for THIRD_PARTY", () => {
+      const result = signupWizardSchema.safeParse({ ...VALID_COMPANY, domiciliationKind: "THIRD_PARTY" });
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      const fields = result.error.issues.map((i) => i.path[0]);
+      expect(fields).toEqual(
+        expect.arrayContaining([
+          "domiciliataireName",
+          "domiciliationAddress",
+          "domiciliationCity",
+          "domiciliationPostalCode",
+        ])
+      );
+    });
+
+    it("accepts THIRD_PARTY once its fields are filled", () => {
+      expect(
+        signupWizardSchema.safeParse({
+          ...VALID_COMPANY,
+          domiciliationKind: "THIRD_PARTY",
+          domiciliataireName: "Domiciliation SARL",
+          domiciliationAddress: "2 rue de Test",
+          domiciliationCity: "Lyon",
+          domiciliationPostalCode: "69001",
+        }).success
+      ).toBe(true);
+    });
+  });
 });
 
 describe("completeProfileSchema", () => {

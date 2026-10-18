@@ -64,7 +64,7 @@ function chooseRadio(name: string) {
 
 describe("SignupWizard", () => {
   it("blocks advancing from step 1 until a need is chosen", () => {
-    render(<SignupWizard />);
+    render(<SignupWizard domiciliationOfferEnabled={true} />);
     clickNext();
     expect(screen.getByText(/cherchez ou si vous publiez/)).not.toBeNull();
     expect(screen.queryByText("Vous êtes…")).toBeNull();
@@ -80,7 +80,7 @@ describe("SignupWizard", () => {
       // is, this early in the form) — found by manually exercising the
       // wizard. signupWizardSchema uses z.boolean() + a superRefine check
       // instead specifically to avoid this.
-      render(<SignupWizard />);
+      render(<SignupWizard domiciliationOfferEnabled={true} />);
       chooseRadio("Je cherche un espace");
       clickNext();
       chooseRadio("Une société");
@@ -101,7 +101,7 @@ describe("SignupWizard", () => {
   );
 
   it("shows company fields only for 'Société', never for 'Un particulier'", () => {
-    render(<SignupWizard />);
+    render(<SignupWizard domiciliationOfferEnabled={true} />);
     chooseRadio("Je cherche un espace");
     clickNext();
     chooseRadio("Un particulier");
@@ -114,7 +114,7 @@ describe("SignupWizard", () => {
   });
 
   it("asks propriétaire/exploitant only when publishing, address for any publisher", () => {
-    render(<SignupWizard />);
+    render(<SignupWizard domiciliationOfferEnabled={true} />);
     chooseRadio("Je publie un espace");
     clickNext();
 
@@ -130,7 +130,7 @@ describe("SignupWizard", () => {
   });
 
   it("offers the 'agence immobilière' checkbox only for a publishing company", () => {
-    render(<SignupWizard />);
+    render(<SignupWizard domiciliationOfferEnabled={true} />);
     chooseRadio("Je publie un espace");
     clickNext();
     chooseRadio("Une société");
@@ -139,7 +139,7 @@ describe("SignupWizard", () => {
   });
 
   it("preserves answers when going back a step (R16)", () => {
-    render(<SignupWizard />);
+    render(<SignupWizard domiciliationOfferEnabled={true} />);
     chooseRadio("Je cherche un espace");
     clickNext();
     chooseRadio("Une société");
@@ -159,13 +159,13 @@ describe("SignupWizard", () => {
   });
 
   it("saves a draft after each step and offers to resume it on remount, minus the password", () => {
-    const { unmount } = render(<SignupWizard />);
+    const { unmount } = render(<SignupWizard domiciliationOfferEnabled={true} />);
     chooseRadio("Je cherche un espace");
     clickNext();
 
     unmount();
 
-    render(<SignupWizard />);
+    render(<SignupWizard domiciliationOfferEnabled={true} />);
     expect(screen.getByText(/Reprise de votre inscription précédente/)).not.toBeNull();
     expect(screen.getByRole("radio", { name: "Je cherche un espace" }).getAttribute("aria-checked")).toBe(
       "true"
@@ -176,12 +176,12 @@ describe("SignupWizard", () => {
   });
 
   it("'Recommencer à zéro' clears the draft and resets the form", () => {
-    const { unmount } = render(<SignupWizard />);
+    const { unmount } = render(<SignupWizard domiciliationOfferEnabled={true} />);
     chooseRadio("Je publie un espace");
     clickNext();
     unmount();
 
-    render(<SignupWizard />);
+    render(<SignupWizard domiciliationOfferEnabled={true} />);
     fireEvent.click(screen.getByRole("button", { name: "Recommencer à zéro" }));
 
     expect(window.localStorage.getItem("officeflex.signup_wizard.v1")).toBeNull();
@@ -194,7 +194,7 @@ describe("SignupWizard", () => {
       json: async () => ({ emailConfirmationRequired: true }),
     });
 
-    render(<SignupWizard />);
+    render(<SignupWizard domiciliationOfferEnabled={true} />);
     chooseRadio("Je cherche un espace");
     clickNext();
     chooseRadio("Un particulier");
@@ -223,6 +223,62 @@ describe("SignupWizard", () => {
 
     await waitFor(() => {
       expect(window.localStorage.getItem("officeflex.signup_wizard.v1")).toBeNull();
+    });
+  });
+
+  describe("domiciliation (2B, R53-R58)", () => {
+    it("shows the domiciliation step for a COMPANY signup, never for an INDIVIDUAL one", () => {
+      render(<SignupWizard domiciliationOfferEnabled={true} />);
+      chooseRadio("Je cherche un espace");
+      clickNext();
+      chooseRadio("Un particulier");
+      clickNext();
+      fireEvent.change(screen.getByLabelText("Nom complet"), { target: { value: "Jane" } });
+      clickNext();
+      // INDIVIDUAL: no domiciliation question anywhere, straight to "Compte".
+      expect(screen.getByLabelText("Email")).not.toBeNull();
+    });
+
+    it("offers both choices when the MakomSpace offer is enabled", () => {
+      render(<SignupWizard domiciliationOfferEnabled={true} />);
+      chooseRadio("Je cherche un espace");
+      clickNext();
+      chooseRadio("Une société");
+      clickNext();
+      fireEvent.change(screen.getByLabelText("Nom complet"), { target: { value: "Jane" } });
+      fireEvent.change(screen.getByLabelText("Raison sociale"), { target: { value: "Acme" } });
+      fireEvent.change(screen.getByLabelText("SIRET"), { target: { value: "12345678900011" } });
+      fireEvent.change(screen.getByLabelText("Représentant légal"), { target: { value: "Jane" } });
+      fireEvent.change(screen.getByLabelText("Adresse"), { target: { value: "1 rue de Test" } });
+      fireEvent.change(screen.getByLabelText("Ville"), { target: { value: "Paris" } });
+      fireEvent.change(screen.getByLabelText("Code postal"), { target: { value: "75001" } });
+      clickNext();
+
+      expect(screen.getByRole("radio", { name: "Je veux être domicilié chez MakomSpace" })).not.toBeNull();
+      expect(screen.getByRole("radio", { name: "Mon siège est déjà domicilié ailleurs" })).not.toBeNull();
+    });
+
+    it("shows only 'déjà domicilié ailleurs' (no choice to make) when the offer is disabled, and still requires its fields", () => {
+      render(<SignupWizard domiciliationOfferEnabled={false} />);
+      chooseRadio("Je cherche un espace");
+      clickNext();
+      chooseRadio("Une société");
+      clickNext();
+      fireEvent.change(screen.getByLabelText("Nom complet"), { target: { value: "Jane" } });
+      fireEvent.change(screen.getByLabelText("Raison sociale"), { target: { value: "Acme" } });
+      fireEvent.change(screen.getByLabelText("SIRET"), { target: { value: "12345678900011" } });
+      fireEvent.change(screen.getByLabelText("Représentant légal"), { target: { value: "Jane" } });
+      fireEvent.change(screen.getByLabelText("Adresse"), { target: { value: "1 rue de Test" } });
+      fireEvent.change(screen.getByLabelText("Ville"), { target: { value: "Paris" } });
+      fireEvent.change(screen.getByLabelText("Code postal"), { target: { value: "75001" } });
+      clickNext();
+
+      expect(screen.queryByRole("radio", { name: "Je veux être domicilié chez MakomSpace" })).toBeNull();
+      expect(screen.getByLabelText("Nom du domiciliataire")).not.toBeNull();
+
+      clickNext(); // domiciliataire fields still empty
+      expect(screen.getByText("Nom du domiciliataire requis.")).not.toBeNull();
+      expect(screen.getByText("Adresse de domiciliation requise.")).not.toBeNull();
     });
   });
 });

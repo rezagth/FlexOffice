@@ -49,6 +49,14 @@ type FormState = {
   email: string;
   password: string;
   acceptTerms: boolean;
+  // 2B, R53-R58 — "page 4", COMPANY only (see stepFieldsFor/stepLabelsFor
+  // below: the step only exists in the array at all when holderType is
+  // COMPANY).
+  domiciliationKind: "MAKOMSPACE" | "THIRD_PARTY" | "";
+  domiciliataireName: string;
+  domiciliationAddress: string;
+  domiciliationCity: string;
+  domiciliationPostalCode: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -69,16 +77,42 @@ const EMPTY_FORM: FormState = {
   email: "",
   password: "",
   acceptTerms: false,
+  domiciliationKind: "",
+  domiciliataireName: "",
+  domiciliationAddress: "",
+  domiciliationCity: "",
+  domiciliationPostalCode: "",
 };
 
-const STEP_FIELDS = [
-  ["need"],
-  ["holderType", "activityType", "isRealEstateProfessional"],
-  ["name", "phone", "legalName", "siret", "siren", "vatNumber", "legalRepresentativeName", "address", "city", "postalCode"],
-  ["email", "password", "acceptTerms"],
-] as const;
+/** Step count and content depend on `holderType` — COMPANY gets a
+ * "Domiciliation" page (2B) between "Informations" and "Compte", INDIVIDUAL
+ * does not. Computed as functions, not flat constants, so every place that
+ * used to index a fixed-length array still works unchanged. */
+function stepFieldsFor(holderType: FormState["holderType"]): readonly (readonly string[])[] {
+  const fields: string[][] = [
+    ["need"],
+    ["holderType", "activityType", "isRealEstateProfessional"],
+    ["name", "phone", "legalName", "siret", "siren", "vatNumber", "legalRepresentativeName", "address", "city", "postalCode"],
+  ];
+  if (holderType === "COMPANY") {
+    fields.push([
+      "domiciliationKind",
+      "domiciliataireName",
+      "domiciliationAddress",
+      "domiciliationCity",
+      "domiciliationPostalCode",
+    ]);
+  }
+  fields.push(["email", "password", "acceptTerms"]);
+  return fields;
+}
 
-const STEP_LABELS = ["Besoin", "Profil", "Informations", "Compte"];
+function stepLabelsFor(holderType: FormState["holderType"]): string[] {
+  const labels = ["Besoin", "Profil", "Informations"];
+  if (holderType === "COMPANY") labels.push("Domiciliation");
+  labels.push("Compte");
+  return labels;
+}
 
 /** Never includes `password` (R44) — WizardDraft's type has no such field,
  * so every field here is named explicitly rather than spread from `form`. */
@@ -100,6 +134,11 @@ function draftFromForm(form: FormState): WizardDraft {
     postalCode: form.postalCode,
     email: form.email,
     acceptTerms: form.acceptTerms,
+    domiciliationKind: form.domiciliationKind || undefined,
+    domiciliataireName: form.domiciliataireName,
+    domiciliationAddress: form.domiciliationAddress,
+    domiciliationCity: form.domiciliationCity,
+    domiciliationPostalCode: form.domiciliationPostalCode,
   };
 }
 
@@ -110,6 +149,7 @@ function formFromDraft(draft: WizardDraft): FormState {
     need: draft.need ?? "",
     holderType: draft.holderType ?? "",
     activityType: draft.activityType ?? "",
+    domiciliationKind: draft.domiciliationKind ?? "",
   };
 }
 
@@ -136,10 +176,25 @@ function toPayload(form: FormState) {
     email: form.email,
     password: form.password,
     acceptTerms: form.acceptTerms,
+    domiciliationKind: form.domiciliationKind || undefined,
+    domiciliataireName: orUndef(form.domiciliataireName),
+    domiciliationAddress: orUndef(form.domiciliationAddress),
+    domiciliationCity: orUndef(form.domiciliationCity),
+    domiciliationPostalCode: orUndef(form.domiciliationPostalCode),
   };
 }
 
-export function SignupWizard() {
+export function SignupWizard({
+  domiciliationOfferEnabled,
+}: {
+  /** S11 — read server-side (domiciliation.ts's isDomiciliationOfferEnabled())
+   * and passed down, never inferred client-side: when false, the
+   * domiciliation step only shows "déjà domicilié ailleurs" (R53-R58). The
+   * server re-checks this again before honoring a MAKOMSPACE choice either
+   * way (register-wizard.ts via createDomiciliationRequest) — this prop
+   * only controls what the UI offers, never what the server accepts. */
+  domiciliationOfferEnabled: boolean;
+}) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -150,6 +205,11 @@ export function SignupWizard() {
   const [companyFailedReason, setCompanyFailedReason] = useState<string | null>(null);
   const [resumed, setResumed] = useState(false);
   const restoredOnce = useRef(false);
+
+  const stepFields = stepFieldsFor(form.holderType);
+  const stepLabels = stepLabelsFor(form.holderType);
+  const compteStepIndex = stepLabels.length - 1;
+  const domiciliationStepIndex = form.holderType === "COMPANY" ? 3 : -1;
 
   useEffect(() => {
     if (restoredOnce.current) return;
@@ -164,6 +224,17 @@ export function SignupWizard() {
       setResumed(true);
     }
   }, []);
+
+  // S11 — when the MakomSpace offer is off, the step below shows only
+  // "déjà domicilié ailleurs" with no choice to make; this forces the value
+  // that choice would have set, derived from a read-only server prop, not a
+  // render-triggered cascade.
+  useEffect(() => {
+    if (!domiciliationOfferEnabled && form.holderType === "COMPANY" && !form.domiciliationKind) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derives a forced value from an external, read-only switch (domiciliationOfferEnabled), not a render-triggered cascade
+      setForm((prev) => ({ ...prev, domiciliationKind: "THIRD_PARTY" }));
+    }
+  }, [domiciliationOfferEnabled, form.holderType, form.domiciliationKind]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -198,12 +269,12 @@ export function SignupWizard() {
     }
     const all = fieldErrors(result.error);
     const stepErrors: Record<string, string> = {};
-    for (const field of STEP_FIELDS[stepIndex]) {
+    for (const field of stepFields[stepIndex]) {
       if (all[field]) stepErrors[field] = all[field];
     }
     setErrors(stepErrors);
     if (Object.keys(stepErrors).length > 0) {
-      focusFirstError(stepErrors, [...STEP_FIELDS[stepIndex]]);
+      focusFirstError(stepErrors, [...stepFields[stepIndex]]);
       return false;
     }
     return true;
@@ -212,7 +283,7 @@ export function SignupWizard() {
   function goNext() {
     if (!validateUpTo(step)) return;
     saveSignupWizardDraft(draftFromForm(form));
-    setStep((s) => Math.min(s + 1, STEP_LABELS.length - 1));
+    setStep((s) => Math.min(s + 1, stepLabels.length - 1));
   }
 
   function goBack() {
@@ -227,16 +298,16 @@ export function SignupWizard() {
     if (!result.success) {
       const all = fieldErrors(result.error);
       // Jump back to the earliest step that actually has an error.
-      const erroringStep = STEP_FIELDS.findIndex((fields) => fields.some((f) => all[f]));
+      const erroringStep = stepFields.findIndex((fields) => fields.some((f) => all[f]));
       if (erroringStep >= 0 && erroringStep !== step) {
         setStep(erroringStep);
         setErrors(
-          Object.fromEntries(STEP_FIELDS[erroringStep].filter((f) => all[f]).map((f) => [f, all[f]]))
+          Object.fromEntries(stepFields[erroringStep].filter((f) => all[f]).map((f) => [f, all[f]]))
         );
         return;
       }
       setErrors(all);
-      focusFirstError(all, [...STEP_FIELDS[step]]);
+      focusFirstError(all, [...stepFields[step]]);
       return;
     }
     setErrors({});
@@ -315,7 +386,7 @@ export function SignupWizard() {
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
       <ol aria-label="Étapes de l'inscription" className="flex items-center gap-2 text-xs">
-        {STEP_LABELS.map((label, index) => (
+        {stepLabels.map((label, index) => (
           <li
             key={label}
             aria-current={index === step ? "step" : undefined}
@@ -505,7 +576,89 @@ export function SignupWizard() {
         </div>
       )}
 
-      {step === 3 && (
+      {step === domiciliationStepIndex && form.holderType === "COMPANY" && (
+        <div className="flex flex-col gap-4">
+          <fieldset className="flex flex-col gap-3">
+            <legend className="text-sm font-medium text-foreground">
+              Comment votre société est-elle domiciliée ?
+            </legend>
+            {domiciliationOfferEnabled ? (
+              <div
+                role="radiogroup"
+                aria-label="Domiciliation"
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+              >
+                {[
+                  { value: "MAKOMSPACE" as const, label: "Je veux être domicilié chez MakomSpace" },
+                  { value: "THIRD_PARTY" as const, label: "Mon siège est déjà domicilié ailleurs" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.domiciliationKind === option.value}
+                    onClick={() => update("domiciliationKind", option.value)}
+                    className={clsx(
+                      "rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors",
+                      form.domiciliationKind === option.value
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Votre siège est domicilié ailleurs qu&apos;à une adresse MakomSpace.
+              </p>
+            )}
+            {errors.domiciliationKind && <p className="text-xs text-danger">{errors.domiciliationKind}</p>}
+          </fieldset>
+
+          {form.domiciliationKind === "MAKOMSPACE" && (
+            <p className="text-xs text-muted-foreground">
+              Une demande de souscription sera enregistrée. Notre équipe vous recontactera pour le
+              contrat et le règlement — aucun paiement en ligne à cette étape.
+            </p>
+          )}
+
+          {form.domiciliationKind === "THIRD_PARTY" && (
+            <div className="flex flex-col gap-4 rounded-xl border border-border p-4">
+              <p className="text-sm font-medium text-foreground">Votre domiciliataire</p>
+              <FormField id="domiciliataireName" label="Nom du domiciliataire" error={errors.domiciliataireName}>
+                <Input required {...fieldProps("domiciliataireName")} />
+              </FormField>
+              <FormField
+                id="domiciliationAddress"
+                label="Adresse de domiciliation"
+                error={errors.domiciliationAddress}
+              >
+                <Input required {...fieldProps("domiciliationAddress")} />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField id="domiciliationCity" label="Ville" error={errors.domiciliationCity}>
+                  <Input required {...fieldProps("domiciliationCity")} />
+                </FormField>
+                <FormField
+                  id="domiciliationPostalCode"
+                  label="Code postal"
+                  error={errors.domiciliationPostalCode}
+                >
+                  <Input required inputMode="numeric" {...fieldProps("domiciliationPostalCode", "5 chiffres")} />
+                </FormField>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Vous pourrez déposer votre attestation de domiciliation depuis votre compte, une fois
+                inscrit.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === compteStepIndex && (
         <div className="flex flex-col gap-4">
           <FormField id="email" label="Email" error={errors.email}>
             <Input type="email" required autoComplete="email" {...fieldProps("email")} />
@@ -574,7 +727,7 @@ export function SignupWizard() {
         ) : (
           <span />
         )}
-        {step < STEP_LABELS.length - 1 ? (
+        {step < stepLabels.length - 1 ? (
           <Button type="button" onClick={goNext} disabled={pending}>
             Suivant
           </Button>

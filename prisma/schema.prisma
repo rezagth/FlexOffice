@@ -137,6 +137,10 @@ model Profile {
   supportReplies SupportTicketReply[]
   notifications  Notification[]
 
+  domiciliationRequestsMade     DomiciliationRequest[] @relation("DomiciliationRequestedBy")
+  domiciliationRequestsReviewed DomiciliationRequest[] @relation("DomiciliationReviewedBy")
+  domiciliationSettingsUpdated  DomiciliationSettings[] @relation("DomiciliationSettingsUpdatedBy")
+
   @@index([organizationId])
   @@index([activeOrganizationId])
   @@map("profiles")
@@ -409,6 +413,8 @@ model Organization {
   invoices             Invoice[]
   payouts              Payout[]
   payoutLines          PayoutLine[]
+
+  domiciliationRequests DomiciliationRequest[]
 
   @@index([status])
   @@map("organizations")
@@ -1346,6 +1352,7 @@ enum NotificationType {
   VERIFICATION_APPROVED
   VERIFICATION_REJECTED
   PHONE_VERIFIED
+  DOMICILIATION_STATUS_CHANGED
 }
 
 model Notification {
@@ -1402,4 +1409,92 @@ model PhoneVerificationCode {
 
   @@index([profileId, consumedAt])
   @@map("phone_verification_codes")
+}
+
+/// PRD V1.1, 2B, R53-R58/S11 — how a COMPANY-holder organization's
+/// registered office is declared. MAKOMSPACE: a subscription request
+/// reviewed by the admin team (no online payment — contract/pricing handled
+/// manually, S11: this is the regulated activity, gated by
+/// `DomiciliationSettings.offerEnabled`). THIRD_PARTY: self-declared, an
+/// attestation deposited in a private space — nothing for MakomSpace to
+/// review or be liable for, so it starts ACCEPTED (see domiciliation.ts).
+enum DomiciliationKind {
+  MAKOMSPACE
+  THIRD_PARTY
+}
+
+/// Meaningful mainly for MAKOMSPACE requests (REQUESTED -> IN_PROGRESS ->
+/// ACCEPTED | REFUSED, the admin's own workflow). A THIRD_PARTY request
+/// starts ACCEPTED but an admin can still move it (e.g. REFUSED, if the
+/// attestation looks wrong) — the same action applies to both kinds.
+enum DomiciliationStatus {
+  REQUESTED
+  IN_PROGRESS
+  ACCEPTED
+  REFUSED
+}
+
+/// One row per organization's current declaration — like
+/// LandlordVerification, "the latest one" is authoritative
+/// (orderBy createdAt desc), not a unique column, so an org can change its
+/// answer later (e.g. was THIRD_PARTY, now wants MAKOMSPACE) without a
+/// migration-style replace.
+model DomiciliationRequest {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  kind           DomiciliationKind
+  status         DomiciliationStatus
+
+  /// THIRD_PARTY only — who the organization is domiciled with today.
+  domiciliataireName String? @map("domiciliataire_name")
+  address            String?
+  city               String?
+  postalCode         String? @map("postal_code")
+
+  /// THIRD_PARTY only, uploaded after the request exists (Mon compte, not
+  /// the signup wizard — there is no session yet to attach a private upload
+  /// to at that point). Null until deposited. See
+  /// organizations/domiciliation-storage.ts for the bucket and path.
+  attestationStoragePath      String? @map("attestation_storage_path")
+  attestationOriginalFilename String? @map("attestation_original_filename")
+  attestationMimeType         String? @map("attestation_mime_type")
+  attestationSizeBytes        Int?    @map("attestation_size_bytes")
+
+  /// Admin-only, shown on the admin screen's notes field — never surfaced to
+  /// the organization directly (the in-app notification carries its own
+  /// text, see domiciliation.ts).
+  adminNotes String? @map("admin_notes")
+
+  requestedByProfileId String  @map("requested_by_profile_id") @db.Uuid
+  requestedBy          Profile @relation("DomiciliationRequestedBy", fields: [requestedByProfileId], references: [id])
+  reviewedByProfileId  String? @map("reviewed_by_profile_id") @db.Uuid
+  reviewedBy           Profile? @relation("DomiciliationReviewedBy", fields: [reviewedByProfileId], references: [id], onDelete: SetNull)
+  reviewedAt           DateTime? @map("reviewed_at") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([organizationId, createdAt])
+  @@index([status])
+  @@map("domiciliation_requests")
+}
+
+/// S11 — a single admin-controlled switch for MakomSpace's OWN domiciliation
+/// offer (acting as domiciliataire is a regulated activity in France,
+/// requiring an agrément préfectoral — "déjà domicilié ailleurs" has no such
+/// requirement, since MakomSpace isn't the domiciliataire there, so it is
+/// never gated by this). Singleton: `id` is always 1, enforced by the CHECK
+/// constraint in the migration, not just convention. The migration's own
+/// seed row leaves `offerEnabled` at its default (false) — nothing in this
+/// codebase ever sets it true; only an admin action does, after legal
+/// sign-off that this codebase cannot verify and must not assume.
+model DomiciliationSettings {
+  id                 Int      @id @default(1)
+  offerEnabled       Boolean  @default(false) @map("offer_enabled")
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedByProfileId String?  @map("updated_by_profile_id") @db.Uuid
+  updatedBy          Profile? @relation("DomiciliationSettingsUpdatedBy", fields: [updatedByProfileId], references: [id], onDelete: SetNull)
+
+  @@map("domiciliation_settings")
 }

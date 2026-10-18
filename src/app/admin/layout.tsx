@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/admin/users", label: "Utilisateurs" },
   { href: "/admin/organizations", label: "Entreprises" },
   { href: "/admin/verifications", label: "Vérifications" },
+  { href: "/admin/domiciliations", label: "Domiciliations" },
   { href: "/admin/listings", label: "Annonces" },
   { href: "/admin/reviews", label: "Avis" },
   { href: "/admin/payments", label: "Paiements" },

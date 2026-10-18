@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { emailSchema, passwordSchema } from "./auth";
 import { landlordActivityTypeSchema } from "./landlord";
+import { domiciliationKindSchema } from "./domiciliation";
 
 /**
  * PRD V1.1, R15-R21, R44-R46, R61 — the paged signup wizard, replacing the
@@ -142,6 +143,21 @@ export const signupWizardSchema = z
     // boolean, checked in superRefine like everything else below, keeps the
     // parse structurally valid so every applicable error always surfaces.
     acceptTerms: z.boolean(),
+    // 2B, R53-R58 — "page 4", COMPANY only (tenant or partner alike), never
+    // collected on /app/complete-profile or /app/become-landlord (explicit
+    // scope of this lot): the signup wizard is the one place this is asked.
+    // The attestation FILE is not collected here — there is no session yet
+    // to attach a private upload to; it is deposited afterwards from Mon
+    // compte.
+    domiciliationKind: domiciliationKindSchema.optional(),
+    domiciliataireName: z.string().trim().min(1).max(200).optional(),
+    domiciliationAddress: z.string().trim().min(1).max(255).optional(),
+    domiciliationCity: z.string().trim().min(1).max(120).optional(),
+    domiciliationPostalCode: z
+      .string()
+      .trim()
+      .regex(/^\d{5}$/, { error: "Le code postal doit contenir 5 chiffres." })
+      .optional(),
   })
   .superRefine((data, ctx) => {
     applySharedRefinements(data, ctx);
@@ -151,6 +167,26 @@ export const signupWizardSchema = z
         path: ["acceptTerms"],
         message: "Vous devez accepter les CGU et la politique de confidentialité.",
       });
+    }
+    if (data.holderType === "COMPANY") {
+      if (!data.domiciliationKind) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["domiciliationKind"],
+          message: "Indiquez comment votre société est domiciliée.",
+        });
+      }
+      if (data.domiciliationKind === "THIRD_PARTY") {
+        const required: [keyof typeof data, string][] = [
+          ["domiciliataireName", "Nom du domiciliataire requis."],
+          ["domiciliationAddress", "Adresse de domiciliation requise."],
+          ["domiciliationCity", "Ville requise."],
+          ["domiciliationPostalCode", "Code postal requis."],
+        ];
+        for (const [field, message] of required) {
+          if (!data[field]) ctx.addIssue({ code: "custom", path: [field], message });
+        }
+      }
     }
   });
 
