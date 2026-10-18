@@ -50,8 +50,8 @@ type Args = {
 };
 
 function matches(space: Row, where: Record<string, unknown>) {
-  const type = where.type as string | undefined;
-  if (type && space.type !== type) return false;
+  const type = where.type as { in: string[] } | undefined;
+  if (type && !type.in.includes(space.type)) return false;
   const price = where.dayPriceCents as { lte: number } | undefined;
   if (price && space.dayPriceCents > price.lte) return false;
   const capacity = where.capacity as { gte: number } | undefined;
@@ -153,13 +153,31 @@ describe("searchPublishedSpaces — sort and filters", () => {
     rows[0] = row(1, { type: "DESK", dayPriceCents: 5_000 });
     rows[1] = row(2, { type: "DESK", dayPriceCents: 50_000 });
 
-    const result = await searchPublishedSpaces({ type: "DESK", maxPriceCents: 10_000 });
+    const result = await searchPublishedSpaces({ types: ["DESK"], maxPriceCents: 10_000 });
     expect(result.spaces.map((s) => s.slug)).toEqual(["space-1"]);
     expect(result.total).toBe(1);
   });
 
-  it("ignores an unknown space type instead of passing it to the query", async () => {
-    await searchPublishedSpaces({ type: "BALLROOM" });
+  it("the 'salles de réunion' bucket also matches espaces de formation", async () => {
+    rows[0] = row(1, { type: "MEETING_ROOM" });
+    rows[1] = row(2, { type: "TRAINING_ROOM" });
+    rows[2] = row(3, { type: "DESK" });
+
+    const result = await searchPublishedSpaces({ types: ["MEETING_ROOM"], limit: 30 });
+    const slugs = result.spaces.map((s) => s.slug);
+    expect(slugs).toContain("space-1");
+    expect(slugs).toContain("space-2");
+    expect(slugs).not.toContain("space-3");
+  });
+
+  it("ignores an unknown type bucket instead of passing it to the query", async () => {
+    await searchPublishedSpaces({ types: ["BALLROOM"] });
+    const args = spaceFindMany.mock.calls[0][0] as Args;
+    expect(args.where).not.toHaveProperty("type");
+  });
+
+  it("applies no type filter at all when every bucket is empty", async () => {
+    await searchPublishedSpaces({ types: [] });
     const args = spaceFindMany.mock.calls[0][0] as Args;
     expect(args.where).not.toHaveProperty("type");
   });

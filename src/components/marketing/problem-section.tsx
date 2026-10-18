@@ -7,10 +7,16 @@ const BEFORE = [
   "Bruit de fond permanent",
 ];
 
+// PRD V1.1, R1/R2: these were platform-wide amenity promises ("Fibre
+// sécurisée & visioconférence", "Isolation phonique totale") that MakomSpace
+// does not itself control or guarantee — fibre, soundproofing or any other
+// equipment is whatever each partner declares on their own listing (S8).
+// What the platform actually guarantees is the verification and the booking
+// model, so the comparison claims only that.
 const AFTER = [
-  "Fibre sécurisée & visioconférence",
-  "Isolation phonique totale",
-  "Accueil client haut de gamme",
+  "Entreprises vérifiées avant publication",
+  "Équipements annoncés précisément, espace par espace",
+  "Un cadre professionnel, sans engagement",
 ];
 
 /**

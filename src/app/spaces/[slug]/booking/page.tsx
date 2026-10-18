@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { parseSpaceSearchParams } from "@/lib/validation/search";
-import { SiteFooter } from "@/components/marketing/site-footer";
 import { getPublishedSpaceBySlug } from "@/server/domains/spaces/list-spaces";
 import { getAuthContext } from "@/server/auth/rbac";
 import { computeDaySlots } from "@/server/domains/bookings/availability";
-import { SiteHeader } from "@/components/marketing/site-header";
+import { PortalAwareLayout } from "@/components/marketing/portal-aware-layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -67,43 +66,45 @@ export default async function BookingPage({
     : [];
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <SiteHeader />
-      <main id="contenu" className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Réserver {space.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Proposé par {space.organization.name} · {space.city}
-          </p>
-        </div>
+    // ctx is always set here (redirected to /login above otherwise), so this
+    // always renders inside the portal — R9-R14.
+    <PortalAwareLayout
+      ctx={ctx}
+      portalClassName="mx-auto flex w-full max-w-3xl flex-col gap-6"
+      publicMainClassName="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10"
+    >
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">Réserver {space.name}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Proposé par {space.organization.name} · {space.city}
+        </p>
+      </div>
 
-        <Card className="flex flex-col gap-4 p-5">
-          <h2 className="text-lg font-medium">1. Choisissez une date</h2>
-          <form className="flex flex-wrap items-end gap-3">
-            <Field label="Date" htmlFor="date">
-              <Input id="date" name="date" type="date" min={todayIso()} defaultValue={date} />
-            </Field>
-            <Button type="submit" variant="outline">
-              Voir les créneaux
-            </Button>
-          </form>
-        </Card>
+      <Card className="flex flex-col gap-4 p-5">
+        <h2 className="text-lg font-medium">1. Choisissez une date</h2>
+        <form className="flex flex-wrap items-end gap-3">
+          <Field label="Date" htmlFor="date">
+            <Input id="date" name="date" type="date" min={todayIso()} defaultValue={date} />
+          </Field>
+          <Button type="submit" variant="outline">
+            Voir les créneaux
+          </Button>
+        </form>
+      </Card>
 
-        <BookingFunnel
-          spaceId={space.id}
-          spaceName={space.name}
-          date={date}
-          slots={slots}
-          capacity={space.capacity}
-          timeZone={"timezone" in space ? space.timezone : undefined}
-          cancellationWindowHours={
-            "cancellationWindowHours" in space && typeof space.cancellationWindowHours === "number"
-              ? space.cancellationWindowHours
-              : undefined
-          }
-        />
-      </main>
-      <SiteFooter />
-    </div>
+      <BookingFunnel
+        spaceId={space.id}
+        spaceName={space.name}
+        date={date}
+        slots={slots}
+        capacity={space.capacity}
+        timeZone={"timezone" in space ? space.timezone : undefined}
+        cancellationWindowHours={
+          "cancellationWindowHours" in space && typeof space.cancellationWindowHours === "number"
+            ? space.cancellationWindowHours
+            : undefined
+        }
+      />
+    </PortalAwareLayout>
   );
 }

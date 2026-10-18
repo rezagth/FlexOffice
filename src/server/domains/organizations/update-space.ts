@@ -2,7 +2,7 @@ import type { Space } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
-import { pricingViolation, type UpdateSpaceInput } from "@/lib/validation/spaces";
+import { FIXED_CAPACITY_BY_TYPE, pricingViolation, type UpdateSpaceInput } from "@/lib/validation/spaces";
 
 /**
  * Fields a client sees on the public listing and that an administrator
@@ -38,6 +38,23 @@ export function changedModeratedFields(existing: Space, input: UpdateSpaceInput)
 }
 
 /**
+ * What `capacity` becomes after this edit, regardless of what the request
+ * sent (R4): a fixed-capacity type (café/poste) never gets its capacity from
+ * a client. `existingType` is what makes this work on a partial payload that
+ * omits `type` — the schema alone cannot see it (lib/validation/spaces.ts).
+ * Returns `{}` (no patch) when the effective type doesn't fix a capacity, so
+ * callers can spread this over the rest of the update unconditionally.
+ */
+export function resolvedCapacityPatch(
+  existingType: string,
+  input: Pick<UpdateSpaceInput, "type" | "capacity">
+): Pick<UpdateSpaceInput, "capacity"> | Record<string, never> {
+  const effectiveType = input.type ?? existingType;
+  const fixed = FIXED_CAPACITY_BY_TYPE[effectiveType];
+  return fixed !== undefined ? { capacity: fixed } : {};
+}
+
+/**
  * Applies an edit to a space the caller has already been authorized for.
  * Shared by both edit paths (organization-scoped `/api/partner/spaces/[id]`
  * and property-scoped `/api/properties/[id]/spaces/[spaceId]`) so the
@@ -66,12 +83,14 @@ export async function applySpaceUpdate(
   });
   if (violation) throw new ValidationError(violation.message);
 
-  const changed = changedModeratedFields(existing, input);
+  const data = { ...input, ...resolvedCapacityPatch(existing.type, input) };
+
+  const changed = changedModeratedFields(existing, data);
   const backToReview = existing.status === "PUBLISHED" && changed.length > 0;
 
   const result = await prisma.space.updateMany({
     where: { id: existing.id, status: existing.status },
-    data: { ...input, ...(backToReview ? { status: "PENDING_REVIEW" as const } : {}) },
+    data: { ...data, ...(backToReview ? { status: "PENDING_REVIEW" as const } : {}) },
   });
   if (result.count === 0) {
     throw new ConflictError("L'annonce a changé entre-temps. Rechargez la page puis réessayez.");

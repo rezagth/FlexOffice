@@ -3,6 +3,7 @@ import {
   closureSchema,
   createSpaceSchema,
   discountedPriceCents,
+  isFixedCapacityType,
   openingHoursWeekSchema,
   pricingViolation,
   updateSpaceSchema,
@@ -39,6 +40,41 @@ describe("createSpaceSchema", () => {
 
   it("rejects a negative price", () => {
     expect(() => createSpaceSchema.parse({ ...validSpace, dayPriceCents: -1 })).toThrow();
+  });
+});
+
+describe("type/capacity consistency (PRD V1.1, R3-R4)", () => {
+  it("requires a capacity for a type that doesn't fix one", () => {
+    const result = createSpaceSchema.safeParse({ ...validSpace, capacity: undefined });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["capacity"]);
+  });
+
+  it("accepts a café/poste without a declared capacity", () => {
+    const result = createSpaceSchema.safeParse({ ...validSpace, type: "CAFE_SPOT", capacity: undefined });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a café/poste with a capacity other than 1", () => {
+    const result = createSpaceSchema.safeParse({ ...validSpace, type: "CAFE_SPOT", capacity: 4 });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["capacity"]);
+  });
+
+  it("isFixedCapacityType only flags café/poste", () => {
+    expect(isFixedCapacityType("CAFE_SPOT")).toBe(true);
+    expect(isFixedCapacityType("DESK")).toBe(false);
+    expect(isFixedCapacityType("MEETING_ROOM")).toBe(false);
+    expect(isFixedCapacityType("TRAINING_ROOM")).toBe(false);
+  });
+
+  it("an update only re-checks capacity when the payload also sends a type", () => {
+    // A partial payload with just a capacity cannot be judged without
+    // knowing the space's current type — the service layer does that
+    // (organizations/update-space.ts), not the schema.
+    expect(updateSpaceSchema.safeParse({ capacity: 4 }).success).toBe(true);
+    expect(updateSpaceSchema.safeParse({ type: "CAFE_SPOT", capacity: 4 }).success).toBe(false);
+    expect(updateSpaceSchema.safeParse({ type: "CAFE_SPOT" }).success).toBe(true);
   });
 });
 

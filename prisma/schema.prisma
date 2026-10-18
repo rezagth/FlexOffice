@@ -576,6 +576,10 @@ enum SpaceType {
   MEETING_ROOM
   DESK
   TRAINING_ROOM
+  /// "Café / poste" — a single shared workstation (PRD V1.1, R3). Capacity is
+  /// fixed at 1 and enforced server-side (see resolveSpaceCapacity());
+  /// existing spaces are not reclassified automatically.
+  CAFE_SPOT
 }
 
 enum SpaceStatus {

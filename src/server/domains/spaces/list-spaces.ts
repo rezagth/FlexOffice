@@ -1,11 +1,15 @@
-import type { SpaceAmenity, SpaceType } from "@/generated/prisma/client";
+import type { OrganizationStatus, SpaceAmenity, SpaceType } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
-import { STATUSES_ALLOWED_TO_PUBLISH } from "@/server/domains/organizations/publication-guard";
+import {
+  canOrganizationPublish,
+  STATUSES_ALLOWED_TO_PUBLISH,
+} from "@/server/domains/organizations/publication-guard";
 import { recordSearchEvent } from "@/server/domains/analytics/search-events";
 import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import { isSpaceAvailableOnDate } from "@/server/domains/bookings/availability";
-import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
+import { SPACE_AMENITY_LABELS } from "@/lib/format";
 import {
+  expandTypeBuckets,
   SEARCH_MAX_PAGE,
   SEARCH_MAX_PAGE_SIZE,
   SEARCH_PAGE_SIZE,
@@ -139,8 +143,9 @@ export type PublishedSpaceSearch = {
   capacity?: number;
   amenities?: string[];
   date?: string;
-  /** A SpaceType value; anything else is ignored. */
-  type?: string;
+  /** Checked type-filter buckets (see lib/validation/search.ts); empty or
+   * absent means every type. */
+  types?: string[];
   /** Upper bound on the full-day list price, in cents. */
   maxPriceCents?: number;
   sort?: SearchSort;
@@ -168,8 +173,6 @@ export type PublishedSpacesPage<T> = {
  * same trade-off the previous fixed `take: 50` made, with a higher ceiling.
  */
 export const IN_MEMORY_CANDIDATE_CAP = 100;
-
-const VALID_SPACE_TYPES = new Set(Object.keys(SPACE_TYPE_LABELS));
 
 function normalizePaging(params: PublishedSpaceSearch) {
   const pageSize = Math.min(
@@ -231,7 +234,7 @@ function compareDistance(a: { distanceKm: number | null }, b: { distanceKm: numb
 export async function searchPublishedSpaces(params: PublishedSpaceSearch = {}) {
   const { page, pageSize } = normalizePaging(params);
   const sort: SearchSort = params.sort ?? "relevance";
-  const type = params.type && VALID_SPACE_TYPES.has(params.type) ? params.type : undefined;
+  const expandedTypes = expandTypeBuckets(params.types ?? []);
   const maxPriceCents =
     params.maxPriceCents != null && params.maxPriceCents > 0 ? params.maxPriceCents : undefined;
 
@@ -242,7 +245,7 @@ export async function searchPublishedSpaces(params: PublishedSpaceSearch = {}) {
       (space) =>
         (!city || space.city.toLowerCase().includes(city)) &&
         (!params.capacity || space.capacity >= params.capacity) &&
-        (!type || space.type === type) &&
+        (expandedTypes.length === 0 || expandedTypes.includes(space.type)) &&
         (!maxPriceCents || space.dayPriceCents <= maxPriceCents)
     ).map((space) => ({ ...space, distanceKm: null as number | null }));
     if (sort === "price_asc") matches.sort((a, b) => a.dayPriceCents - b.dayPriceCents);
@@ -257,7 +260,7 @@ export async function searchPublishedSpaces(params: PublishedSpaceSearch = {}) {
     ...(params.city ? { city: { contains: params.city, mode: "insensitive" as const } } : {}),
     ...(params.capacity ? { capacity: { gte: params.capacity } } : {}),
     ...(amenityFilter.length ? { amenities: { hasEvery: amenityFilter } } : {}),
-    ...(type ? { type: type as SpaceType } : {}),
+    ...(expandedTypes.length ? { type: { in: expandedTypes as SpaceType[] } } : {}),
     ...(maxPriceCents ? { dayPriceCents: { lte: maxPriceCents } } : {}),
   };
   const orderBy =
@@ -387,15 +390,17 @@ export async function getPublishedSpaceBySlug(slug: string) {
  * SearchResultsGrid, a Client Component, so the whole object is serialized
  * to the browser. Favoriting a space is open to any account, so returning
  * the full row here would leak `accessInstructions` to anyone who clicks
- * the heart. Listings that were unpublished or whose organization was
- * suspended since being favorited are dropped, like on /search.
+ * the heart.
+ *
+ * Unlike /search, a space that was unpublished or whose organization was
+ * suspended since being favorited is NOT dropped (PRD V1.1, R78): it still
+ * shows, marked `available: false`, rather than silently disappearing from
+ * "Mes favoris" — the visitor favorited it on purpose and may want to
+ * unfavorite it, not just lose track of it.
  */
 export async function listFavoriteSpaces(userId: string) {
   const favorites = await prisma.favorite.findMany({
-    where: {
-      userId,
-      space: { status: "PUBLISHED", organization: publiclyVisibleOrganization() },
-    },
+    where: { userId },
     select: {
       space: {
         select: {
@@ -408,9 +413,15 @@ export async function listFavoriteSpaces(userId: string) {
     orderBy: { createdAt: "desc" },
   });
 
-  return favorites.map(({ space: { spacePhotos, ...space } }) => ({
-    ...space,
-    photos: resolvePhotoUrls(space.photos, spacePhotos),
-    favorited: true as const,
-  }));
+  return favorites
+    .filter((favorite): favorite is typeof favorite & { space: NonNullable<typeof favorite.space> } =>
+      Boolean(favorite.space)
+    )
+    .map(({ space: { spacePhotos, status, organization, ...space } }) => ({
+      ...space,
+      organization,
+      photos: resolvePhotoUrls(space.photos, spacePhotos),
+      favorited: true as const,
+      available: status === "PUBLISHED" && canOrganizationPublish(organization.status as OrganizationStatus),
+    }));
 }

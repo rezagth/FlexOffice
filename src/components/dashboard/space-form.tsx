@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
+import { isFixedCapacityType } from "@/lib/validation/spaces";
 import { COMMON_TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezone";
 import { CANCELLATION_WINDOW_OPTIONS, DEFAULT_CANCELLATION_WINDOW_HOURS } from "@/lib/cancellation-policy";
 import { SpacePhotoManager } from "@/components/dashboard/space-photo-manager";
@@ -268,17 +269,24 @@ export function SpaceForm({
             onChange={(e) => set("description")(e.target.value)}
           />
         </Field>
-        <Field label="Capacité (personnes)" htmlFor="capacity">
-          <Input
-            id="capacity"
-            type="number"
-            min={1}
-            max={1000}
-            required
-            value={values.capacity}
-            onChange={(e) => set("capacity")(e.target.value)}
-          />
-        </Field>
+        {isFixedCapacityType(values.type) ? (
+          <p className="text-sm text-muted-foreground">
+            {SPACE_TYPE_LABELS[values.type] ?? values.type} : capacité fixée à une personne,
+            pas de champ à renseigner.
+          </p>
+        ) : (
+          <Field label="Capacité (personnes)" htmlFor="capacity">
+            <Input
+              id="capacity"
+              type="number"
+              min={1}
+              max={1000}
+              required
+              value={values.capacity}
+              onChange={(e) => set("capacity")(e.target.value)}
+            />
+          </Field>
+        )}
       </Card>
 
       <Card className="flex flex-col gap-4 p-5">

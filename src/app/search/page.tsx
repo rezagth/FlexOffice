@@ -5,15 +5,16 @@ import { isDatabaseConfigured } from "@/server/auth/runtime-config";
 import { getFavoritedSpaceIds } from "@/server/domains/favorites/favorites";
 import { EmptyState } from "@/components/dashboard/states";
 import { SearchResultsGrid } from "@/components/marketing/search-results-grid";
-import { SiteHeader } from "@/components/marketing/site-header";
-import { SiteFooter } from "@/components/marketing/site-footer";
 import { SearchGeolocation } from "@/components/marketing/search-geolocation";
 import { SearchMapLoader } from "@/components/marketing/search-map-loader";
+import { SpaceTypeFilter } from "@/components/marketing/space-type-filter";
+import { PortalAwareLayout } from "@/components/marketing/portal-aware-layout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Pagination,
   PaginationContent,
@@ -21,15 +22,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
+import { SPACE_AMENITY_LABELS } from "@/lib/format";
 import {
-  parseSpaceSearchParams,
   SEARCH_SORT_LABELS,
   SEARCH_SORTS,
+  parseSpaceSearchParams,
   searchPageHref,
 } from "@/lib/validation/search";
 import { getReviewSummaries } from "@/server/domains/reviews/reviews";
 import { pageMetadata } from "@/lib/site";
+import { logError } from "@/server/lib/logger";
 
 const AMENITY_VALUES = Object.keys(SPACE_AMENITY_LABELS).filter((value) => value !== "OTHER");
 
@@ -49,25 +51,34 @@ function resultsLabel(total: number): string {
 
 // Public: browsing published spaces requires no account ("recherche rapide,
 // sans inscription requise"). Booking does — the space page asks for it.
+//
+// PRD V1.1, R9-R14: this same route renders inside the signed-in portal
+// (fixed sidebar, session, mode) via PortalAwareLayout when a visitor is
+// logged in — see that component's doc comment for why.
 export default async function SearchPage({ searchParams }: PageProps<"/search">) {
   const raw = await searchParams;
   const search = parseSpaceSearchParams(raw);
+  const ctx = await getAuthContext();
 
-  const [result, ctx] = await Promise.all([
-    searchPublishedSpaces({ ...search, track: true }),
-    getAuthContext(),
-  ]);
+  // R41: a failed query shows an inline, retryable error — filters stay
+  // exactly as entered (`raw` round-trips through the URL either way) —
+  // rather than crashing to the generic error page and losing them.
+  let result: Awaited<ReturnType<typeof searchPublishedSpaces>> | null = null;
+  try {
+    result = await searchPublishedSpaces({ ...search, track: true });
+  } catch (error) {
+    logError({ event: "search.query_failed", error });
+  }
 
   // Demo mode has no Favorite table to query. A signed-out visitor sees no
   // favorite state either (`favorited` left undefined hides the button).
   const favoritedIds =
-    ctx && isDatabaseConfigured()
+    result && ctx && isDatabaseConfigured()
       ? await getFavoritedSpaceIds(ctx.userId, result.spaces.map((s) => s.id))
       : null;
-  const ratings = isDatabaseConfigured()
-    ? await getReviewSummaries(result.spaces.map((s) => s.id))
-    : null;
-  const spaces = result.spaces.map((space) => ({
+  const ratings =
+    result && isDatabaseConfigured() ? await getReviewSummaries(result.spaces.map((s) => s.id)) : null;
+  const spaces = (result?.spaces ?? []).map((space) => ({
     ...space,
     favorited: favoritedIds ? favoritedIds.has(space.id) : undefined,
     rating: ratings?.get(space.id) ?? null,
@@ -93,201 +104,189 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     search.city ||
       search.date ||
       search.capacity ||
-      search.type ||
+      search.types.length ||
       search.maxPriceCents ||
       search.amenities.length
   );
+  const retryHref = searchPageHref(raw, search.page);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <SiteHeader />
-      <main id="contenu" className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Rechercher un espace</h1>
-          <p className="text-sm text-muted-foreground">
-            Filtrez par ville, date, capacité, type, budget et équipements.
-          </p>
+    <PortalAwareLayout
+      ctx={ctx}
+      portalClassName="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6"
+      publicMainClassName="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10"
+    >
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">Rechercher un espace</h1>
+        <p className="text-sm text-muted-foreground">
+          Filtrez par ville, date, capacité, type, budget et équipements.
+        </p>
+      </div>
+
+      <form
+        role="search"
+        aria-label="Filtres de recherche"
+        className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5"
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="search-city">Ville</Label>
+            <Input
+              id="search-city"
+              type="search"
+              name="city"
+              autoComplete="address-level2"
+              defaultValue={search.city}
+              placeholder="Ex. Paris, Lyon…"
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="search-date">Date</Label>
+            <Input id="search-date" type="date" name="date" defaultValue={search.date} />
+          </div>
+          <SpaceTypeFilter defaultCapacity={search.capacity} defaultTypes={search.types} />
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="search-max-price">Prix max. / jour (€)</Label>
+            <Input
+              id="search-max-price"
+              type="number"
+              name="maxPrice"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              defaultValue={search.maxPriceCents ? search.maxPriceCents / 100 : undefined}
+              placeholder="Ex. 300"
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="search-sort">Trier par</Label>
+            <Select id="search-sort" name="sort" defaultValue={search.sort}>
+              {SEARCH_SORTS.map((sort) => (
+                <option key={sort} value={sort}>
+                  {SEARCH_SORT_LABELS[sort]}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
 
-        <form
-          role="search"
-          aria-label="Filtres de recherche"
-          className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5"
-        >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <Label htmlFor="search-city">Ville</Label>
-              <Input
-                id="search-city"
-                type="search"
-                name="city"
-                autoComplete="address-level2"
-                defaultValue={search.city}
-                placeholder="Ex. Paris, Lyon…"
-              />
-            </div>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <Label htmlFor="search-date">Date</Label>
-              <Input id="search-date" type="date" name="date" defaultValue={search.date} />
-            </div>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <Label htmlFor="search-capacity">Capacité minimale</Label>
-              <Input
-                id="search-capacity"
-                type="number"
-                name="capacity"
-                min={1}
-                inputMode="numeric"
-                defaultValue={search.capacity}
-                placeholder="Ex. 10"
-              />
-            </div>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <Label htmlFor="search-type">Type d&apos;espace</Label>
-              <Select id="search-type" name="type" defaultValue={search.type ?? ""}>
-                <option value="">Tous les types</option>
-                {Object.entries(SPACE_TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <Label htmlFor="search-max-price">Prix max. / jour (€)</Label>
-              <Input
-                id="search-max-price"
-                type="number"
-                name="maxPrice"
-                min={1}
-                step={1}
-                inputMode="numeric"
-                defaultValue={search.maxPriceCents ? search.maxPriceCents / 100 : undefined}
-                placeholder="Ex. 300"
-              />
-            </div>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <Label htmlFor="search-sort">Trier par</Label>
-              <Select id="search-sort" name="sort" defaultValue={search.sort}>
-                {SEARCH_SORTS.map((sort) => (
-                  <option key={sort} value={sort}>
-                    {SEARCH_SORT_LABELS[sort]}
-                  </option>
-                ))}
-              </Select>
-            </div>
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-sm font-medium text-foreground">Équipements</legend>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-6">
+            {AMENITY_VALUES.map((value) => (
+              <div key={value} className="flex items-center gap-2">
+                <Checkbox
+                  id={`amenity-${value}`}
+                  name="amenities"
+                  value={value}
+                  defaultChecked={search.amenities.includes(value)}
+                />
+                <Label htmlFor={`amenity-${value}`} className="font-normal">
+                  {SPACE_AMENITY_LABELS[value]}
+                </Label>
+              </div>
+            ))}
           </div>
+        </fieldset>
 
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium text-foreground">Équipements</legend>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-6">
-              {AMENITY_VALUES.map((value) => (
-                <div key={value} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`amenity-${value}`}
-                    name="amenities"
-                    value={value}
-                    defaultChecked={search.amenities.includes(value)}
-                  />
-                  <Label htmlFor={`amenity-${value}`} className="font-normal">
-                    {SPACE_AMENITY_LABELS[value]}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </fieldset>
+        {/* Keeps the "around me" position when the filters change. */}
+        {search.near && (
+          <>
+            <input type="hidden" name="lat" value={search.near.lat} />
+            <input type="hidden" name="lng" value={search.near.lng} />
+          </>
+        )}
 
-          {/* Keeps the "around me" position when the filters change. */}
-          {search.near && (
-            <>
-              <input type="hidden" name="lat" value={search.near.lat} />
-              <input type="hidden" name="lng" value={search.near.lng} />
-            </>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            <SearchGeolocation />
-            <div className="flex gap-2">
-              {hasFilters && (
-                <ButtonLink href="/search" variant="ghost" size="md">
-                  Effacer les filtres
-                </ButtonLink>
-              )}
-              <Button type="submit" size="md">
-                Rechercher
-              </Button>
-            </div>
-          </div>
-        </form>
-
-        <section aria-labelledby="results-heading" className="flex flex-col gap-4">
-          <h2
-            id="results-heading"
-            className="font-sans text-base font-medium text-foreground"
-          >
-            {resultsLabel(result.total)}
-            {result.pageCount > 1 && (
-              <span className="font-normal text-muted-foreground">
-                {" "}
-                · page {result.page} sur {result.pageCount}
-              </span>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <SearchGeolocation />
+          <div className="flex gap-2">
+            {hasFilters && (
+              <ButtonLink href="/search" variant="ghost" size="md">
+                Effacer les filtres
+              </ButtonLink>
             )}
-          </h2>
+            <Button type="submit" size="md">
+              Rechercher
+            </Button>
+          </div>
+        </div>
+      </form>
 
-          {mapPoints.length > 0 && (
-            <SearchMapLoader points={mapPoints} center={[mapPoints[0].lat, mapPoints[0].lng]} />
+      <section aria-labelledby="results-heading" className="flex flex-col gap-4">
+        <h2
+          id="results-heading"
+          className="font-sans text-base font-medium text-foreground"
+        >
+          {result ? resultsLabel(result.total) : "Recherche"}
+          {result && result.pageCount > 1 && (
+            <span className="font-normal text-muted-foreground">
+              {" "}
+              · page {result.page} sur {result.pageCount}
+            </span>
           )}
+        </h2>
 
-          {spaces.length === 0 ? (
-            <EmptyState
-              title="Aucun espace trouvé"
-              description={
-                result.total > 0
-                  ? "Cette page de résultats est vide : revenez à la première page."
-                  : "Essayez une autre ville ou retirez un filtre : de nouveaux espaces sont ajoutés régulièrement."
-              }
-              action={
-                hasFilters || result.total > 0 ? (
-                  <ButtonLink href={result.total > 0 ? searchPageHref(raw, 1) : "/search"} variant="outline">
-                    {result.total > 0 ? "Première page" : "Effacer les filtres"}
-                  </ButtonLink>
-                ) : undefined
-              }
-            />
-          ) : (
-            <SearchResultsGrid
-              spaces={spaces}
-              eagerImages={3}
-              hrefSuffix={spaceHrefSuffix}
-            />
-          )}
+        {mapPoints.length > 0 && (
+          <SearchMapLoader points={mapPoints} center={[mapPoints[0].lat, mapPoints[0].lng]} />
+        )}
 
-          {result.pageCount > 1 && (
-            <Pagination aria-label="Pages de résultats" className="justify-between pt-2">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    href={searchPageHref(raw, result.page - 1)}
-                    disabled={result.page <= 1}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-              <p className="text-sm text-muted-foreground">
-                Page {result.page} sur {result.pageCount}
-              </p>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationNext
-                    href={searchPageHref(raw, result.page + 1)}
-                    disabled={result.page >= result.pageCount}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
+        {!result ? (
+          <Card role="alert" className="flex flex-col items-start gap-3 p-5">
+            <p className="text-sm text-foreground">
+              La recherche n&apos;a pas pu aboutir. Vos filtres sont conservés : réessayez.
+            </p>
+            <ButtonLink href={retryHref} variant="outline">
+              Réessayer
+            </ButtonLink>
+          </Card>
+        ) : spaces.length === 0 ? (
+          <EmptyState
+            title="Aucun espace trouvé"
+            description={
+              result.total > 0
+                ? "Cette page de résultats est vide : revenez à la première page."
+                : "Essayez une date plus large, une autre ville, ou recochez un type d'espace que vous aviez décoché : de nouveaux espaces sont ajoutés régulièrement."
+            }
+            action={
+              hasFilters || result.total > 0 ? (
+                <ButtonLink href={result.total > 0 ? searchPageHref(raw, 1) : "/search"} variant="outline">
+                  {result.total > 0 ? "Première page" : "Effacer les filtres"}
+                </ButtonLink>
+              ) : undefined
+            }
+          />
+        ) : (
+          <SearchResultsGrid
+            spaces={spaces}
+            eagerImages={3}
+            hrefSuffix={spaceHrefSuffix}
+          />
+        )}
+
+        {result && result.pageCount > 1 && (
+          <Pagination aria-label="Pages de résultats" className="justify-between pt-2">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href={searchPageHref(raw, result.page - 1)}
+                  disabled={result.page <= 1}
+                />
+              </PaginationItem>
+            </PaginationContent>
+            <p className="text-sm text-muted-foreground">
+              Page {result.page} sur {result.pageCount}
+            </p>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationNext
+                  href={searchPageHref(raw, result.page + 1)}
+                  disabled={result.page >= result.pageCount}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
+      </section>
+    </PortalAwareLayout>
   );
 }

@@ -6,8 +6,7 @@ import { getPublishedSpaceBySlug } from "@/server/domains/spaces/list-spaces";
 import { getAuthContext } from "@/server/auth/rbac";
 import { isDatabaseConfigured } from "@/server/auth/runtime-config";
 import { isSpaceFavorited } from "@/server/domains/favorites/favorites";
-import { SiteHeader } from "@/components/marketing/site-header";
-import { SiteFooter } from "@/components/marketing/site-footer";
+import { PortalAwareLayout } from "@/components/marketing/portal-aware-layout";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/marketing/favorite-button";
@@ -150,14 +149,19 @@ export default async function SpaceDetailPage({
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <>
       <script
         type="application/ld+json"
         // Escaped by jsonLd(): partner text cannot close the script tag.
         dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }}
       />
-      <SiteHeader />
-      <main id="contenu" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+      {/* PRD V1.1, R9-R14: the sheet keeps the portal (sidebar, session) when
+          reached from inside one — see PortalAwareLayout's doc comment. */}
+      <PortalAwareLayout
+        ctx={ctx}
+        portalClassName="mx-auto w-full max-w-6xl flex-1"
+        publicMainClassName="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10"
+      >
         <FadeIn className="flex flex-col gap-6">
           <PhotoCarousel photos={space.photos} spaceName={space.name} />
 
@@ -328,9 +332,8 @@ export default async function SpaceDetailPage({
             </Card>
           </div>
         </FadeIn>
-      </main>
-      <SiteFooter />
-    </div>
+      </PortalAwareLayout>
+    </>
   );
 }
 

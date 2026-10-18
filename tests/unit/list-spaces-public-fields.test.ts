@@ -92,3 +92,46 @@ describe("public space reads never select private columns", () => {
     }
   });
 });
+
+/** PRD V1.1, R78 — a favorited space that was unpublished or whose
+ * organization was suspended shows as unavailable, it does not vanish. */
+describe("listFavoriteSpaces — unavailable favorites", () => {
+  function favoriteRow(overrides: { status?: string; orgStatus?: string } = {}) {
+    return {
+      space: {
+        id: "space-1",
+        slug: "salle-rivoli",
+        status: overrides.status ?? "PUBLISHED",
+        organization: { name: "Org", status: overrides.orgStatus ?? "VERIFIED" },
+        photos: [] as string[],
+        spacePhotos: [] as { storagePath: string }[],
+      },
+    };
+  }
+
+  it("marks a still-published, still-verified favorite as available", async () => {
+    favoriteFindMany.mockResolvedValueOnce([favoriteRow()]);
+    const [favorite] = await listFavoriteSpaces("user-1");
+    expect(favorite.available).toBe(true);
+  });
+
+  it("marks an unpublished favorite as unavailable instead of dropping it", async () => {
+    favoriteFindMany.mockResolvedValueOnce([favoriteRow({ status: "ARCHIVED" })]);
+    const favorites = await listFavoriteSpaces("user-1");
+    expect(favorites).toHaveLength(1);
+    expect(favorites[0].available).toBe(false);
+  });
+
+  it("marks a favorite of a suspended organization as unavailable", async () => {
+    favoriteFindMany.mockResolvedValueOnce([favoriteRow({ orgStatus: "SUSPENDED" })]);
+    const favorites = await listFavoriteSpaces("user-1");
+    expect(favorites).toHaveLength(1);
+    expect(favorites[0].available).toBe(false);
+  });
+
+  it("never leaks the raw status onto the returned space", async () => {
+    favoriteFindMany.mockResolvedValueOnce([favoriteRow({ status: "ARCHIVED" })]);
+    const [favorite] = await listFavoriteSpaces("user-1");
+    expect(favorite).not.toHaveProperty("status");
+  });
+});

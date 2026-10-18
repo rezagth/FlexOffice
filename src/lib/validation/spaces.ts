@@ -1,8 +1,22 @@
 import { z } from "zod";
 import { isValidTimeZone } from "@/lib/timezone";
 import { isCancellationWindowHours } from "@/lib/cancellation-policy";
+import { SPACE_TYPE_LABELS } from "@/lib/format";
 
-export const spaceTypeEnum = z.enum(["MEETING_ROOM", "DESK", "TRAINING_ROOM"]);
+export const spaceTypeEnum = z.enum(["MEETING_ROOM", "DESK", "TRAINING_ROOM", "CAFE_SPOT"]);
+
+/** Types whose capacity is fixed rather than declared by the partner — a
+ * café/poste is a single shared workstation (PRD V1.1, R3-R4). The publish
+ * form hides the capacity field for these types, and the service layer
+ * forces the value below regardless of what a request sends: never trust a
+ * client-submitted capacity for a fixed-capacity type. */
+export const FIXED_CAPACITY_BY_TYPE: Partial<Record<string, number>> = {
+  CAFE_SPOT: 1,
+};
+
+export function isFixedCapacityType(type: string): boolean {
+  return type in FIXED_CAPACITY_BY_TYPE;
+}
 
 export const spaceAmenityEnum = z.enum([
   "WIFI",
@@ -117,7 +131,9 @@ const spaceBaseFields = {
   address: z.string().trim().min(1).max(255),
   city: z.string().trim().min(1).max(120),
   postalCode: z.string().trim().regex(/^\d{5}$/, "Le code postal doit contenir 5 chiffres"),
-  capacity: z.number().int().min(1).max(1000),
+  // Required unless the type fixes it (see refineCapacity below) — a
+  // café/poste's form never shows this field.
+  capacity: z.number().int().min(1).max(1000).optional(),
   amenities: z.array(spaceAmenityEnum).max(spaceAmenityEnum.options.length),
   halfDayPriceCents: priceCents,
   dayPriceCents: priceCents,
@@ -154,10 +170,38 @@ function refinePricing(
   if (violation) ctx.addIssue({ code: "custom", path: [violation.field], message: violation.message });
 }
 
+/** Type/capacity consistency (R4): a fixed-capacity type never carries a
+ * different declared capacity, and every other type must declare one. The
+ * service layer re-applies the fixed value regardless (see
+ * isFixedCapacityType()) — this is the friendly, field-level message. */
+function refineCapacity(space: { type: string; capacity?: number }, ctx: z.RefinementCtx) {
+  const fixed = FIXED_CAPACITY_BY_TYPE[space.type];
+  if (fixed === undefined) {
+    if (space.capacity === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["capacity"],
+        message: "La capacité est requise pour ce type d'espace.",
+      });
+    }
+    return;
+  }
+  if (space.capacity !== undefined && space.capacity !== fixed) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["capacity"],
+      message: `${SPACE_TYPE_LABELS[space.type] ?? space.type} accueille ${fixed} personne${fixed > 1 ? "s" : ""} au plus.`,
+    });
+  }
+}
+
 /** A new space's fields, without the property it belongs to — for routes
  * that take the property from the URL. (Zod 4 refuses `.omit()` on a
  * refined schema, hence two schemas rather than one derived from the other.) */
-export const createSpaceFieldsSchema = z.object(spaceBaseFields).superRefine(refinePricing);
+export const createSpaceFieldsSchema = z.object(spaceBaseFields).superRefine((space, ctx) => {
+  refinePricing(space, ctx);
+  refineCapacity(space, ctx);
+});
 
 export const createSpaceSchema = z
   .object({
@@ -166,21 +210,30 @@ export const createSpaceSchema = z
     // space is created from a property's page, or with one picked explicitly.
     propertyId: z.uuid(),
   })
-  .superRefine(refinePricing);
+  .superRefine((space, ctx) => {
+    refinePricing(space, ctx);
+    refineCapacity(space, ctx);
+  });
 export type CreateSpaceInput = z.infer<typeof createSpaceSchema>;
 
-/** Partial: the after-discount minimum is checked here when the payload
- * carries all three pricing fields, and against the stored values in the
- * service layer otherwise (organizations/update-space.ts). */
+/** Partial: the after-discount minimum and the type/capacity consistency are
+ * checked here only when the payload carries enough to judge them (both
+ * prices; a type), and against the stored values in the service layer
+ * otherwise (organizations/update-space.ts) — the service layer is what a
+ * capacity sent for an already-fixed-capacity type can never get past. */
 export const updateSpaceSchema = z
   .object(spaceBaseFields)
   .partial()
   .superRefine((space, ctx) => {
-    if (space.halfDayPriceCents === undefined || space.dayPriceCents === undefined) return;
-    refinePricing(
-      { halfDayPriceCents: space.halfDayPriceCents, dayPriceCents: space.dayPriceCents, discountPercent: space.discountPercent },
-      ctx
-    );
+    if (space.halfDayPriceCents !== undefined && space.dayPriceCents !== undefined) {
+      refinePricing(
+        { halfDayPriceCents: space.halfDayPriceCents, dayPriceCents: space.dayPriceCents, discountPercent: space.discountPercent },
+        ctx
+      );
+    }
+    if (space.type !== undefined) {
+      refineCapacity({ type: space.type, capacity: space.capacity }, ctx);
+    }
   });
 export type UpdateSpaceInput = z.infer<typeof updateSpaceSchema>;
 

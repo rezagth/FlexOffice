@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Space } from "@/generated/prisma/client";
-import { changedModeratedFields } from "@/server/domains/organizations/update-space";
+import { changedModeratedFields, resolvedCapacityPatch } from "@/server/domains/organizations/update-space";
 
 const space = {
   name: "Salle",
@@ -31,5 +31,26 @@ describe("changedModeratedFields", () => {
 
   it("does not count non-public fields", () => {
     expect(changedModeratedFields(space, { accessInstructions: "Code 2", amenities: ["WIFI"] })).toEqual([]);
+  });
+});
+
+/** R4 — never trust a client-submitted capacity for a fixed-capacity type,
+ * even on a partial payload that doesn't resend `type`. */
+describe("resolvedCapacityPatch", () => {
+  it("forces capacity to 1 on a space that is already a café/poste, even if a different value is sent", () => {
+    expect(resolvedCapacityPatch("CAFE_SPOT", { capacity: 50 })).toEqual({ capacity: 1 });
+  });
+
+  it("forces capacity to 1 when the edit itself changes the type to café/poste", () => {
+    expect(resolvedCapacityPatch("DESK", { type: "CAFE_SPOT", capacity: 12 })).toEqual({ capacity: 1 });
+  });
+
+  it("leaves capacity alone for a type that doesn't fix one", () => {
+    expect(resolvedCapacityPatch("MEETING_ROOM", { capacity: 12 })).toEqual({});
+    expect(resolvedCapacityPatch("CAFE_SPOT", { type: "MEETING_ROOM", capacity: 12 })).toEqual({});
+  });
+
+  it("returns no patch at all when nothing is sent and the type stays fixed-capacity", () => {
+    expect(resolvedCapacityPatch("CAFE_SPOT", {})).toEqual({ capacity: 1 });
   });
 });

@@ -1,0 +1,11 @@
+-- PRD V1.1 (R3-R6): a new space type, "café / poste" — a single shared
+-- workstation. Additive and backward-compatible: existing rows keep their
+-- current type, nothing is reclassified. Capacity for this type is fixed at
+-- 1 and enforced server-side (see resolveSpaceCapacity() in
+-- src/lib/validation/spaces.ts), never trusted from a request.
+--
+-- ALTER TYPE ... ADD VALUE takes a lock but does not rewrite the table and is
+-- safe to run against a database already serving traffic (PostgreSQL 12+).
+-- It cannot run in the same transaction as a statement that USES the new
+-- value, which is why this migration does only this and nothing else.
+ALTER TYPE "SpaceType" ADD VALUE 'CAFE_SPOT';

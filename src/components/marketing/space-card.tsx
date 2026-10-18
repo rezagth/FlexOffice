@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { clsx } from "clsx";
 import { motion } from "motion/react";
 import { Card } from "@/components/ui/card";
 import { FavoriteButton } from "@/components/marketing/favorite-button";
@@ -37,6 +38,12 @@ export type SpaceCardData = {
   favorited?: boolean;
   /** Average and count of the visible reviews; absent when there are none. */
   rating?: { average: number; count: number } | null;
+  /** `false` only on "Mes favoris" (PRD V1.1, R78): the space was favorited
+   * but has since been unpublished or its organization suspended. Shown as
+   * unavailable rather than silently dropped from the list — `undefined`
+   * elsewhere means the question doesn't apply (every other listing is
+   * necessarily available). */
+  available?: boolean;
 };
 
 /**
@@ -56,6 +63,7 @@ export function SpaceCard({
   imagePriority?: boolean;
 }) {
   const photo = space.photos?.[0];
+  const unavailable = space.available === false;
 
   return (
     // A small lift on hover — spring physics, and the only motion here.
@@ -75,17 +83,23 @@ export function SpaceCard({
               loading={imagePriority ? "eager" : "lazy"}
               fetchPriority={imagePriority ? "high" : undefined}
               unoptimized={!canOptimizeImage(photo)}
-              className="object-cover"
+              className={clsx("object-cover", unavailable && "grayscale")}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Photo à venir
             </div>
           )}
-          {isOrganizationVerified(space.organization.status) && (
-            <div className="absolute left-2 top-2 rounded-full bg-background/90 backdrop-blur-sm">
-              <VerifiedBadge />
+          {unavailable ? (
+            <div className="absolute left-2 top-2 rounded-full bg-foreground/85 px-2 py-0.5 text-xs font-medium text-background">
+              Indisponible
             </div>
+          ) : (
+            isOrganizationVerified(space.organization.status) && (
+              <div className="absolute left-2 top-2 rounded-full bg-background/90 backdrop-blur-sm">
+                <VerifiedBadge />
+              </div>
+            )
           )}
           {space.favorited !== undefined && (
             <div className="absolute right-2 top-2 z-10">
@@ -99,12 +113,17 @@ export function SpaceCard({
             {space.distanceKm != null && ` · à ${space.distanceKm.toFixed(1)} km`}
           </p>
           <h3 className="font-sans text-base font-medium text-foreground">
-            <Link
-              href={href}
-              className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
-            >
-              {space.name}
-            </Link>
+            {unavailable ? (
+              // No link: the space is no longer published, so its sheet 404s.
+              space.name
+            ) : (
+              <Link
+                href={href}
+                className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+              >
+                {space.name}
+              </Link>
+            )}
           </h3>
           <p className="text-sm text-muted-foreground">
             {space.organization.name} · jusqu&apos;à {space.capacity} pers.
@@ -117,9 +136,11 @@ export function SpaceCard({
               {formatCents(space.dayPriceCents)}{" "}
               <span className="font-normal text-muted-foreground">/ jour</span>
             </p>
-            <span aria-hidden="true" className="text-sm font-medium text-primary">
-              Détails
-            </span>
+            {!unavailable && (
+              <span aria-hidden="true" className="text-sm font-medium text-primary">
+                Détails
+              </span>
+            )}
           </div>
         </div>
       </Card>
