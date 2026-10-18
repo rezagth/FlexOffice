@@ -46,15 +46,26 @@ describe.skipIf(!hasDatabase)("invoicing", () => {
     return org.id;
   }
 
-  /** A booking with a captured payment, inserted directly (no issuance). */
+  /** A booking with a captured payment, inserted directly (no issuance).
+   * `originalAmountCents`/`promotionId` default to "no promotion applied" —
+   * set them to exercise the discount line on the issued invoice. */
   async function capturedPayment(
     organizationId: string,
-    opts: { amountCents?: number; commissionCents?: number; capturedAt?: Date; clientUserId?: string; status?: "SUCCEEDED" | "REQUIRES_CAPTURE" } = {}
+    opts: {
+      amountCents?: number;
+      commissionCents?: number;
+      capturedAt?: Date;
+      clientUserId?: string;
+      status?: "SUCCEEDED" | "REQUIRES_CAPTURE";
+      originalAmountCents?: number;
+      promotionId?: string;
+    } = {}
   ) {
     hourOffset += 3;
     const startsAt = new Date(Date.UTC(2020, 0, 1) + hourOffset * 3_600_000);
     const amountCents = opts.amountCents ?? 10000;
     const commissionCents = opts.commissionCents ?? 1500;
+    const originalAmountCents = opts.originalAmountCents ?? amountCents;
     const booking = await prisma.booking.create({
       data: {
         spaceId: spaceByOrg.get(organizationId)!,
@@ -66,6 +77,9 @@ describe.skipIf(!hasDatabase)("invoicing", () => {
         participantsCount: 2,
         purpose: "Test",
         priceAmountCents: amountCents,
+        originalPriceAmountCents: originalAmountCents,
+        discountAmountCents: originalAmountCents - amountCents,
+        promotionId: opts.promotionId,
         commissionAmountCents: commissionCents,
       },
     });
@@ -195,6 +209,28 @@ describe.skipIf(!hasDatabase)("invoicing", () => {
       expect(invoice).toMatchObject({ totalCents: 10000, netCents: 8333, vatCents: 1667, vatRateBasisPoints: 2000, vatExempt: false, serviceFeeCents: 1500 });
       const odd = await issue.issueBookingInvoice((await capturedPayment(vatOrgId, { amountCents: 9999, commissionCents: 1500 })).id);
       expect(odd).toMatchObject({ totalCents: 9999, netCents: 8333, vatCents: 1666 });
+    });
+
+    it("shows the base price and the promotion discount as two lines, with VAT on the post-discount amount (R34-R39)", async () => {
+      const payment = await capturedPayment(vatOrgId, { amountCents: 8000, originalAmountCents: 10000, commissionCents: 1200 });
+      const invoice = await issue.issueBookingInvoice(payment.id);
+      // VAT split on 8000 (what was actually captured), not on the 10000 base.
+      expect(invoice).toMatchObject({ totalCents: 8000, netCents: 6667, vatCents: 1333, vatExempt: false });
+      const { parseLines } = await import("@/server/domains/invoicing/types");
+      const parsed = parseLines(invoice!.lines);
+      expect(parsed).toHaveLength(2);
+      expect(parsed[0].totalCents).toBe(10000);
+      expect(parsed[1]).toMatchObject({ description: "Remise promotionnelle", totalCents: -2000 });
+      expect(parsed[0].totalCents + parsed[1].totalCents).toBe(invoice!.totalCents);
+    });
+
+    it("shows a single line when no promotion applied", async () => {
+      const payment = await capturedPayment(vatOrgId, { amountCents: 7000 });
+      const invoice = await issue.issueBookingInvoice(payment.id);
+      const { parseLines } = await import("@/server/domains/invoicing/types");
+      const parsed = parseLines(invoice!.lines);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].totalCents).toBe(7000);
     });
 
     it("applies no VAT (art. 293 B) when the landlord has no VAT number", async () => {

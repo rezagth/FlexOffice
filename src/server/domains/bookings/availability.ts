@@ -2,26 +2,24 @@ import { prisma } from "@/server/db/prisma";
 import { PAYMENT_HOLD_MINUTES } from "./payment-holds";
 import { DEFAULT_TIMEZONE } from "@/lib/timezone";
 import { weekdayOf, zonedTimeToUtc } from "./timezone";
+import { applyPromotionDiscount, type PriceBreakdown } from "@/server/domains/promotions/pricing";
+import { findActivePromotionForSpace } from "@/server/domains/promotions/resolve";
 
 const MIDDAY = "13:00";
-
-/**
- * Applies `Space.discountPercent` to a price, rounding down to the nearest
- * cent so a discount never charges more than advertised. The percentage
- * itself is bounded 0-100 by a DB CHECK (see migration 20260905130000), so
- * this never has to defend against an out-of-range value — only against it
- * being absent.
- */
-function applyDiscount(priceCents: number, discountPercent: number | null): number {
-  if (!discountPercent) return priceCents;
-  return Math.floor((priceCents * (100 - discountPercent)) / 100);
-}
 
 export type SlotKind = "MORNING" | "AFTERNOON" | "FULL_DAY";
 
 export type DaySlot = {
   available: boolean;
   priceCents: number;
+  /** The space's own price before any promotion discount — equal to
+   * `priceCents` when none applied. Carried through to the booking
+   * (Booking.originalPriceAmountCents) for the invoice line-up. */
+  originalPriceCents: number;
+  discountAmountCents: number;
+  /** The promotion that produced this price, if any — carried through to
+   * the booking (Booking.promotionId) for price lock-in and usage counting. */
+  promotionId: string | null;
   startsAt: Date;
   endsAt: Date;
 };
@@ -66,8 +64,9 @@ export function daySlotsForDay(
   closures: OverlapWindow[],
   bookings: OverlapWindow[],
   timeZone: string,
-  halfDayPriceCents: number,
-  dayPriceCents: number
+  halfDayPricing: PriceBreakdown,
+  dayPricing: PriceBreakdown,
+  promotionId: string | null
 ): DaySlots | null {
   if (hoursForDay.length === 0) return null;
 
@@ -96,7 +95,10 @@ export function daySlotsForDay(
   const morning: DaySlot | null = hasMorning
     ? {
         available: !isBlocked(dayStart, morningEnd),
-        priceCents: halfDayPriceCents,
+        priceCents: halfDayPricing.finalPriceCents,
+        originalPriceCents: halfDayPricing.originalPriceCents,
+        discountAmountCents: halfDayPricing.discountAmountCents,
+        promotionId,
         startsAt: dayStart,
         endsAt: morningEnd,
       }
@@ -105,7 +107,10 @@ export function daySlotsForDay(
   const afternoon: DaySlot | null = hasAfternoon
     ? {
         available: !isBlocked(afternoonStart, dayEnd),
-        priceCents: halfDayPriceCents,
+        priceCents: halfDayPricing.finalPriceCents,
+        originalPriceCents: halfDayPricing.originalPriceCents,
+        discountAmountCents: halfDayPricing.discountAmountCents,
+        promotionId,
         startsAt: afternoonStart,
         endsAt: dayEnd,
       }
@@ -113,7 +118,10 @@ export function daySlotsForDay(
 
   const fullDay: DaySlot = {
     available: !isBlocked(dayStart, dayEnd),
-    priceCents: dayPriceCents,
+    priceCents: dayPricing.finalPriceCents,
+    originalPriceCents: dayPricing.originalPriceCents,
+    discountAmountCents: dayPricing.discountAmountCents,
+    promotionId,
     startsAt: dayStart,
     endsAt: dayEnd,
   };
@@ -160,10 +168,24 @@ export async function computeDaySlots(spaceId: string, dateStr: string): Promise
     }),
   ]);
 
-  const halfDayPriceCents = applyDiscount(space.halfDayPriceCents, space.discountPercent);
-  const dayPriceCents = applyDiscount(space.dayPriceCents, space.discountPercent);
+  // Resolved against the day being booked, not "now": a promotion that
+  // starts or ends between today and dateStr must apply (or stop applying)
+  // exactly on its own dates, not on whichever day this happens to run.
+  const activePromotion = await findActivePromotionForSpace(spaceId, dayStart);
+  const discount = activePromotion?.discount ?? null;
+  const halfDayPricing = applyPromotionDiscount(space.halfDayPriceCents, discount);
+  const dayPricing = applyPromotionDiscount(space.dayPriceCents, discount);
 
-  return daySlotsForDay(dateStr, rows, closures, bookings, timeZone, halfDayPriceCents, dayPriceCents);
+  return daySlotsForDay(
+    dateStr,
+    rows,
+    closures,
+    bookings,
+    timeZone,
+    halfDayPricing,
+    dayPricing,
+    activePromotion?.id ?? null
+  );
 }
 
 export type MonthDayStatus = "CLOSED" | "AVAILABLE" | "PARTIAL" | "BOOKED";

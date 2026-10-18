@@ -1,8 +1,8 @@
 import type { Space } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
-import { ConflictError, NotFoundError, ValidationError } from "@/server/lib/errors";
+import { ConflictError, NotFoundError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
-import { pricingViolation, type UpdateSpaceInput } from "@/lib/validation/spaces";
+import type { UpdateSpaceInput } from "@/lib/validation/spaces";
 
 /**
  * Fields a client sees on the public listing and that an administrator
@@ -23,7 +23,6 @@ export const MODERATED_SPACE_FIELDS = [
   "capacity",
   "halfDayPriceCents",
   "dayPriceCents",
-  "discountPercent",
 ] as const satisfies readonly (keyof UpdateSpaceInput & keyof Space)[];
 
 /** Moderated fields whose value actually changes. Re-sending an unchanged
@@ -59,13 +58,6 @@ export async function applySpaceUpdate(
   input: UpdateSpaceInput,
   audit: { actorUserId?: string | null; organizationId: string | null }
 ) {
-  const violation = pricingViolation({
-    halfDayPriceCents: input.halfDayPriceCents ?? existing.halfDayPriceCents,
-    dayPriceCents: input.dayPriceCents ?? existing.dayPriceCents,
-    discountPercent: input.discountPercent === undefined ? existing.discountPercent : input.discountPercent,
-  });
-  if (violation) throw new ValidationError(violation.message);
-
   const changed = changedModeratedFields(existing, input);
   const backToReview = existing.status === "PUBLISHED" && changed.length > 0;
 

@@ -36,9 +36,6 @@ export type SpaceFormValues = {
   amenities: string[];
   halfDayPrice: string;
   dayPrice: string;
-  /** Empty string means no discount — kept a string like the other price
-   * fields so the input can be blank rather than defaulting to "0". */
-  discountPercent: string;
   accessInstructions: string;
   /** "0", "48", "168" or "720" — see lib/cancellation-policy.ts. */
   cancellationWindowHours: string;
@@ -56,7 +53,6 @@ const EMPTY: SpaceFormValues = {
   amenities: [],
   halfDayPrice: "",
   dayPrice: "",
-  discountPercent: "",
   accessInstructions: "",
   cancellationWindowHours: String(DEFAULT_CANCELLATION_WINDOW_HOURS),
   timezone: DEFAULT_TIMEZONE,
@@ -154,7 +150,6 @@ export function SpaceForm({
       amenities: values.amenities,
       halfDayPriceCents: toCents(values.halfDayPrice),
       dayPriceCents: toCents(values.dayPrice),
-      discountPercent: values.discountPercent === "" ? null : Number(values.discountPercent),
       cancellationWindowHours: Number(values.cancellationWindowHours),
       ...(values.accessInstructions ? { accessInstructions: values.accessInstructions } : {}),
       ...(values.timezone ? { timezone: values.timezone } : {}),
@@ -369,20 +364,13 @@ export function SpaceForm({
             />
           </Field>
         </div>
-        <Field
-          label="Remise (%)"
-          htmlFor="discountPercent"
-          hint="Optionnel, 90 % au plus. S'applique à la demi-journée et à la journée ; le prix remisé doit rester d'au moins 1,00 €. Laisser vide pour aucune remise."
-        >
-          <Input
-            id="discountPercent"
-            type="number"
-            min={0}
-            max={90}
-            value={values.discountPercent}
-            onChange={(e) => set("discountPercent")(e.target.value)}
-          />
-        </Field>
+        <p className="text-sm text-muted-foreground">
+          Pour proposer une remise, créez une promotion depuis la page{" "}
+          <a href="/app/landlord/promotions" className="underline">
+            Promotions
+          </a>{" "}
+          — elle doit être validée par l&apos;équipe MakomSpace avant de s&apos;appliquer.
+        </p>
         <Field
           label="Délai d'annulation"
           htmlFor="cancellationWindowHours"

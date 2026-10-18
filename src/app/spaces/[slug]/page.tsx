@@ -26,6 +26,8 @@ import { jsonLd } from "@/lib/json-ld";
 import { getReviewSummaries, listSpaceReviews } from "@/server/domains/reviews/reviews";
 import { SpaceReviews } from "@/components/reviews/space-reviews";
 import { RatingSummary } from "@/components/reviews/star-rating";
+import { findActivePromotionForSpace } from "@/server/domains/promotions/resolve";
+import { applyPromotionDiscount, type PriceBreakdown } from "@/server/domains/promotions/pricing";
 
 // Live listing, session-dependent (favorite, booking link): never cached.
 export const dynamic = "force-dynamic";
@@ -91,13 +93,18 @@ export default async function SpaceDetailPage({
   const favorited =
     ctx && isDatabaseConfigured() ? await isSpaceFavorited(ctx.userId, space.id) : null;
 
-  // Demo mode has no review table: no section content, never an error.
-  const [reviewSummary, reviews] = isDatabaseConfigured()
+  // Demo mode has no review table, and mock space ids aren't real UUIDs a
+  // promotion could reference: no section content, never an error.
+  const [reviewSummary, reviews, activePromotion] = isDatabaseConfigured()
     ? await Promise.all([
         getReviewSummaries([space.id]).then((map) => map.get(space.id) ?? null),
         listSpaceReviews(space.id),
+        findActivePromotionForSpace(space.id, new Date()),
       ])
-    : [null, []];
+    : [null, [], null];
+
+  const halfDayPricing = applyPromotionDiscount(space.halfDayPriceCents, activePromotion?.discount ?? null);
+  const dayPricing = applyPromotionDiscount(space.dayPriceCents, activePromotion?.discount ?? null);
 
   const typeLabel = SPACE_TYPE_LABELS[space.type] ?? space.type;
   const hours = weeklyOpeningHours(space.openingHours);
@@ -136,8 +143,8 @@ export default async function SpaceDetailPage({
       : {}),
     ...(hasHours ? { openingHoursSpecification: openingHoursSpecification(space.openingHours) } : {}),
     makesOffer: [
-      { name: "Demi-journée", cents: space.halfDayPriceCents },
-      { name: "Journée", cents: space.dayPriceCents },
+      { name: "Demi-journée", cents: halfDayPricing.finalPriceCents },
+      { name: "Journée", cents: dayPricing.finalPriceCents },
     ].map((offer) => ({
       "@type": "Offer",
       name: offer.name,
@@ -286,18 +293,20 @@ export default async function SpaceDetailPage({
             </div>
 
             <Card className="h-fit p-5 lg:sticky lg:top-24">
-              {space.discountPercent ? (
+              {activePromotion ? (
                 <p className="mb-3 inline-flex w-fit rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                  -{space.discountPercent}%
+                  {activePromotion.discount.type === "PERCENTAGE"
+                    ? `-${activePromotion.discount.percent}%`
+                    : "Promotion"}
                 </p>
               ) : null}
               <div className="flex items-baseline justify-between">
                 <span className="text-sm text-muted-foreground">Demi-journée</span>
-                <PriceWithDiscount cents={space.halfDayPriceCents} discountPercent={space.discountPercent} />
+                <PriceWithDiscount pricing={halfDayPricing} />
               </div>
               <div className="mt-2 flex items-baseline justify-between border-t border-border pt-2">
                 <span className="text-sm text-muted-foreground">Journée</span>
-                <PriceWithDiscount cents={space.dayPriceCents} discountPercent={space.discountPercent} />
+                <PriceWithDiscount pricing={dayPricing} />
               </div>
 
               {date && (
@@ -337,23 +346,16 @@ export default async function SpaceDetailPage({
   );
 }
 
-/** Mirrors the rounding in computeDaySlots()'s applyDiscount() — display
- * only, the actual charge at booking time is always computed server-side. */
-function PriceWithDiscount({
-  cents,
-  discountPercent,
-}: {
-  cents: number;
-  discountPercent: number | null;
-}) {
-  if (!discountPercent) {
-    return <span className="font-medium">{formatCents(cents)}</span>;
+/** Display only — the actual charge at booking time is always computed
+ * server-side, from the same applyPromotionDiscount() (promotions/pricing.ts). */
+function PriceWithDiscount({ pricing }: { pricing: PriceBreakdown }) {
+  if (pricing.discountAmountCents === 0) {
+    return <span className="font-medium">{formatCents(pricing.finalPriceCents)}</span>;
   }
-  const discounted = Math.floor((cents * (100 - discountPercent)) / 100);
   return (
     <span className="flex items-baseline gap-2">
-      <span className="text-xs text-muted-foreground line-through">{formatCents(cents)}</span>
-      <span className="font-medium">{formatCents(discounted)}</span>
+      <span className="text-xs text-muted-foreground line-through">{formatCents(pricing.originalPriceCents)}</span>
+      <span className="font-medium">{formatCents(pricing.finalPriceCents)}</span>
     </span>
   );
 }

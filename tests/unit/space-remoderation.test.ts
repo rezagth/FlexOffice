@@ -12,7 +12,6 @@ const space = {
   capacity: 8,
   halfDayPriceCents: 9000,
   dayPriceCents: 15000,
-  discountPercent: null,
   accessInstructions: "Code 1",
   amenities: [],
 } as unknown as Space;
@@ -20,12 +19,12 @@ const space = {
 /** FCT-15 / SEC-09 — which edits send a published listing back to review. */
 describe("changedModeratedFields", () => {
   it("ignores fields re-sent with the same value (the form posts everything)", () => {
-    expect(changedModeratedFields(space, { name: "Salle", dayPriceCents: 15000, discountPercent: null })).toEqual([]);
+    expect(changedModeratedFields(space, { name: "Salle", dayPriceCents: 15000 })).toEqual([]);
   });
 
   it("detects a change on each public field", () => {
     expect(changedModeratedFields(space, { name: "Autre" })).toEqual(["name"]);
-    expect(changedModeratedFields(space, { discountPercent: 20 })).toEqual(["discountPercent"]);
+    expect(changedModeratedFields(space, { dayPriceCents: 16000 })).toEqual(["dayPriceCents"]);
     expect(changedModeratedFields(space, { capacity: 9, city: "Lyon" })).toEqual(["city", "capacity"]);
   });
 

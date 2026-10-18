@@ -82,7 +82,6 @@ function publicSpaceScalars() {
     photos: true,
     halfDayPriceCents: true,
     dayPriceCents: true,
-    discountPercent: true,
     cancellationWindowHours: true,
     timezone: true,
     status: true,

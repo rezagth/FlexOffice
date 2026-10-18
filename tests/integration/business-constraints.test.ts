@@ -52,6 +52,8 @@ describe.skipIf(!hasDatabase)("business integrity constraints", () => {
       participantsCount: 4,
       purpose: "Constraint fixture",
       priceAmountCents: 12000,
+      originalPriceAmountCents: 12000,
+      discountAmountCents: 0,
       commissionAmountCents: 1800,
       ...overrides,
     };

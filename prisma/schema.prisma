@@ -141,6 +141,9 @@ model Profile {
   domiciliationRequestsReviewed DomiciliationRequest[] @relation("DomiciliationReviewedBy")
   domiciliationSettingsUpdated  DomiciliationSettings[] @relation("DomiciliationSettingsUpdatedBy")
 
+  promotionsCreated  Promotion[] @relation("PromotionCreatedBy")
+  promotionsReviewed Promotion[] @relation("PromotionReviewedBy")
+
   @@index([organizationId])
   @@index([activeOrganizationId])
   @@map("profiles")
@@ -415,6 +418,7 @@ model Organization {
   payoutLines          PayoutLine[]
 
   domiciliationRequests DomiciliationRequest[]
+  promotions            Promotion[]
 
   @@index([status])
   @@map("organizations")
@@ -684,13 +688,6 @@ model Space {
   photos             String[]
   halfDayPriceCents  Int            @map("half_day_price_cents")
   dayPriceCents      Int            @map("day_price_cents")
-  /// Percentage off both half-day and day price, applied server-side in
-  /// computeDaySlots() — never sent by the client. Null means no discount.
-  /// Capped at 90 since lot C (`spaces_discount_percent_max_check`), and the
-  /// discounted price may not fall under 1,00 € (validation/spaces.ts).
-  /// Bounded 0-100 by a CHECK, not just Zod: the same reason every other
-  /// money-adjacent column here has one (officeflex-security-guardrails §5).
-  discountPercent    Int?           @map("discount_percent")
   // Shown to the client only after a booking is confirmed (door code,
   // reception instructions, floor). Optional: partners may not need one.
   accessInstructions String?        @map("access_instructions")
@@ -707,12 +704,13 @@ model Space {
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  openingHours SpaceOpeningHours[]
-  closures     SpaceClosure[]
-  bookings     Booking[]
-  favorites    Favorite[]
-  spacePhotos  SpacePhoto[]
-  reviews      SpaceReview[]
+  openingHours     SpaceOpeningHours[]
+  closures         SpaceClosure[]
+  bookings         Booking[]
+  favorites        Favorite[]
+  spacePhotos      SpacePhoto[]
+  reviews          SpaceReview[]
+  promotionSpaces  PromotionSpace[]
 
   @@unique([id, organizationId])
   @@index([organizationId])
@@ -817,6 +815,27 @@ model Booking {
   purpose               String
   priceAmountCents      Int           @map("price_amount_cents")
   commissionAmountCents Int           @map("commission_amount_cents")
+  /// The space's own price before any promotion discount — equal to
+  /// `priceAmountCents` when none applied. Kept alongside it so the invoice
+  /// line-up (base price, remise, net, TVA, TTC) never has to recompute a
+  /// value already fixed at booking time, and so a later change to the
+  /// promotion (edited, refused, expired) can never alter a price already
+  /// charged — see Promotion's own doc comment. Deliberately no @default:
+  /// unlike discountAmountCents (0 is always a safe "no discount"), there is
+  /// no universally safe default for this one — every caller must state it,
+  /// which is what bookings_discount_consistency_check (the migration) then
+  /// verifies against priceAmountCents + discountAmountCents.
+  originalPriceAmountCents Int        @map("original_price_amount_cents")
+  /// `originalPriceAmountCents - priceAmountCents`, derived once and stored
+  /// rather than recomputed, same reasoning as vat.ts's own "derive, don't
+  /// re-round" rule.
+  discountAmountCents   Int           @default(0) @map("discount_amount_cents")
+  /// The promotion applied at booking time, if any. Kept even if the
+  /// promotion is later edited (reverts to PENDING), refused or expires —
+  /// this booking's price does not change retroactively. SetNull rather than
+  /// Restrict: nothing here depends on the Promotion row still existing.
+  promotionId           String?       @map("promotion_id") @db.Uuid
+  promotion             Promotion?    @relation(fields: [promotionId], references: [id], onDelete: SetNull)
   /// The space's cancellation window at the time of the request (hours before
   /// the start). See Space.cancellationWindowHours.
   cancellationWindowHours Int         @default(48) @map("cancellation_window_hours")
@@ -850,6 +869,7 @@ model Booking {
   @@index([organizationId, status])
   @@index([spaceId, startsAt])
   @@index([clientUserId])
+  @@index([promotionId])
   @@map("bookings")
 }
 
@@ -1353,6 +1373,7 @@ enum NotificationType {
   VERIFICATION_REJECTED
   PHONE_VERIFIED
   DOMICILIATION_STATUS_CHANGED
+  PROMOTION_STATUS_CHANGED
 }
 
 model Notification {
@@ -1497,4 +1518,114 @@ model DomiciliationSettings {
   updatedBy          Profile? @relation("DomiciliationSettingsUpdatedBy", fields: [updatedByProfileId], references: [id], onDelete: SetNull)
 
   @@map("domiciliation_settings")
+}
+
+/// PRD V1.1, lot 3, commit 2 — R34-R39, R48-R52. Replaces the old
+/// `Space.discountPercent` (removed in the same migration that creates this
+/// table): every discount now goes through this moderated workflow rather
+/// than an unmoderated flag a partner could set and apply instantly.
+///
+/// State machine: DRAFT -> PENDING (partner submits) -> PUBLISHED (admin
+/// approves) | REJECTED (admin refuses, reason required). A sweep
+/// (promotions/maintenance.ts) moves PUBLISHED to EXPIRED once `endsAt`
+/// passes. Editing a PUBLISHED promotion sends it back to PENDING — see
+/// promotions/partner.ts — so a change is never live before being re-reviewed.
+///
+/// Only a PUBLISHED promotion within [startsAt, endsAt] (or no endsAt) and
+/// under its usageLimit (or no usageLimit) is ever applied to a price — see
+/// promotions/pricing.ts and promotions/resolve.ts. The discount itself is
+/// exactly one of discountPercent (1-90, same cap as the field it replaces)
+/// or discountAmountCents (> 0); never both, enforced by a CHECK.
+enum PromotionStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+  EXPIRED
+}
+
+enum PromotionDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+/// MIGRATED promotions come from the one-time backfill of
+/// `Space.discountPercent` (see migration 20261018170000_promotions) — they
+/// start PUBLISHED directly, skipping admin review, since the discount they
+/// represent was already live and unmoderated before this feature existed.
+/// Purely informational: nothing in the application branches on it except
+/// to label these rows in the admin screen.
+enum PromotionOrigin {
+  PARTNER
+  MIGRATED
+}
+
+/// A fixed list, R48-R52: "autre" is the only one paired with a free-text
+/// note (`Promotion.rejectionNote`).
+enum PromotionRejectionReason {
+  INCONSISTENT_PRICE
+  INVALID_DATES
+  INAPPROPRIATE_CONTENT
+  MISSING_INFORMATION
+  OTHER
+}
+
+model Promotion {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  discountType        PromotionDiscountType @map("discount_type")
+  discountPercent     Int?                  @map("discount_percent")
+  discountAmountCents Int?                  @map("discount_amount_cents")
+
+  startsAt DateTime  @map("starts_at") @db.Timestamptz(3)
+  endsAt   DateTime? @map("ends_at") @db.Timestamptz(3)
+
+  /// Null = unlimited. Incremented atomically at booking time (raw SQL
+  /// conditional UPDATE, same spirit as the booking EXCLUDE constraint) —
+  /// never read-then-write from application code.
+  usageLimit Int? @map("usage_limit")
+  usageCount Int  @default(0) @map("usage_count")
+
+  status PromotionStatus @default(DRAFT)
+  origin PromotionOrigin @default(PARTNER)
+
+  rejectionReason PromotionRejectionReason? @map("rejection_reason")
+  /// Free text, required when rejectionReason is OTHER, optional detail
+  /// otherwise — see validation/promotions.ts.
+  rejectionNote String? @map("rejection_note")
+
+  /// Null only for a MIGRATED row (no human created it).
+  createdByProfileId String?  @map("created_by_profile_id") @db.Uuid
+  createdBy          Profile? @relation("PromotionCreatedBy", fields: [createdByProfileId], references: [id], onDelete: SetNull)
+  reviewedByProfileId String?  @map("reviewed_by_profile_id") @db.Uuid
+  reviewedBy           Profile? @relation("PromotionReviewedBy", fields: [reviewedByProfileId], references: [id], onDelete: SetNull)
+  reviewedAt           DateTime? @map("reviewed_at") @db.Timestamptz(3)
+  /// When this row last entered PENDING — null for a DRAFT never submitted,
+  /// or a MIGRATED row that skipped the queue entirely. Drives the admin
+  /// queue's oldest-first order and its 48h-overdue indicator.
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  spaces   PromotionSpace[]
+  bookings Booking[]
+
+  @@index([organizationId])
+  @@index([status, submittedAt])
+  @@map("promotions")
+}
+
+/// Many-to-many: one promotion may cover several of the partner's spaces.
+model PromotionSpace {
+  promotionId String    @map("promotion_id") @db.Uuid
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  spaceId     String    @map("space_id") @db.Uuid
+  space       Space     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, spaceId])
+  @@index([spaceId])
+  @@map("promotion_spaces")
 }

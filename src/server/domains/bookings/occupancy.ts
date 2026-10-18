@@ -92,9 +92,10 @@ export async function computeOrganizationOccupancy(
     for (const dateStr of dateStrings) {
       const hoursForDay = hoursByWeekday.get(weekdayOf(dateStr)) ?? [];
       // Prices are irrelevant to occupancy — the space's real prices
-      // aren't loaded in this bulk fetch, so pass 0 rather than fetching
-      // them just to discard the result.
-      const slots = daySlotsForDay(dateStr, hoursForDay, spaceClosures, spaceBookings, timeZone, 0, 0);
+      // aren't loaded in this bulk fetch, so pass a zero breakdown rather
+      // than fetching them (and resolving a promotion) just to discard it.
+      const zeroPricing = { originalPriceCents: 0, discountAmountCents: 0, finalPriceCents: 0 };
+      const slots = daySlotsForDay(dateStr, hoursForDay, spaceClosures, spaceBookings, timeZone, zeroPricing, zeroPricing, null);
       if (!slots) continue; // CLOSED that weekday — contributes nothing.
 
       const status = statusFromSlots(slots);

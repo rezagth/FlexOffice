@@ -65,6 +65,7 @@ describe.skipIf(!hasDatabase)("GDPR erasure, export and retention", () => {
         participantsCount: 2,
         purpose: "Test RGPD",
         priceAmountCents: 9000,
+        originalPriceAmountCents: 9000,
         commissionAmountCents: 1350,
         ...data,
       },

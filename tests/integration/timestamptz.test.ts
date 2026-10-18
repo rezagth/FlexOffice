@@ -88,11 +88,11 @@ describe.skipIf(!hasDatabase)("timezone-aware temporal columns", () => {
       `INSERT INTO bookings (
          id, space_id, organization_id, client_user_id, starts_at, ends_at,
          status, participants_count, purpose,
-         price_amount_cents, commission_amount_cents, updated_at
+         price_amount_cents, original_price_amount_cents, commission_amount_cents, updated_at
        ) VALUES (
          gen_random_uuid(), $1, $2, $3,
          '2027-01-10 09:00:00', '2027-01-10 12:00:00',
-         'CONFIRMED', 2, 'tz fixture UTC', 12000, 1800, now()
+         'CONFIRMED', 2, 'tz fixture UTC', 12000, 12000, 1800, now()
        )`,
       spaceId,
       orgId,
@@ -107,11 +107,11 @@ describe.skipIf(!hasDatabase)("timezone-aware temporal columns", () => {
           `INSERT INTO bookings (
              id, space_id, organization_id, client_user_id, starts_at, ends_at,
              status, participants_count, purpose,
-             price_amount_cents, commission_amount_cents, updated_at
+             price_amount_cents, original_price_amount_cents, commission_amount_cents, updated_at
            ) VALUES (
              gen_random_uuid(), $1, $2, $3,
              '2027-01-10 10:00:00', '2027-01-10 13:00:00',
-             'CONFIRMED', 2, 'tz fixture Paris', 12000, 1800, now()
+             'CONFIRMED', 2, 'tz fixture Paris', 12000, 12000, 1800, now()
            )`,
           spaceId,
           orgId,
@@ -137,6 +137,7 @@ describe.skipIf(!hasDatabase)("timezone-aware temporal columns", () => {
         participantsCount: 2,
         purpose: "round trip",
         priceAmountCents: 12000,
+        originalPriceAmountCents: 12000,
         commissionAmountCents: 1800,
       },
     });

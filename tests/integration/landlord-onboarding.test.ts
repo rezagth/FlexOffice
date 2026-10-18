@@ -35,18 +35,22 @@ describe.skipIf(!hasDatabase)("landlord onboarding checklist", () => {
     expect(result.steps.map((s) => s.id)).toEqual([
       "profile",
       "verification",
+      "domiciliation",
       "property",
       "space",
       "photos",
       "publish",
+      "promotion",
     ]);
     expect(state(result)).toEqual({
       profile: "done",
       verification: "todo",
+      domiciliation: "todo",
       property: "todo",
       space: "todo",
       photos: "todo",
       publish: "todo",
+      promotion: "todo",
     });
     expect(result.steps[1].href).toBe("/app/landlord/verification");
 

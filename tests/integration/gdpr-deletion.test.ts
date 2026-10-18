@@ -114,6 +114,7 @@ describe.skipIf(!hasDatabase)("GDPR account deletion", () => {
         participantsCount: 2,
         purpose: "Historique conservé",
         priceAmountCents: 5000,
+        originalPriceAmountCents: 5000,
         commissionAmountCents: 750,
       },
     });

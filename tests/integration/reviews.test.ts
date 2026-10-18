@@ -53,6 +53,7 @@ describe.skipIf(!hasDatabase)("reviews", () => {
         participantsCount: 2,
         purpose: "Test",
         priceAmountCents: 10000,
+        originalPriceAmountCents: 10000,
         commissionAmountCents: 1500,
       },
     });
@@ -124,6 +125,7 @@ describe.skipIf(!hasDatabase)("reviews", () => {
           participantsCount: 1,
           purpose: "Test",
           priceAmountCents: 10000,
+          originalPriceAmountCents: 10000,
           commissionAmountCents: 1500,
         },
       });
@@ -197,6 +199,7 @@ describe.skipIf(!hasDatabase)("reviews", () => {
             participantsCount: 1,
             purpose: "Test",
             priceAmountCents: 10000,
+            originalPriceAmountCents: 10000,
             commissionAmountCents: 1500,
           },
         });

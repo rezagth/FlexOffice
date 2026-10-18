@@ -107,6 +107,12 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   if (!slot.available) throw new ConflictError("This slot is no longer available");
 
   const priceAmountCents = slot.priceCents;
+  const originalPriceAmountCents = slot.originalPriceCents;
+  const discountAmountCents = slot.discountAmountCents;
+  const promotionId = slot.promotionId;
+  // R34-R39 — the platform's commission on the POST-discount price: the
+  // discount is borne by the partner alone (promotions/pricing.ts's own doc
+  // comment), never by the platform.
   const commissionAmountCents = computeCommissionCents(priceAmountCents);
 
   // Resolved BEFORE the booking row exists: in a misconfigured production
@@ -158,26 +164,50 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   // Created in AWAITING_PAYMENT: the slot is held (EXCLUDE constraint), but
   // the request is neither visible to the landlord nor announced until the
   // card is authorized — see payment-holds.ts.
+  //
+  // The promotion's usage count (if any) is incremented in the SAME
+  // transaction as the booking insert — both are DB-only operations, no
+  // network call involved, so this does not violate the "never hold a
+  // transaction open across a network call" rule above (the payment
+  // provider call happens afterward, once this has already committed). The
+  // increment is a raw conditional UPDATE because Prisma cannot express a
+  // column-to-column comparison (usageCount < usageLimit); 0 rows affected
+  // means the cap was reached in a race with another booking, surfaced as
+  // the same kind of 409 as a slot conflict.
   let booking;
   try {
-    booking = await prisma.booking.create({
-      data: {
-        spaceId: space.id,
-        organizationId: space.organizationId,
-        clientUserId,
-        startsAt: slot.startsAt,
-        endsAt: slot.endsAt,
-        status: "AWAITING_PAYMENT",
-        participantsCount: input.participantsCount,
-        purpose: input.purpose,
-        priceAmountCents,
-        commissionAmountCents,
-        // The promise made to this client: later edits of the space do not
-        // change the cancellation terms of a booking already requested.
-        cancellationWindowHours: space.cancellationWindowHours,
-        cgvVersion: CGV_VERSION,
-        cgvAcceptedAt: new Date(),
-      },
+    booking = await prisma.$transaction(async (tx) => {
+      if (promotionId) {
+        const updated = await tx.$executeRaw`
+          UPDATE "promotions" SET "usage_count" = "usage_count" + 1
+          WHERE "id" = ${promotionId}::uuid AND ("usage_limit" IS NULL OR "usage_count" < "usage_limit")
+        `;
+        if (updated === 0) {
+          throw new ConflictError("Cette promotion n'est plus disponible.");
+        }
+      }
+      return tx.booking.create({
+        data: {
+          spaceId: space.id,
+          organizationId: space.organizationId,
+          clientUserId,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          status: "AWAITING_PAYMENT",
+          participantsCount: input.participantsCount,
+          purpose: input.purpose,
+          priceAmountCents,
+          originalPriceAmountCents,
+          discountAmountCents,
+          promotionId,
+          commissionAmountCents,
+          // The promise made to this client: later edits of the space do not
+          // change the cancellation terms of a booking already requested.
+          cancellationWindowHours: space.cancellationWindowHours,
+          cgvVersion: CGV_VERSION,
+          cgvAcceptedAt: new Date(),
+        },
+      });
     });
   } catch (error) {
     if (isBookingSlotConflict(error)) {

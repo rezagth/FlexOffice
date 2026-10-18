@@ -65,9 +65,6 @@ export async function createSpace(organizationId: string, input: CreateSpaceInpu
       photos: [],
       halfDayPriceCents: input.halfDayPriceCents,
       dayPriceCents: input.dayPriceCents,
-      // Was silently dropped on creation: the discount only stuck after a
-      // second save through the edit form.
-      discountPercent: input.discountPercent ?? null,
       accessInstructions: input.accessInstructions,
       ...(input.cancellationWindowHours !== undefined
         ? { cancellationWindowHours: input.cancellationWindowHours }

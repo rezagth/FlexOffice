@@ -2,6 +2,7 @@ import { prisma } from "@/server/db/prisma";
 import { logError } from "@/server/lib/logger";
 import { getAccountStatus } from "@/server/domains/payments/stripe-connect";
 import { isProfileComplete } from "@/server/domains/users/profile-completion";
+import { getLatestDomiciliationRequest } from "@/server/domains/organizations/domiciliation";
 
 /**
  * The landlord's "premiers pas" checklist: what stands between a new
@@ -17,19 +18,20 @@ import { isProfileComplete } from "@/server/domains/users/profile-completion";
  *
  * PRD V1.1 R79 lists five steps: profil complété, société vérifiée,
  * domiciliation (facultative), premier espace publié, première promotion.
- * Only the first, second and fourth exist here — domiciliation and
- * promotions are not built in this lot (2B and post-MVP respectively); add
- * their steps once those features exist rather than placeholder them here.
+ * All five now exist — domiciliation (lot 2B) and promotion (lot 3) were
+ * added once those features existed, per this file's own earlier note.
  */
 
 export type OnboardingStepId =
   | "profile"
   | "verification"
+  | "domiciliation"
   | "payouts"
   | "property"
   | "space"
   | "photos"
-  | "publish";
+  | "publish"
+  | "promotion";
 
 /** done: finished. todo: the landlord has something to do. waiting: on us
  * (moderation or Stripe review), nothing to do but wait. */
@@ -43,6 +45,10 @@ export type OnboardingStep = {
   /** Where to go to do it; absent when there is nothing to click. */
   href?: string;
   cta?: string;
+  /** PRD V1.1 R79 — domiciliation and the first promotion are both
+   * explicitly "facultatif": shown for encouragement, but never block
+   * `complete` the way the required steps do. */
+  optional?: boolean;
 };
 
 export type LandlordOnboarding = {
@@ -61,31 +67,37 @@ export async function getLandlordOnboarding(
 ): Promise<LandlordOnboarding> {
   const stripeEnabled = options.stripeEnabled ?? process.env.PAYMENT_PROVIDER === "stripe";
 
-  const [profile, organization, verification, propertyCount, spaces] = await Promise.all([
-    prisma.profile.findUniqueOrThrow({
-      where: { id: profileId },
-      select: { phone: true, phoneVerifiedAt: true, accountNeed: true, holderType: true },
-    }),
-    prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { status: true } }),
-    prisma.landlordVerification.findFirst({
-      where: { organizationId },
-      orderBy: { createdAt: "desc" },
-      select: { status: true },
-    }),
-    prisma.property.count({
-      where: {
-        OR: [
-          { owners: { some: { organizationId, endsAt: null } } },
-          { operators: { some: { organizationId, endsAt: null } } },
-        ],
-      },
-    }),
-    prisma.space.findMany({
-      where: { organizationId, status: { not: "ARCHIVED" } },
-      select: { id: true, propertyId: true, status: true, _count: { select: { spacePhotos: true } } },
-      orderBy: { createdAt: "asc" },
-    }),
-  ]);
+  const [profile, organization, verification, propertyCount, spaces, domiciliation, promotionCount] =
+    await Promise.all([
+      prisma.profile.findUniqueOrThrow({
+        where: { id: profileId },
+        select: { phone: true, phoneVerifiedAt: true, accountNeed: true, holderType: true },
+      }),
+      prisma.organization.findUniqueOrThrow({
+        where: { id: organizationId },
+        select: { status: true, holderType: true },
+      }),
+      prisma.landlordVerification.findFirst({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+        select: { status: true },
+      }),
+      prisma.property.count({
+        where: {
+          OR: [
+            { owners: { some: { organizationId, endsAt: null } } },
+            { operators: { some: { organizationId, endsAt: null } } },
+          ],
+        },
+      }),
+      prisma.space.findMany({
+        where: { organizationId, status: { not: "ARCHIVED" } },
+        select: { id: true, propertyId: true, status: true, _count: { select: { spacePhotos: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      getLatestDomiciliationRequest(organizationId),
+      prisma.promotion.count({ where: { organizationId } }),
+    ]);
 
   const steps: OnboardingStep[] = [];
 
@@ -120,7 +132,32 @@ export async function getLandlordOnboarding(
     cta: verified || inReview ? undefined : verification?.status === "REJECTED" ? "Corriger le dossier" : "Compléter le dossier",
   });
 
-  // 3. Payouts — only when the platform takes real payments.
+  // 3. Domiciliation (R79: optional) — only meaningful for a COMPANY-holder
+  // organization (lib/validation/domiciliation.ts's own doc comment). "Done"
+  // means a decision has been accepted, whichever kind (MakomSpace offer or
+  // a declared third-party address) — a refused MakomSpace request still has
+  // work left (reconsider or re-request), so it is not counted as done.
+  if (organization.holderType === "COMPANY") {
+    const domiciliationAccepted = domiciliation?.status === "ACCEPTED";
+    const domiciliationPending = domiciliation?.status === "REQUESTED" || domiciliation?.status === "IN_PROGRESS";
+    steps.push({
+      id: "domiciliation",
+      title: "Déclarer votre domiciliation",
+      description: domiciliationAccepted
+        ? "Votre domiciliation est déclarée."
+        : domiciliationPending
+          ? "Votre demande de domiciliation est en cours de traitement par l'équipe MakomSpace."
+          : domiciliation?.status === "REFUSED"
+            ? "Votre demande a été refusée : vous pouvez en faire une nouvelle."
+            : "Facultatif : indiquez où votre société est domiciliée, chez MakomSpace ou ailleurs.",
+      state: domiciliationAccepted ? "done" : domiciliationPending ? "waiting" : "todo",
+      href: domiciliationAccepted ? undefined : "/app/account",
+      cta: domiciliationAccepted || domiciliationPending ? undefined : "Déclarer ma domiciliation",
+      optional: true,
+    });
+  }
+
+  // 4. Payouts — only when the platform takes real payments.
   if (stripeEnabled) {
     let state: OnboardingStepState = "todo";
     let description = "Enregistrez vos coordonnées bancaires pour être payé de vos réservations.";
@@ -206,6 +243,23 @@ export async function getLandlordOnboarding(
     cta: published || pending || !toSubmit ? undefined : "Soumettre mon annonce",
   });
 
+  // 8. First promotion (R79) — "done" as soon as one is created, same
+  // criterion as the "space" step above (created, not necessarily approved
+  // yet — there is no separate "promotion approved" step in R79's list).
+  steps.push({
+    id: "promotion",
+    title: "Créer votre première promotion",
+    description:
+      promotionCount > 0
+        ? "Vous avez créé une promotion."
+        : "Facultatif : proposez une remise sur un ou plusieurs de vos espaces pour attirer vos premiers clients.",
+    state: promotionCount > 0 ? "done" : "todo",
+    href: promotionCount > 0 ? undefined : "/app/landlord/promotions/new",
+    cta: promotionCount > 0 ? undefined : "Créer une promotion",
+    optional: true,
+  });
+
   const doneCount = steps.filter((s) => s.state === "done").length;
-  return { steps, doneCount, complete: doneCount === steps.length };
+  const complete = steps.filter((s) => !s.optional).every((s) => s.state === "done");
+  return { steps, doneCount, complete };
 }

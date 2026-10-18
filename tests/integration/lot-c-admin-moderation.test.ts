@@ -61,6 +61,7 @@ describe.skipIf(!hasDatabase)("lot C — moderation, suspension, support, remind
         participantsCount: 2,
         purpose: "Test",
         priceAmountCents: 10000,
+        originalPriceAmountCents: 10000,
         commissionAmountCents: 1500,
       },
     });
@@ -137,22 +138,6 @@ describe.skipIf(!hasDatabase)("lot C — moderation, suspension, support, remind
       const ctx = { userId: landlordId, activeOrgId: orgId } as Parameters<typeof updateSpaceViaProperty>[1];
       const updated = await updateSpaceViaProperty(space.id, ctx, { halfDayPriceCents: 13000 });
       expect(updated.status).toBe("PENDING_REVIEW");
-    });
-
-    it("a partial discount update is checked against the stored prices (1,00 € minimum)", async () => {
-      const { updateSpace } = await import("@/server/domains/organizations/update-space");
-      const space = await fixtures.createTestSpace(orgId, propertyId, { status: "DRAFT" });
-      await prisma.space.update({ where: { id: space.id }, data: { halfDayPriceCents: 500 } });
-      await expect(updateSpace(orgId, space.id, { discountPercent: 90 })).rejects.toBeInstanceOf(errors.ValidationError);
-      const fresh = await prisma.space.findUniqueOrThrow({ where: { id: space.id } });
-      expect(fresh.discountPercent).toBeNull();
-    });
-
-    it("the database refuses a discount above 90 %", async () => {
-      const space = await fixtures.createTestSpace(orgId, propertyId, { status: "DRAFT" });
-      await expect(
-        prisma.space.update({ where: { id: space.id }, data: { discountPercent: 95 } })
-      ).rejects.toThrow(/spaces_discount_percent_max_check/);
     });
 
     it("an admin can unpublish a listing with a reason, e-mailed to the landlord", async () => {

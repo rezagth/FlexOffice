@@ -88,6 +88,7 @@ describe.skipIf(!hasDatabase)("booking lifecycle — holds, expiry, cancellation
         participantsCount: 2,
         purpose: "Test",
         priceAmountCents: 10000,
+        originalPriceAmountCents: 10000,
         commissionAmountCents: 1500,
         ...(opts.cancellationWindowHours !== undefined ? { cancellationWindowHours: opts.cancellationWindowHours } : {}),
         ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),

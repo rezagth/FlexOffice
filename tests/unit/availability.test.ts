@@ -4,6 +4,7 @@ const spaceFindUnique = vi.fn();
 const hoursFindMany = vi.fn();
 const closuresFindMany = vi.fn();
 const bookingsFindMany = vi.fn();
+const promotionFindMany = vi.fn();
 
 vi.mock("@/server/db/prisma", () => ({
   prisma: {
@@ -11,6 +12,7 @@ vi.mock("@/server/db/prisma", () => ({
     spaceOpeningHours: { findMany: hoursFindMany },
     spaceClosure: { findMany: closuresFindMany },
     booking: { findMany: bookingsFindMany },
+    promotion: { findMany: promotionFindMany },
   },
 }));
 
@@ -20,11 +22,25 @@ const SPACE = { id: "space-1", halfDayPriceCents: 9000, dayPriceCents: 15000, ti
 // 2030-03-04 is a Monday.
 const MONDAY = "2030-03-04";
 
+function mockPublishedPromotion(discount: { discountPercent?: number; discountAmountCents?: number }) {
+  promotionFindMany.mockResolvedValue([
+    {
+      id: "promo-1",
+      discountType: discount.discountPercent !== undefined ? "PERCENTAGE" : "FIXED_AMOUNT",
+      discountPercent: discount.discountPercent ?? null,
+      discountAmountCents: discount.discountAmountCents ?? null,
+      usageLimit: null,
+      usageCount: 0,
+    },
+  ]);
+}
+
 beforeEach(() => {
   spaceFindUnique.mockReset().mockResolvedValue(SPACE);
   hoursFindMany.mockReset().mockResolvedValue([{ weekday: 1, opensAt: "09:00", closesAt: "18:00" }]);
   closuresFindMany.mockReset().mockResolvedValue([]);
   bookingsFindMany.mockReset().mockResolvedValue([]);
+  promotionFindMany.mockReset().mockResolvedValue([]);
 });
 
 describe("computeDaySlots", () => {
@@ -109,24 +125,37 @@ describe("computeDaySlots", () => {
     expect(slots?.morning?.available).toBe(true);
   });
 
-  it("applies Space.discountPercent to both half-day and day prices, rounding down", async () => {
-    spaceFindUnique.mockResolvedValue({ ...SPACE, discountPercent: 10 });
+  it("applies an active promotion's percentage discount to both half-day and day prices, rounding down", async () => {
+    mockPublishedPromotion({ discountPercent: 10 });
     const slots = await computeDaySlots(SPACE.id, MONDAY);
     expect(slots?.morning?.priceCents).toBe(8100); // 9000 * 0.9
     expect(slots?.fullDay.priceCents).toBe(13500); // 15000 * 0.9
+    expect(slots?.morning?.originalPriceCents).toBe(9000);
+    expect(slots?.morning?.discountAmountCents).toBe(900);
+    expect(slots?.morning?.promotionId).toBe("promo-1");
   });
 
   it("rounds a discounted price down rather than up", async () => {
-    spaceFindUnique.mockResolvedValue({ ...SPACE, halfDayPriceCents: 999, discountPercent: 33 });
+    spaceFindUnique.mockResolvedValue({ ...SPACE, halfDayPriceCents: 999 });
+    mockPublishedPromotion({ discountPercent: 33 });
     const slots = await computeDaySlots(SPACE.id, MONDAY);
     // 999 * 0.67 = 669.33 — must not become 670.
     expect(slots?.morning?.priceCents).toBe(669);
   });
 
-  it("leaves the price untouched when discountPercent is null", async () => {
-    spaceFindUnique.mockResolvedValue({ ...SPACE, discountPercent: null });
+  it("applies a fixed-amount promotion the same way", async () => {
+    mockPublishedPromotion({ discountAmountCents: 2000 });
+    const slots = await computeDaySlots(SPACE.id, MONDAY);
+    expect(slots?.fullDay.priceCents).toBe(13000); // 15000 - 2000
+    expect(slots?.fullDay.discountAmountCents).toBe(2000);
+  });
+
+  it("leaves the price untouched with no active promotion", async () => {
     const slots = await computeDaySlots(SPACE.id, MONDAY);
     expect(slots?.fullDay.priceCents).toBe(15000);
+    expect(slots?.fullDay.originalPriceCents).toBe(15000);
+    expect(slots?.fullDay.discountAmountCents).toBe(0);
+    expect(slots?.fullDay.promotionId).toBeNull();
   });
 
   it("only queries bookings that block a slot: live requests, confirmed or done, and recent card holds", async () => {

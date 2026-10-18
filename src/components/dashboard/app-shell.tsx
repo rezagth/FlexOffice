@@ -57,6 +57,7 @@ function landlordNav(capabilities: AuthContext["capabilities"]): NavItem[] {
   }
   if (capabilities.has("landlord:publish_listing")) {
     items.push({ href: "/app/landlord/listings", label: "Publications" });
+    items.push({ href: "/app/landlord/promotions", label: "Promotions" });
   }
   if (capabilities.has("landlord:manage_calendar")) {
     items.push({ href: "/app/landlord/calendar", label: "Calendrier" });

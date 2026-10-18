@@ -125,13 +125,31 @@ export async function issueBookingInvoice(paymentId: string): Promise<Invoice | 
 
   const config = getInvoicingConfig();
   const { organization, booking } = payment;
+  // The VAT split always runs on the amount actually captured
+  // (payment.amountCents, already post-discount) — R34-R39: HT/TVA/TTC are
+  // computed on the net-of-discount price, the discount itself shown as its
+  // own line below rather than folded into the first line's total.
   const vat: VatBreakdown = rentalVat(payment.amountCents, organization.vatNumber, config.rentalVatRateBp);
-  const line: InvoiceLine = {
+  const baseLine: InvoiceLine = {
     description: `Mise à disposition de l'espace « ${booking.space.name} »`,
     detail: `${formatSlot(booking.startsAt, booking.endsAt, booking.space.timezone)} — ${booking.space.address}, ${booking.space.postalCode} ${booking.space.city}`,
     reference: null,
-    totalCents: payment.amountCents,
+    totalCents: booking.originalPriceAmountCents,
   };
+  // R34-R39 — the invoice shows the base price, the promotion discount, and
+  // only then the net/TVA/TTC: a negative line rather than folding the
+  // discount into the base price, so the partner's own undiscounted rate
+  // stays visible on the document.
+  const discountLine: InvoiceLine | null =
+    booking.discountAmountCents > 0
+      ? {
+          description: "Remise promotionnelle",
+          detail: null,
+          reference: null,
+          totalCents: -booking.discountAmountCents,
+        }
+      : null;
+  const lines = discountLine ? [baseLine, discountLine] : [baseLine];
 
   try {
     const invoice = await insertNumbered(landlordSeries(organization.id, config.invoicePrefix), () => ({
@@ -140,7 +158,7 @@ export async function issueBookingInvoice(paymentId: string): Promise<Invoice | 
       paymentId: payment.id,
       seller: organizationSnapshot(organization),
       buyer: clientSnapshot(booking.clientUser),
-      lines: [line],
+      lines,
       ...vat,
       serviceFeeCents: payment.commissionAmountCents,
     }));

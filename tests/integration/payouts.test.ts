@@ -55,6 +55,7 @@ describe.skipIf(!hasDatabase)("payouts", () => {
         participantsCount: 2,
         purpose: "Test",
         priceAmountCents: 10000,
+        originalPriceAmountCents: 10000,
         commissionAmountCents: 1500,
         ...(opts.cancelledHoursAgo !== undefined ? { cancelledAt: hoursBefore(opts.cancelledHoursAgo), cancelledBy: "CLIENT" as const } : {}),
       },
