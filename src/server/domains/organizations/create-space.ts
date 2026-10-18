@@ -1,8 +1,8 @@
 import { prisma } from "@/server/db/prisma";
-import { NotFoundError, ValidationError } from "@/server/lib/errors";
+import { NotFoundError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
 import { isCurrentOwnerOrOperator } from "@/server/domains/properties/access";
-import { FIXED_CAPACITY_BY_TYPE, type CreateSpaceInput } from "@/lib/validation/spaces";
+import type { CreateSpaceInput } from "@/lib/validation/spaces";
 
 const COMBINING_DIACRITICS = /[\u0300-\u036f]/g;
 
@@ -47,15 +47,6 @@ export async function createSpace(organizationId: string, input: CreateSpaceInpu
     throw new NotFoundError("Property not found");
   }
 
-  // A fixed-capacity type (café/poste) never gets its capacity from the
-  // request — the form doesn't even show the field (R4). For every other
-  // type the schema already required it; this is the defensive second check.
-  const fixedCapacity = FIXED_CAPACITY_BY_TYPE[input.type];
-  const capacity = fixedCapacity ?? input.capacity;
-  if (capacity === undefined) {
-    throw new ValidationError("La capacité est requise pour ce type d'espace.");
-  }
-
   const slug = await uniqueSlug(slugify(input.name));
   const space = await prisma.space.create({
     data: {
@@ -68,7 +59,7 @@ export async function createSpace(organizationId: string, input: CreateSpaceInpu
       address: input.address,
       city: input.city,
       postalCode: input.postalCode,
-      capacity,
+      capacity: input.capacity,
       amenities: input.amenities,
       // Photos only ever come from the upload routes (SEC-09).
       photos: [],

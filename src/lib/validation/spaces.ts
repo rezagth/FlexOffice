@@ -5,17 +5,16 @@ import { SPACE_TYPE_LABELS } from "@/lib/format";
 
 export const spaceTypeEnum = z.enum(["MEETING_ROOM", "DESK", "TRAINING_ROOM", "CAFE_SPOT"]);
 
-/** Types whose capacity is fixed rather than declared by the partner — a
- * café/poste is a single shared workstation (PRD V1.1, R3-R4). The publish
- * form hides the capacity field for these types, and the service layer
- * forces the value below regardless of what a request sends: never trust a
- * client-submitted capacity for a fixed-capacity type. */
-export const FIXED_CAPACITY_BY_TYPE: Partial<Record<string, number>> = {
-  CAFE_SPOT: 1,
+/** Capacity bounds narrower than the generic 1-1000, by type (PRD V1.1,
+ * R3-R4): a café/poste is a single shared workstation, one or two people —
+ * not a fixed value, the partner still declares which. Every other type
+ * keeps the generic range. */
+export const CAPACITY_RANGE_BY_TYPE: Partial<Record<string, { min: number; max: number }>> = {
+  CAFE_SPOT: { min: 1, max: 2 },
 };
 
-export function isFixedCapacityType(type: string): boolean {
-  return type in FIXED_CAPACITY_BY_TYPE;
+export function capacityBoundsForType(type: string): { min: number; max: number } {
+  return CAPACITY_RANGE_BY_TYPE[type] ?? { min: 1, max: 1000 };
 }
 
 export const spaceAmenityEnum = z.enum([
@@ -131,9 +130,9 @@ const spaceBaseFields = {
   address: z.string().trim().min(1).max(255),
   city: z.string().trim().min(1).max(120),
   postalCode: z.string().trim().regex(/^\d{5}$/, "Le code postal doit contenir 5 chiffres"),
-  // Required unless the type fixes it (see refineCapacity below) — a
-  // café/poste's form never shows this field.
-  capacity: z.number().int().min(1).max(1000).optional(),
+  // Generic bound here; a narrower per-type range (café/poste) is enforced
+  // by refineCapacity() below, since it depends on `type`.
+  capacity: z.number().int().min(1).max(1000),
   amenities: z.array(spaceAmenityEnum).max(spaceAmenityEnum.options.length),
   halfDayPriceCents: priceCents,
   dayPriceCents: priceCents,
@@ -170,29 +169,28 @@ function refinePricing(
   if (violation) ctx.addIssue({ code: "custom", path: [violation.field], message: violation.message });
 }
 
-/** Type/capacity consistency (R4): a fixed-capacity type never carries a
- * different declared capacity, and every other type must declare one. The
- * service layer re-applies the fixed value regardless (see
- * isFixedCapacityType()) — this is the friendly, field-level message. */
-function refineCapacity(space: { type: string; capacity?: number }, ctx: z.RefinementCtx) {
-  const fixed = FIXED_CAPACITY_BY_TYPE[space.type];
-  if (fixed === undefined) {
-    if (space.capacity === undefined) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["capacity"],
-        message: "La capacité est requise pour ce type d'espace.",
-      });
-    }
-    return;
-  }
-  if (space.capacity !== undefined && space.capacity !== fixed) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["capacity"],
-      message: `${SPACE_TYPE_LABELS[space.type] ?? space.type} accueille ${fixed} personne${fixed > 1 ? "s" : ""} au plus.`,
-    });
-  }
+/**
+ * Type/capacity consistency (R4). Mirrors pricingViolation(): a pure check
+ * shared by the Zod schemas and the service layer (a partial update must be
+ * checked against the stored type/capacity it does not resend — see
+ * organizations/update-space.ts). Returns a French message, or null.
+ */
+export function capacityViolation(type: string, capacity: number): string | null {
+  const { min, max } = capacityBoundsForType(type);
+  if (capacity >= min && capacity <= max) return null;
+  const label = SPACE_TYPE_LABELS[type] ?? type;
+  return min === max
+    ? `${label} accueille ${min} personne${min > 1 ? "s" : ""}.`
+    : `${label} accueille entre ${min} et ${max} personnes.`;
+}
+
+/** Only fires when both `type` and `capacity` are in the payload — on a
+ * partial update missing one of the two, the service layer judges it
+ * against the stored space instead (it alone knows the other value). */
+function refineCapacity(space: { type?: string; capacity?: number }, ctx: z.RefinementCtx) {
+  if (space.type === undefined || space.capacity === undefined) return;
+  const violation = capacityViolation(space.type, space.capacity);
+  if (violation) ctx.addIssue({ code: "custom", path: ["capacity"], message: violation });
 }
 
 /** A new space's fields, without the property it belongs to — for routes
@@ -218,9 +216,8 @@ export type CreateSpaceInput = z.infer<typeof createSpaceSchema>;
 
 /** Partial: the after-discount minimum and the type/capacity consistency are
  * checked here only when the payload carries enough to judge them (both
- * prices; a type), and against the stored values in the service layer
- * otherwise (organizations/update-space.ts) — the service layer is what a
- * capacity sent for an already-fixed-capacity type can never get past. */
+ * prices; both type and capacity), and against the stored values in the
+ * service layer otherwise (organizations/update-space.ts). */
 export const updateSpaceSchema = z
   .object(spaceBaseFields)
   .partial()
@@ -231,9 +228,7 @@ export const updateSpaceSchema = z
         ctx
       );
     }
-    if (space.type !== undefined) {
-      refineCapacity({ type: space.type, capacity: space.capacity }, ctx);
-    }
+    refineCapacity(space, ctx);
   });
 export type UpdateSpaceInput = z.infer<typeof updateSpaceSchema>;
 

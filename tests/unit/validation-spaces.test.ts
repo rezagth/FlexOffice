@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  capacityBoundsForType,
+  capacityViolation,
   closureSchema,
   createSpaceSchema,
   discountedPriceCents,
-  isFixedCapacityType,
   openingHoursWeekSchema,
   pricingViolation,
   updateSpaceSchema,
@@ -44,37 +45,52 @@ describe("createSpaceSchema", () => {
 });
 
 describe("type/capacity consistency (PRD V1.1, R3-R4)", () => {
-  it("requires a capacity for a type that doesn't fix one", () => {
+  it("requires a capacity for every type, including café/poste", () => {
     const result = createSpaceSchema.safeParse({ ...validSpace, capacity: undefined });
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(["capacity"]);
+
+    const cafeResult = createSpaceSchema.safeParse({
+      ...validSpace,
+      type: "CAFE_SPOT",
+      capacity: undefined,
+    });
+    expect(cafeResult.success).toBe(false);
+    expect(cafeResult.error?.issues[0]?.path).toEqual(["capacity"]);
   });
 
-  it("accepts a café/poste without a declared capacity", () => {
-    const result = createSpaceSchema.safeParse({ ...validSpace, type: "CAFE_SPOT", capacity: undefined });
-    expect(result.success).toBe(true);
+  it("accepts a café/poste declared for 1 or 2 people", () => {
+    expect(createSpaceSchema.safeParse({ ...validSpace, type: "CAFE_SPOT", capacity: 1 }).success).toBe(true);
+    expect(createSpaceSchema.safeParse({ ...validSpace, type: "CAFE_SPOT", capacity: 2 }).success).toBe(true);
   });
 
-  it("rejects a café/poste with a capacity other than 1", () => {
-    const result = createSpaceSchema.safeParse({ ...validSpace, type: "CAFE_SPOT", capacity: 4 });
+  it("rejects a café/poste declared for 3 or more people", () => {
+    const result = createSpaceSchema.safeParse({ ...validSpace, type: "CAFE_SPOT", capacity: 3 });
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(["capacity"]);
   });
 
-  it("isFixedCapacityType only flags café/poste", () => {
-    expect(isFixedCapacityType("CAFE_SPOT")).toBe(true);
-    expect(isFixedCapacityType("DESK")).toBe(false);
-    expect(isFixedCapacityType("MEETING_ROOM")).toBe(false);
-    expect(isFixedCapacityType("TRAINING_ROOM")).toBe(false);
+  it("does not narrow the generic range for other types", () => {
+    expect(capacityBoundsForType("CAFE_SPOT")).toEqual({ min: 1, max: 2 });
+    expect(capacityBoundsForType("DESK")).toEqual({ min: 1, max: 1000 });
+    expect(capacityBoundsForType("MEETING_ROOM")).toEqual({ min: 1, max: 1000 });
+    expect(capacityBoundsForType("TRAINING_ROOM")).toEqual({ min: 1, max: 1000 });
   });
 
-  it("an update only re-checks capacity when the payload also sends a type", () => {
-    // A partial payload with just a capacity cannot be judged without
-    // knowing the space's current type — the service layer does that
+  it("capacityViolation mirrors pricingViolation's shape — null when fine, a message otherwise", () => {
+    expect(capacityViolation("CAFE_SPOT", 2)).toBeNull();
+    expect(capacityViolation("CAFE_SPOT", 3)).toMatch(/entre 1 et 2/);
+    expect(capacityViolation("DESK", 500)).toBeNull();
+  });
+
+  it("an update only re-checks capacity when the payload sends both type and capacity", () => {
+    // A partial payload with just one of the two cannot be judged without
+    // knowing the space's other current value — the service layer does that
     // (organizations/update-space.ts), not the schema.
     expect(updateSpaceSchema.safeParse({ capacity: 4 }).success).toBe(true);
-    expect(updateSpaceSchema.safeParse({ type: "CAFE_SPOT", capacity: 4 }).success).toBe(false);
     expect(updateSpaceSchema.safeParse({ type: "CAFE_SPOT" }).success).toBe(true);
+    expect(updateSpaceSchema.safeParse({ type: "CAFE_SPOT", capacity: 4 }).success).toBe(false);
+    expect(updateSpaceSchema.safeParse({ type: "CAFE_SPOT", capacity: 2 }).success).toBe(true);
   });
 });
 

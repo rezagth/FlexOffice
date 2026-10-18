@@ -158,6 +158,28 @@ describe("searchPublishedSpaces — sort and filters", () => {
     expect(result.total).toBe(1);
   });
 
+  it("a café/poste declared for 2 people matches a 'capacity >= 2' search (PRD V1.1, R3-R6)", async () => {
+    rows[0] = row(1, { type: "CAFE_SPOT", capacity: 2 });
+    rows[1] = row(2, { type: "DESK", capacity: 8 });
+
+    const result = await searchPublishedSpaces({ capacity: 2, limit: 30 });
+    expect(result.spaces.map((s) => s.slug)).toContain("space-1");
+  });
+
+  it("a café/poste is excluded once the type filter unchecks it (as the search UI does at 3+ people)", async () => {
+    rows[0] = row(1, { type: "CAFE_SPOT", capacity: 2 });
+    rows[1] = row(2, { type: "DESK", capacity: 8 });
+
+    const result = await searchPublishedSpaces({
+      capacity: 3,
+      types: ["DESK", "MEETING_ROOM"],
+      limit: 30,
+    });
+    const slugs = result.spaces.map((s) => s.slug);
+    expect(slugs).not.toContain("space-1");
+    expect(slugs).toContain("space-2");
+  });
+
   it("the 'salles de réunion' bucket also matches espaces de formation", async () => {
     rows[0] = row(1, { type: "MEETING_ROOM" });
     rows[1] = row(2, { type: "TRAINING_ROOM" });

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SPACE_AMENITY_LABELS, SPACE_TYPE_LABELS } from "@/lib/format";
-import { isFixedCapacityType } from "@/lib/validation/spaces";
+import { capacityBoundsForType } from "@/lib/validation/spaces";
 import { COMMON_TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezone";
 import { CANCELLATION_WINDOW_OPTIONS, DEFAULT_CANCELLATION_WINDOW_HOURS } from "@/lib/cancellation-policy";
 import { SpacePhotoManager } from "@/components/dashboard/space-photo-manager";
@@ -99,6 +99,7 @@ export function SpaceForm({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const capacityBounds = capacityBoundsForType(values.type);
 
   const set = (key: keyof SpaceFormValues) => (value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -252,7 +253,20 @@ export function SpaceForm({
           />
         </Field>
         <Field label="Type" htmlFor="type">
-          <Select id="type" value={values.type} onChange={(e) => set("type")(e.target.value)}>
+          <Select
+            id="type"
+            value={values.type}
+            onChange={(e) => {
+              const type = e.target.value;
+              const bounds = capacityBoundsForType(type);
+              setValues((prev) => {
+                const current = Number(prev.capacity);
+                const capacity =
+                  Number.isFinite(current) && current > bounds.max ? String(bounds.max) : prev.capacity;
+                return { ...prev, type, capacity };
+              });
+            }}
+          >
             {Object.entries(SPACE_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -269,24 +283,25 @@ export function SpaceForm({
             onChange={(e) => set("description")(e.target.value)}
           />
         </Field>
-        {isFixedCapacityType(values.type) ? (
-          <p className="text-sm text-muted-foreground">
-            {SPACE_TYPE_LABELS[values.type] ?? values.type} : capacité fixée à une personne,
-            pas de champ à renseigner.
-          </p>
-        ) : (
-          <Field label="Capacité (personnes)" htmlFor="capacity">
-            <Input
-              id="capacity"
-              type="number"
-              min={1}
-              max={1000}
-              required
-              value={values.capacity}
-              onChange={(e) => set("capacity")(e.target.value)}
-            />
-          </Field>
-        )}
+        <Field
+          label="Capacité (personnes)"
+          htmlFor="capacity"
+          hint={
+            capacityBounds.max < 1000
+              ? `Entre ${capacityBounds.min} et ${capacityBounds.max} pour ce type d'espace.`
+              : undefined
+          }
+        >
+          <Input
+            id="capacity"
+            type="number"
+            min={capacityBounds.min}
+            max={capacityBounds.max}
+            required
+            value={values.capacity}
+            onChange={(e) => set("capacity")(e.target.value)}
+          />
+        </Field>
       </Card>
 
       <Card className="flex flex-col gap-4 p-5">
