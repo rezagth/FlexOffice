@@ -1,5 +1,6 @@
 import type { BecomeLandlordInput } from "@/lib/validation/landlord";
 import type { AuthContext } from "@/server/auth/rbac";
+import { prisma } from "@/server/db/prisma";
 import { recordAudit } from "@/server/lib/audit";
 import { createOrganizationWithVerification } from "./create-organization-with-verification";
 
@@ -55,6 +56,14 @@ export async function becomeLandlord({
     activityType: input.activityType,
     isRealEstateProfessional: input.holderType === "COMPANY" ? input.isRealEstateProfessional : false,
     grantLandlordCapability: true,
+  });
+
+  // R15: this path IS the account declaring itself a publisher — unlike the
+  // signup wizard, there's no separate question to ask, "need" is implied by
+  // being here at all.
+  await prisma.profile.update({
+    where: { id: actor.userId },
+    data: { accountNeed: "PUBLISH", holderType: input.holderType },
   });
 
   await recordAudit({

@@ -1,4 +1,4 @@
-import type { SignupWizardInput } from "@/lib/validation/signup-wizard";
+import type { SignupNeed, SignupHolderType, SignupWizardInput } from "@/lib/validation/signup-wizard";
 import { TERMS_VERSION } from "@/lib/legal-versions";
 import { prisma } from "@/server/db/prisma";
 import { accountKey } from "@/server/auth/rate-limit";
@@ -54,7 +54,9 @@ function isExistingAccountError(error: SignUpError): boolean {
   return error.status === 422 && /already registered/i.test(error.message ?? "");
 }
 
-function needsOrganization(input: SignupWizardInput): boolean {
+/** Also used by complete-profile.ts for an existing account answering the
+ * same question later (R15/R62) — one rule, two entry points. */
+export function needsOrganization(input: { need: SignupNeed; holderType: SignupHolderType }): boolean {
   return input.need === "PUBLISH" || input.holderType === "COMPANY";
 }
 
@@ -96,6 +98,13 @@ export async function registerFromWizard(
   const accepted = await prisma.profile.updateMany({
     where: { id: user.id, termsAcceptedAt: null },
     data: { termsAcceptedAt: new Date(), termsVersion: TERMS_VERSION },
+  });
+  // R15: recorded unconditionally (unlike termsAcceptedAt above, this isn't
+  // a once-only fact) — the wizard is the only place a brand-new account
+  // answers this, so there's never a prior value to protect here.
+  await prisma.profile.update({
+    where: { id: user.id },
+    data: { accountNeed: input.need, holderType: input.holderType },
   });
   await recordAudit({
     event: "user.registered",

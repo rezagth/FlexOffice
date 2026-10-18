@@ -78,6 +78,16 @@ export async function requestEmailChange(params: {
 export async function getOwnProfile(userId: string) {
   return prisma.profile.findFirst({
     where: { id: userId, deletedAt: null },
-    select: { name: true, email: true, phone: true, termsAcceptedAt: true, termsVersion: true },
+    select: {
+      name: true,
+      email: true,
+      phone: true,
+      termsAcceptedAt: true,
+      termsVersion: true,
+      // R15/R62 — read by the completion screen and its gates
+      // (profile-completion.ts) to decide what's still missing.
+      accountNeed: true,
+      holderType: true,
+    },
   });
 }

@@ -48,7 +48,7 @@ export async function LandlordHome({
       where: { organizationId: ctx.activeOrgId, createdAt: { gte: startOfMonth } },
     }),
     prisma.space.count({ where: { organizationId: ctx.activeOrgId } }),
-    showOnboarding ? getLandlordOnboarding(ctx.activeOrgId) : Promise.resolve(null),
+    showOnboarding ? getLandlordOnboarding(ctx.activeOrgId, ctx.userId) : Promise.resolve(null),
   ]);
 
   return (

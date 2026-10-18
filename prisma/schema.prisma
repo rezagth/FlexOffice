@@ -51,6 +51,15 @@ model Profile {
   email          String        @unique
   name           String
   phone          String?
+  /// R15 — what the account declared at signup ("je cherche" / "je publie"),
+  /// or since completed via /app/complete-profile for an account that
+  /// predates this column. Null only for such a not-yet-completed account;
+  /// never read as an authorization, see profile-completion.ts.
+  accountNeed AccountNeed? @map("account_need")
+  /// R15 — same as `accountNeed`, for "particulier" / "société". Reuses
+  /// `HolderType` (Organization's own field) rather than a parallel enum: the
+  /// two describe the same concept, one per account, one per organization.
+  holderType  HolderType?  @map("holder_type")
   /// @deprecated see the `Role` enum. Kept for reversibility only.
   role           Role
   /// @deprecated superseded by `OrganizationMember`. A profile can now belong
@@ -259,6 +268,15 @@ model VerificationDocument {
 enum HolderType {
   INDIVIDUAL
   COMPANY
+}
+
+/// R15 — the account's declared need at signup (or completed later): looking
+/// for a space, or offering one. Same two values the signup wizard and
+/// `/app/complete-profile` already collect as a string literal union; kept as
+/// a Prisma enum so it is stored, not just validated in transit.
+enum AccountNeed {
+  SEARCH
+  PUBLISH
 }
 
 /// Role inside one organization. Five values now, granular permissions later:

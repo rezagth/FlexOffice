@@ -16,6 +16,10 @@ describe.skipIf(!hasDatabase)("landlord onboarding checklist", () => {
     fixtures = await import("./helpers/test-fixtures");
     onboarding = await import("@/server/domains/organizations/onboarding");
     profileId = (await fixtures.createTestUser({ role: "CLIENT", name: "Onboarding Landlord" })).id;
+    // A landlord who already completed R15 (become-landlord.ts sets these
+    // for real) — this suite is about the organization-scoped steps, not
+    // the "profile" step, which other tests cover on its own.
+    await prisma.profile.update({ where: { id: profileId }, data: { accountNeed: "PUBLISH", holderType: "INDIVIDUAL" } });
   });
 
   const state = (result: Awaited<ReturnType<typeof onboarding.getLandlordOnboarding>>) =>
@@ -27,19 +31,27 @@ describe.skipIf(!hasDatabase)("landlord onboarding checklist", () => {
       data: { organizationId: org.id, requestedByProfileId: profileId, activityType: "OWNER" },
     });
 
-    let result = await onboarding.getLandlordOnboarding(org.id, { stripeEnabled: false });
-    expect(result.steps.map((s) => s.id)).toEqual(["verification", "property", "space", "photos", "publish"]);
+    let result = await onboarding.getLandlordOnboarding(org.id, profileId, { stripeEnabled: false });
+    expect(result.steps.map((s) => s.id)).toEqual([
+      "profile",
+      "verification",
+      "property",
+      "space",
+      "photos",
+      "publish",
+    ]);
     expect(state(result)).toEqual({
+      profile: "done",
       verification: "todo",
       property: "todo",
       space: "todo",
       photos: "todo",
       publish: "todo",
     });
-    expect(result.steps[0].href).toBe("/app/landlord/verification");
+    expect(result.steps[1].href).toBe("/app/landlord/verification");
 
     await prisma.landlordVerification.update({ where: { id: verification.id }, data: { status: "PENDING_REVIEW" } });
-    result = await onboarding.getLandlordOnboarding(org.id, { stripeEnabled: false });
+    result = await onboarding.getLandlordOnboarding(org.id, profileId, { stripeEnabled: false });
     expect(state(result).verification).toBe("waiting");
 
     await prisma.landlordVerification.update({ where: { id: verification.id }, data: { status: "APPROVED" } });
@@ -47,8 +59,14 @@ describe.skipIf(!hasDatabase)("landlord onboarding checklist", () => {
     const property = await fixtures.createTestProperty(org.id, profileId);
     const space = await fixtures.createTestSpace(org.id, property.id, { status: "DRAFT" });
 
-    result = await onboarding.getLandlordOnboarding(org.id, { stripeEnabled: false });
-    expect(state(result)).toMatchObject({ verification: "done", property: "done", space: "done", photos: "todo", publish: "todo" });
+    result = await onboarding.getLandlordOnboarding(org.id, profileId, { stripeEnabled: false });
+    expect(state(result)).toMatchObject({
+      verification: "done",
+      property: "done",
+      space: "done",
+      photos: "todo",
+      publish: "todo",
+    });
     expect(result.steps.find((s) => s.id === "photos")?.href).toBe(`/app/landlord/spaces/${space.id}/edit`);
     expect(result.steps.find((s) => s.id === "publish")?.href).toBe(
       `/app/landlord/properties/${property.id}/spaces/${space.id}`
@@ -60,19 +78,28 @@ describe.skipIf(!hasDatabase)("landlord onboarding checklist", () => {
       });
     }
     await prisma.space.update({ where: { id: space.id }, data: { status: "PENDING_REVIEW" } });
-    result = await onboarding.getLandlordOnboarding(org.id, { stripeEnabled: false });
+    result = await onboarding.getLandlordOnboarding(org.id, profileId, { stripeEnabled: false });
     expect(state(result)).toMatchObject({ photos: "done", publish: "waiting" });
     expect(result.complete).toBe(false);
 
     await prisma.space.update({ where: { id: space.id }, data: { status: "PUBLISHED" } });
-    result = await onboarding.getLandlordOnboarding(org.id, { stripeEnabled: false });
+    result = await onboarding.getLandlordOnboarding(org.id, profileId, { stripeEnabled: false });
     expect(result.complete).toBe(true);
-    expect(result.doneCount).toBe(5);
+    expect(result.doneCount).toBe(6);
 
     // Unpublished by moderation: the step opens again.
     await prisma.space.update({ where: { id: space.id }, data: { status: "REJECTED" } });
-    result = await onboarding.getLandlordOnboarding(org.id, { stripeEnabled: false });
+    result = await onboarding.getLandlordOnboarding(org.id, profileId, { stripeEnabled: false });
     expect(state(result).publish).toBe("todo");
+  });
+
+  it("the profile step is open until the account declares its need/holder type and a phone", async () => {
+    const org = await fixtures.createTestOrganization({ name: "Onboarding Profile Org" });
+    const incompleteUser = await fixtures.createTestUser({ role: "CLIENT", name: "Incomplete Landlord", phone: "" });
+
+    const result = await onboarding.getLandlordOnboarding(org.id, incompleteUser.id, { stripeEnabled: false });
+    expect(state(result).profile).toBe("todo");
+    expect(result.steps[0].href).toBe("/app/complete-profile");
   });
 
   it("adds the payouts step when real payments are on, and survives Stripe being unreachable", async () => {
@@ -81,7 +108,7 @@ describe.skipIf(!hasDatabase)("landlord onboarding checklist", () => {
     const previous = process.env.STRIPE_SECRET_KEY;
     delete process.env.STRIPE_SECRET_KEY; // the Stripe client cannot be built: the call throws
     try {
-      const result = await onboarding.getLandlordOnboarding(org.id, { stripeEnabled: true });
+      const result = await onboarding.getLandlordOnboarding(org.id, profileId, { stripeEnabled: true });
       const payouts = result.steps.find((s) => s.id === "payouts");
       expect(payouts?.state).toBe("todo");
       expect(result.steps.map((s) => s.id)).toContain("payouts");

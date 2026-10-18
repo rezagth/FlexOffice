@@ -9,7 +9,6 @@ import { AccountPasswordForm } from "@/components/auth/account-password-form";
 import { AccountProfileForm } from "@/components/auth/account-profile-form";
 import { FormMessage } from "@/components/auth/form-field";
 import { VERIFICATION_STATUS_LABELS } from "@/lib/format";
-import { safeRedirectPath } from "@/lib/validation/redirect";
 import { listOrganizationIdentitiesForProfile } from "@/server/domains/organizations/get-organization-identity";
 import { getOwnProfile } from "@/server/domains/users/profile";
 
@@ -38,13 +37,12 @@ const ORG_ROLES_ALLOWED_TO_EDIT_IDENTITY = new Set(["OWNER", "ADMIN"]);
  */
 export default async function AccountPage({ searchParams }: PageProps<"/app/account">) {
   const ctx = await requirePageAuth({ redirectTo: "/app/account" });
-  const [memberships, organizations, profile, { email: emailFlag, redirectTo, reason }] = await Promise.all([
+  const [memberships, organizations, profile, { email: emailFlag }] = await Promise.all([
     ctx.isLandlord ? listActiveMemberships(ctx.userId) : Promise.resolve([]),
     listOrganizationIdentitiesForProfile(ctx.userId),
     getOwnProfile(ctx.userId),
     searchParams,
   ]);
-  const backHref = typeof redirectTo === "string" ? safeRedirectPath(redirectTo, "") : "";
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,22 +54,6 @@ export default async function AccountPage({ searchParams }: PageProps<"/app/acco
             Lien confirmé. Si un second lien a été envoyé à votre autre adresse, cliquez
             aussi dessus : le changement d&apos;adresse prend effet une fois les deux
             confirmés.
-          </FormMessage>
-        </div>
-      )}
-
-      {reason === "phone-required" && (
-        <div className="max-w-lg">
-          <FormMessage tone="info">
-            Ajoutez votre numéro de téléphone ci-dessous pour pouvoir réserver un espace.
-            {backHref && (
-              <>
-                {" "}
-                <ButtonLink href={backHref} size="sm" variant="outline" className="ml-1 align-middle">
-                  Retour à l&apos;espace
-                </ButtonLink>
-              </>
-            )}
           </FormMessage>
         </div>
       )}

@@ -16,6 +16,10 @@ import { computeDaySlots } from "./availability";
 import { MAX_OPEN_REQUESTS_PER_CLIENT, PAYMENT_HOLD_MINUTES, releaseAbandonedPaymentHolds } from "./payment-holds";
 import { assertParticipantsFitCapacity } from "./booking-invariants";
 import { assertClientCompanyIsVerified } from "@/server/domains/organizations/company-verification-guard";
+import {
+  assertCompanyInfoIsComplete,
+  assertProfileIsComplete,
+} from "@/server/domains/users/profile-completion-guard";
 import type { CreateBookingInput } from "@/lib/validation/bookings";
 
 // Prisma 7 + @prisma/adapter-pg surface an unmapped Postgres error (like an
@@ -76,15 +80,16 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   // lets spaces — checked before any payment work starts.
   await assertClientCompanyIsVerified(clientUserId);
 
-  // R22-R24 (this lot): a booking needs a way to reach the client, so the
-  // phone number must be filled — not verified yet, that's a later lot.
-  // The booking page already redirects to "Mon compte" before this is ever
-  // reached; this is the hard boundary for any caller that skips that page.
-  if (!clientUser.phone?.trim()) {
-    throw new ValidationError(
-      "Ajoutez un numéro de téléphone à votre compte avant de réserver."
-    );
-  }
+  // R15/R22/R62: phone filled, need/holderType answered (not phone
+  // *verified* — that's 2B). The booking page already redirects to
+  // /app/complete-profile before this is ever reached; this is the hard
+  // boundary for any caller that skips that page.
+  await assertProfileIsComplete(clientUserId, "réserver un espace");
+
+  // R22/R24: a company booking must have its legal identity on file, not
+  // just a verified dossier (assertClientCompanyIsVerified above checks a
+  // different fact — the dossier's status, not the organization's data).
+  await assertCompanyInfoIsComplete(clientUserId);
 
   const daySlots = await computeDaySlots(input.spaceId, input.date);
   if (!daySlots) throw new ConflictError("This space is closed on the requested date");

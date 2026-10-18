@@ -24,7 +24,7 @@ export function OnboardingChecklist({ onboarding }: { onboarding: LandlordOnboar
           </p>
         </div>
         <p className="text-sm font-medium text-foreground">
-          {doneCount} sur {steps.length}
+          {doneCount} sur {steps.length} ({percent}%)
         </p>
       </div>
 

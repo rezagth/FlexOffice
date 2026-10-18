@@ -39,6 +39,12 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
       `booking-client-${suffix}@test.local`,
       JSON.stringify({ role: "CLIENT", name: "Booking Client", phone: "0600000000" })
     );
+    // handle_new_user never sets account_need/holder_type (R15) — set
+    // directly, same as a completed /app/complete-profile would.
+    await prisma.profile.update({
+      where: { id: clientUserId },
+      data: { accountNeed: "SEARCH", holderType: "INDIVIDUAL" },
+    });
 
     const org = await prisma.organization.create({
       data: {
@@ -216,33 +222,82 @@ describe.skipIf(!hasDatabase)("createBooking — pricing and slot conflicts", ()
     expect(leftovers).toBe(0);
   });
 
-  it("rejects a booking when the client has no phone number on file (R22-R24)", async () => {
-    const { ValidationError } = await import("@/server/lib/errors");
-    const phonelessSuffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const phonelessClientId = crypto.randomUUID();
+  it("rejects a booking when the client's profile is incomplete (no phone, need or holder type) — R15/R22/R62", async () => {
+    const { ForbiddenError } = await import("@/server/lib/errors");
+    const incompleteSuffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const incompleteClientId = crypto.randomUUID();
     await prisma.$executeRawUnsafe(
       `INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ($1, $2, $3::jsonb)`,
-      phonelessClientId,
-      `booking-nophone-${phonelessSuffix}@test.local`,
-      JSON.stringify({ role: "CLIENT", name: "Phoneless Client" })
+      incompleteClientId,
+      `booking-incomplete-${incompleteSuffix}@test.local`,
+      // No phone, and handle_new_user never sets account_need/holder_type —
+      // this is exactly the "predates the wizard" account R62 describes.
+      JSON.stringify({ role: "CLIENT", name: "Incomplete Profile Client" })
     );
 
     try {
       await expect(
-        createBooking(phonelessClientId, {
+        createBooking(incompleteClientId, {
           spaceId,
           date: "2031-06-16", // another free Monday, untouched by other tests
           slot: "MORNING",
           participantsCount: 2,
-          purpose: "Sans téléphone",
+          purpose: "Profil incomplet",
           acceptTerms: true,
         })
-      ).rejects.toBeInstanceOf(ValidationError);
+      ).rejects.toBeInstanceOf(ForbiddenError);
 
-      const leftovers = await prisma.booking.count({ where: { clientUserId: phonelessClientId } });
+      const leftovers = await prisma.booking.count({ where: { clientUserId: incompleteClientId } });
       expect(leftovers).toBe(0);
     } finally {
-      await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1`, phonelessClientId);
+      await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1`, incompleteClientId);
+    }
+  });
+
+  it("rejects a booking from a company whose legal identity is incomplete (R22/R24), even with a complete profile", async () => {
+    const { ForbiddenError } = await import("@/server/lib/errors");
+    const { createTestUser, createTestOrganization, deleteTestUser } = await import("./helpers/test-fixtures");
+
+    const tenant = await createTestUser({ role: "CLIENT", name: "Tenant Co Member" });
+    await prisma.profile.update({
+      where: { id: tenant.id },
+      data: { accountNeed: "SEARCH", holderType: "COMPANY" },
+    });
+    const tenantOrg = await createTestOrganization({ name: "Incomplete Co" });
+    // Simulates a pre-existing, already-verified organization missing its
+    // legal name — every live creation path already requires one, so this
+    // has to be forced directly rather than reached through the app. (siret
+    // can't be nulled the same way: organizations_holder_type_siret_check
+    // guarantees a COMPANY org always has one — legalName has no such
+    // DB-level guarantee, which is exactly why this guard checks it at all.)
+    // VERIFIED, so assertClientCompanyIsVerified (R73, checked first) lets
+    // this through and the only remaining failure is the new check.
+    await prisma.organization.update({
+      where: { id: tenantOrg.id },
+      data: { legalName: null, status: "VERIFIED" },
+    });
+    await prisma.organizationMember.create({
+      data: { organizationId: tenantOrg.id, profileId: tenant.id, orgRole: "OWNER", status: "ACTIVE" },
+    });
+
+    try {
+      await expect(
+        createBooking(tenant.id, {
+          spaceId,
+          date: "2031-06-23", // another free Monday, untouched by other tests
+          slot: "MORNING",
+          participantsCount: 2,
+          purpose: "Société incomplète",
+          acceptTerms: true,
+        })
+      ).rejects.toBeInstanceOf(ForbiddenError);
+
+      const leftovers = await prisma.booking.count({ where: { clientUserId: tenant.id } });
+      expect(leftovers).toBe(0);
+    } finally {
+      await prisma.organizationMember.deleteMany({ where: { organizationId: tenantOrg.id } });
+      await prisma.organization.deleteMany({ where: { id: tenantOrg.id } });
+      await deleteTestUser(tenant.id);
     }
   });
 });

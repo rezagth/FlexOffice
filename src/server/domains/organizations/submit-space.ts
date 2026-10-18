@@ -1,11 +1,20 @@
 import { prisma } from "@/server/db/prisma";
 import { ConflictError, NotFoundError } from "@/server/lib/errors";
 import { recordAudit } from "@/server/lib/audit";
+import { assertProfileIsComplete } from "@/server/domains/users/profile-completion-guard";
 
 /** Partner submits a DRAFT (or previously REJECTED) space for admin
  * review. Conditional update so a double submit is a 409, not a silent
- * second transition. */
-export async function submitSpaceForReview(organizationId: string, spaceId: string) {
+ * second transition.
+ *
+ * R62: this is the landlord's own "publish" action — the one place their
+ * own profile completeness can be checked against the actor rather than
+ * against the organization (which has no phone/need/holderType of its own).
+ * Checked before the state transition, so an incomplete profile never even
+ * reaches admin review. */
+export async function submitSpaceForReview(organizationId: string, spaceId: string, actorUserId: string) {
+  await assertProfileIsComplete(actorUserId, "publier un espace");
+
   const space = await prisma.space.findFirst({ where: { id: spaceId, organizationId } });
   if (!space) throw new NotFoundError("Space not found");
 

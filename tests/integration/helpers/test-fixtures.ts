@@ -42,6 +42,15 @@ export type TestUser = { id: string; email: string };
  * here every one of them would need to add one just to keep booking tests
  * passing. A caller that does care (e.g. GDPR erasure, asserting it gets
  * wiped) overrides it explicitly, same as any other field.
+ *
+ * Also backfills `account_need`/`holder_type` (R15) to a plain complete
+ * individual tenant — `handle_new_user` doesn't read either from metadata
+ * (it never needed to, they didn't exist until migration 20261018143000), so
+ * this can't be done the same way as `phone` above; a direct update after
+ * the trigger runs is the only way. A test that needs something else
+ * (a company, a different need) overrides it with its own
+ * `prisma.profile.update()` afterwards, same as it already does for other
+ * profile fields.
  */
 export async function createTestUser(
   metadata: Record<string, string> = { role: "CLIENT", name: "Test User" }
@@ -56,9 +65,12 @@ export async function createTestUser(
     email,
     JSON.stringify(merged)
   );
-
   const id = rows[0]?.id;
   if (!id) throw new Error("failed to create test auth user");
+  await prisma.profile.update({
+    where: { id },
+    data: { accountNeed: "SEARCH", holderType: "INDIVIDUAL" },
+  });
   return { id, email };
 }
 
@@ -92,11 +104,16 @@ export async function deleteTestUser(userId: string) {
   await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1`, userId);
 }
 
+/** `holderType` defaults to COMPANY (schema default) — `legalName` is set
+ * to match (R22/R24: a COMPANY org missing its legal name fails
+ * isCompanyInfoComplete, which a booking by one of its members now checks). */
 export async function createTestOrganization(options: { name?: string; city?: string } = {}) {
   const suffix = uniqueSuffix();
+  const name = options.name ?? `Test Org ${suffix}`;
   return prisma.organization.create({
     data: {
-      name: options.name ?? `Test Org ${suffix}`,
+      name,
+      legalName: name,
       siret: uniqueSiret(),
       email: `org-${suffix}@test.local`,
       address: "1 rue de Test",

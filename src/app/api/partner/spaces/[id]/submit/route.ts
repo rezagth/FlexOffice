@@ -9,6 +9,6 @@ type Ctx = { params: Promise<{ id: string }> };
 export const POST = withErrorHandling(async (_request: Request, { params }: Ctx) => {
   const ctx = await requireOrgCapability("landlord:publish_listing");
   const { id } = await params;
-  await submitSpaceForReview(ctx.organizationId, id);
+  await submitSpaceForReview(ctx.organizationId, id, ctx.userId);
   return NextResponse.json({ status: "PENDING_REVIEW" });
 });

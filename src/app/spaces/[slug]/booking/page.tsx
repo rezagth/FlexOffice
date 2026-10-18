@@ -4,6 +4,7 @@ import { parseSpaceSearchParams } from "@/lib/validation/search";
 import { getPublishedSpaceBySlug } from "@/server/domains/spaces/list-spaces";
 import { getAuthContext } from "@/server/auth/rbac";
 import { getOwnProfile } from "@/server/domains/users/profile";
+import { isCompanyInfoComplete, isProfileComplete } from "@/server/domains/users/profile-completion";
 import { computeDaySlots } from "@/server/domains/bookings/availability";
 import { PortalAwareLayout } from "@/components/marketing/portal-aware-layout";
 import { Card } from "@/components/ui/card";
@@ -45,14 +46,12 @@ export default async function BookingPage({
     redirect(`/login?redirectTo=${encodeURIComponent(back)}`);
   }
 
-  // R22-R24: a booking needs a way to reach the client — redirect to "Mon
-  // compte" to fill it in, rather than letting the funnel fail at the very
-  // last step (create-booking.ts enforces the same rule server-side).
+  // R15/R22/R62: redirect to the dedicated completion screen rather than
+  // letting the funnel fail at the very last step — create-booking.ts
+  // enforces the same rules server-side regardless.
   const profile = await getOwnProfile(ctx.userId);
-  if (!profile?.phone?.trim()) {
-    redirect(
-      `/app/account?redirectTo=${encodeURIComponent(back)}&reason=phone-required`
-    );
+  if (!profile || !isProfileComplete(profile) || !(await isCompanyInfoComplete(ctx.userId))) {
+    redirect(`/app/complete-profile?redirectTo=${encodeURIComponent(back)}`);
   }
 
   const date = requestedDate ?? todayIso();

@@ -65,6 +65,12 @@ describe.skipIf(!hasDatabase)("accept/reject booking requests", () => {
       `accept-client-${suffix}@test.local`,
       JSON.stringify({ role: "CLIENT", name: "Accept Client", phone: "0600000000" })
     );
+    // handle_new_user never sets account_need/holder_type (R15) — set
+    // directly, same as a completed /app/complete-profile would.
+    await prisma.profile.update({
+      where: { id: clientUserId },
+      data: { accountNeed: "SEARCH", holderType: "INDIVIDUAL" },
+    });
 
     const propertyA = await prisma.property.create({
       data: {

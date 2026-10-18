@@ -14,6 +14,12 @@ import { landlordActivityTypeSchema } from "./landlord";
  *
  * NOT collected here: domiciliation (PRD page 4) — out of this lot, see
  * SignupWizard's own doc comment.
+ *
+ * `sharedFields`/`applySharedRefinements` are also reused, unchanged, by
+ * `completeProfileSchema` below (R15/R62 — the same "need/holderType/company
+ * information" rules apply whether they're answered at signup or completed
+ * later on an existing account; only `name`/`email`/`password`/`acceptTerms`
+ * are signup-specific, since an existing account already has those).
  */
 
 const nameSchema = z
@@ -34,7 +40,7 @@ export const signupHolderTypeSchema = z.enum(["INDIVIDUAL", "COMPANY"], {
 });
 export type SignupHolderType = z.infer<typeof signupHolderTypeSchema>;
 
-const baseFields = {
+const sharedFields = {
   need: signupNeedSchema,
   holderType: signupHolderTypeSchema,
   // Required only when need === "PUBLISH" — decides which documents the
@@ -43,7 +49,6 @@ const baseFields = {
   activityType: landlordActivityTypeSchema.optional(),
   isRealEstateProfessional: z.boolean().optional().default(false),
 
-  name: nameSchema,
   phone: phoneSchema.optional(),
 
   // Required only when holderType === "COMPANY".
@@ -71,19 +76,13 @@ const baseFields = {
     .trim()
     .regex(/^\d{5}$/, { error: "Le code postal doit contenir 5 chiffres." })
     .optional(),
-
-  email: emailSchema,
-  password: passwordSchema,
-  // Not z.literal(true): that fails to even construct a value for `false`,
-  // which aborts the whole parse before superRefine ever runs (confirmed
-  // empirically — a Zod 4 quirk, not documented behavior to rely on) and
-  // would silently hide every other page's errors behind it. A plain
-  // boolean, checked in superRefine like everything else below, keeps the
-  // parse structurally valid so every applicable error always surfaces.
-  acceptTerms: z.boolean(),
 };
 
-export const signupWizardSchema = z.object(baseFields).superRefine((data, ctx) => {
+/** `need`/`holderType`/company/address rules, shared by `signupWizardSchema`
+ * and `completeProfileSchema`. Does NOT check `acceptTerms` — that only
+ * exists on the signup schema, since an existing account already accepted
+ * the terms once (B-11). */
+function applySharedRefinements(data: z.infer<z.ZodObject<typeof sharedFields>>, ctx: z.RefinementCtx) {
   if (data.need === "PUBLISH" && !data.activityType) {
     ctx.addIssue({
       code: "custom",
@@ -128,14 +127,49 @@ export const signupWizardSchema = z.object(baseFields).superRefine((data, ctx) =
       }
     }
   }
+}
 
-  if (!data.acceptTerms) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["acceptTerms"],
-      message: "Vous devez accepter les CGU et la politique de confidentialité.",
-    });
+export const signupWizardSchema = z
+  .object({
+    ...sharedFields,
+    name: nameSchema,
+    email: emailSchema,
+    password: passwordSchema,
+    // Not z.literal(true): that fails to even construct a value for `false`,
+    // which aborts the whole parse before superRefine ever runs (confirmed
+    // empirically — a Zod 4 quirk, not documented behavior to rely on) and
+    // would silently hide every other page's errors behind it. A plain
+    // boolean, checked in superRefine like everything else below, keeps the
+    // parse structurally valid so every applicable error always surfaces.
+    acceptTerms: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    applySharedRefinements(data, ctx);
+    if (!data.acceptTerms) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["acceptTerms"],
+        message: "Vous devez accepter les CGU et la politique de confidentialité.",
+      });
+    }
+  });
+
+export type SignupWizardInput = z.infer<typeof signupWizardSchema>;
+
+/**
+ * PRD V1.1, R15/R22/R62 — `/app/complete-profile`, for an account whose
+ * `need`/`holderType` were never recorded (predates this column) or whose
+ * phone is still missing. Same rules as the signup wizard minus the
+ * signup-only fields (`name`/`email`/`password`/`acceptTerms` all already
+ * exist on the account), plus `phone` becomes required here: by the time
+ * this screen is reached, completing it is the whole point (R22/R24 already
+ * requires it before a booking; see profile-completion-guard.ts).
+ */
+export const completeProfileSchema = z.object(sharedFields).superRefine((data, ctx) => {
+  applySharedRefinements(data, ctx);
+  if (!data.phone || data.phone.trim().length === 0) {
+    ctx.addIssue({ code: "custom", path: ["phone"], message: "Numéro de téléphone requis." });
   }
 });
 
-export type SignupWizardInput = z.infer<typeof signupWizardSchema>;
+export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;

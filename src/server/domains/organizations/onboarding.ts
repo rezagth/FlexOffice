@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db/prisma";
 import { logError } from "@/server/lib/logger";
 import { getAccountStatus } from "@/server/domains/payments/stripe-connect";
+import { isProfileComplete } from "@/server/domains/users/profile-completion";
 
 /**
  * The landlord's "premiers pas" checklist: what stands between a new
@@ -10,10 +11,25 @@ import { getAccountStatus } from "@/server/domains/payments/stripe-connect";
  * so the checklist can never claim a step is done when it is not (a space
  * unpublished by moderation shows the step open again).
  *
- * Scoped by the organizationId of the verified session.
+ * Scoped by the organizationId of the verified session, except `profile`
+ * which is a property of the PROFILE, not the organization (R15) — hence the
+ * separate `profileId` parameter.
+ *
+ * PRD V1.1 R79 lists five steps: profil complété, société vérifiée,
+ * domiciliation (facultative), premier espace publié, première promotion.
+ * Only the first, second and fourth exist here — domiciliation and
+ * promotions are not built in this lot (2B and post-MVP respectively); add
+ * their steps once those features exist rather than placeholder them here.
  */
 
-export type OnboardingStepId = "verification" | "payouts" | "property" | "space" | "photos" | "publish";
+export type OnboardingStepId =
+  | "profile"
+  | "verification"
+  | "payouts"
+  | "property"
+  | "space"
+  | "photos"
+  | "publish";
 
 /** done: finished. todo: the landlord has something to do. waiting: on us
  * (moderation or Stripe review), nothing to do but wait. */
@@ -40,11 +56,16 @@ export const RECOMMENDED_PHOTO_COUNT = 3;
 
 export async function getLandlordOnboarding(
   organizationId: string,
+  profileId: string,
   options: { stripeEnabled?: boolean } = {}
 ): Promise<LandlordOnboarding> {
   const stripeEnabled = options.stripeEnabled ?? process.env.PAYMENT_PROVIDER === "stripe";
 
-  const [organization, verification, propertyCount, spaces] = await Promise.all([
+  const [profile, organization, verification, propertyCount, spaces] = await Promise.all([
+    prisma.profile.findUniqueOrThrow({
+      where: { id: profileId },
+      select: { phone: true, accountNeed: true, holderType: true },
+    }),
     prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { status: true } }),
     prisma.landlordVerification.findFirst({
       where: { organizationId },
@@ -68,7 +89,20 @@ export async function getLandlordOnboarding(
 
   const steps: OnboardingStep[] = [];
 
-  // 1. Verification of the organization — publishing requires VERIFIED.
+  // 1. The profile itself (R15) — phone and declared need/holder type.
+  const profileComplete = isProfileComplete(profile);
+  steps.push({
+    id: "profile",
+    title: "Compléter votre profil",
+    description: profileComplete
+      ? "Votre profil est complet."
+      : "Numéro de téléphone et quelques informations sur votre compte, nécessaires avant de publier.",
+    state: profileComplete ? "done" : "todo",
+    href: profileComplete ? undefined : "/app/complete-profile",
+    cta: profileComplete ? undefined : "Compléter mon profil",
+  });
+
+  // 2. Verification of the organization — publishing requires VERIFIED.
   const verified = organization.status === "VERIFIED" || verification?.status === "APPROVED";
   const inReview = verification?.status === "PENDING_REVIEW" || verification?.status === "IN_REVIEW";
   steps.push({
@@ -86,7 +120,7 @@ export async function getLandlordOnboarding(
     cta: verified || inReview ? undefined : verification?.status === "REJECTED" ? "Corriger le dossier" : "Compléter le dossier",
   });
 
-  // 2. Payouts — only when the platform takes real payments.
+  // 3. Payouts — only when the platform takes real payments.
   if (stripeEnabled) {
     let state: OnboardingStepState = "todo";
     let description = "Enregistrez vos coordonnées bancaires pour être payé de vos réservations.";
@@ -113,7 +147,7 @@ export async function getLandlordOnboarding(
     });
   }
 
-  // 3. A property (the building), 4. a space in it.
+  // 4. A property (the building), 5. a space in it.
   steps.push({
     id: "property",
     title: "Ajouter votre bien",
@@ -138,7 +172,7 @@ export async function getLandlordOnboarding(
     cta: spaces.length > 0 || propertyCount === 0 ? undefined : "Créer un espace",
   });
 
-  // 5. Photos — the first thing a client looks at.
+  // 6. Photos — the first thing a client looks at.
   const wellIllustrated = spaces.some((s) => s._count.spacePhotos >= RECOMMENDED_PHOTO_COUNT);
   const needsPhotos = spaces.find((s) => s._count.spacePhotos < RECOMMENDED_PHOTO_COUNT);
   steps.push({
@@ -152,7 +186,7 @@ export async function getLandlordOnboarding(
     cta: wellIllustrated || !needsPhotos ? undefined : "Ajouter des photos",
   });
 
-  // 6. Publication — submitted, then moderated.
+  // 7. Publication — submitted, then moderated.
   const published = spaces.some((s) => s.status === "PUBLISHED");
   const pending = spaces.some((s) => s.status === "PENDING_REVIEW");
   const toSubmit = spaces.find((s) => s.status === "DRAFT" || s.status === "REJECTED");
