@@ -3,14 +3,13 @@ import { notFound, redirect } from "next/navigation";
 import { parseSpaceSearchParams } from "@/lib/validation/search";
 import { getPublishedSpaceBySlug } from "@/server/domains/spaces/list-spaces";
 import { getAuthContext } from "@/server/auth/rbac";
-import { getOwnProfile } from "@/server/domains/users/profile";
-import { isCompanyInfoComplete, isProfileComplete } from "@/server/domains/users/profile-completion";
+import { AutoSubmitDateInput } from "@/components/booking/auto-submit-date-input";
+import { getTenantOnboarding } from "@/server/domains/users/tenant-onboarding";
 import { computeDaySlots } from "@/server/domains/bookings/availability";
 import { PortalAwareLayout } from "@/components/marketing/portal-aware-layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { BookingFunnel, type SlotOption } from "@/components/booking/booking-funnel";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +31,11 @@ function todayIso(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+/** A slot that has already started can no longer be requested. */
+function hasStarted(startsAt: Date): boolean {
+  return startsAt.getTime() <= Date.now();
+}
+
 export default async function BookingPage({
   params,
   searchParams,
@@ -49,8 +53,8 @@ export default async function BookingPage({
   // R15/R22/R62: redirect to the dedicated completion screen rather than
   // letting the funnel fail at the very last step — create-booking.ts
   // enforces the same rules server-side regardless.
-  const profile = await getOwnProfile(ctx.userId);
-  if (!profile || !isProfileComplete(profile) || !(await isCompanyInfoComplete(ctx.userId))) {
+  const onboarding = await getTenantOnboarding(ctx.userId);
+  if (!onboarding.readyToBook) {
     redirect(`/app/complete-profile?redirectTo=${encodeURIComponent(back)}`);
   }
 
@@ -66,7 +70,10 @@ export default async function BookingPage({
         ].filter(Boolean) as Array<Omit<SlotOption, "startsAt" | "endsAt"> & { startsAt: Date; endsAt: Date }>
       ).map(({ kind, available, priceCents, startsAt, endsAt }) => ({
         kind,
-        available,
+        // A slot that has already started cannot be requested (create-booking
+        // refuses it): shown as unavailable instead of letting the visitor
+        // pick it and fail at the last step.
+        available: available && !hasStarted(startsAt),
         priceCents,
         // Shown in the recap (UX-17); never sent back — the server
         // recomputes the slot from the date and kind.
@@ -94,11 +101,14 @@ export default async function BookingPage({
         <h2 className="text-lg font-medium">1. Choisissez une date</h2>
         <form className="flex flex-wrap items-end gap-3">
           <Field label="Date" htmlFor="date">
-            <Input id="date" name="date" type="date" min={todayIso()} defaultValue={date} />
+            <AutoSubmitDateInput id="date" name="date" min={todayIso()} defaultValue={date} />
           </Field>
-          <Button type="submit" variant="outline">
-            Voir les créneaux
-          </Button>
+          {/* Without JavaScript the date cannot submit itself. */}
+          <noscript>
+            <Button type="submit" variant="outline">
+              Voir les créneaux
+            </Button>
+          </noscript>
         </form>
       </Card>
 
