@@ -15,6 +15,8 @@ export default defineConfig({
     // jsdom cost globally.
     environment: "node",
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    // Working localStorage under jsdom on Node 25+ (no-op on Node 22).
+    setupFiles: ["tests/setup/jsdom-storage.ts"],
   },
   resolve: {
     alias: {
