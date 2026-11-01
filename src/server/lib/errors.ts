@@ -31,9 +31,12 @@ export class ForbiddenError extends AppError {
 /** 403 with its own code so the UI can offer the way out (the profile
  * completion screen) instead of a bare message. The message names exactly
  * what is missing. */
-export class ProfileIncompleteError extends AppError {
+export class ProfileIncompleteError extends ForbiddenError {
   constructor(message = "Complétez votre profil avant de continuer.") {
-    super(message, "PROFILE_INCOMPLETE", 403);
+    super(message);
+    // Still a ForbiddenError (every `instanceof ForbiddenError` check keeps
+    // matching), with its own code for the UI.
+    (this as { code: string }).code = "PROFILE_INCOMPLETE";
   }
 }
 
