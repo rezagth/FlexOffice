@@ -25,6 +25,7 @@ import { absoluteUrl, pageMetadata } from "@/lib/site";
 import { jsonLd } from "@/lib/json-ld";
 import { getReviewSummaries, listSpaceReviews } from "@/server/domains/reviews/reviews";
 import { SpaceReviews } from "@/components/reviews/space-reviews";
+import { ReportSpaceButton } from "@/components/marketing/report-space-button";
 import { RatingSummary } from "@/components/reviews/star-rating";
 import { findActivePromotionForSpace } from "@/server/domains/promotions/resolve";
 import { applyPromotionDiscount, type PriceBreakdown } from "@/server/domains/promotions/pricing";
@@ -290,6 +291,8 @@ export default async function SpaceDetailPage({
                 reviews={reviews}
                 organizationName={space.organization.name}
               />
+
+              <ReportSpaceButton slug={space.slug} />
             </div>
 
             <Card className="h-fit p-5 lg:sticky lg:top-24">

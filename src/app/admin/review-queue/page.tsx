@@ -16,6 +16,7 @@ const KIND_LABELS: Record<ReviewQueueKind, string> = {
   verification: "Vérification",
   domiciliation: "Domiciliation",
   promotion: "Promotion",
+  report: "Signalement",
 };
 
 /**
@@ -73,7 +74,30 @@ export default async function AdminReviewQueuePage() {
                       warning="Elle pourra réserver tout de suite."
                     />
                   )}
-                  {item.kind !== "space" && item.kind !== "organization" && (
+                  {item.kind === "report" && (
+                    <>
+                      <ButtonLink href={item.href} variant="outline" size="sm">
+                        Voir l&apos;espace
+                      </ButtonLink>
+                      <AdminActionButton
+                        url={`/api/admin/reports/${item.id}/unpublish`}
+                        label="Masquer l'espace"
+                        confirmLabel="Confirmer le masquage"
+                        variant="outline"
+                        reason="required"
+                        warning="L'espace sort du catalogue. Les réservations déjà faites ne sont pas annulées."
+                      />
+                      <AdminActionButton
+                        url={`/api/admin/reports/${item.id}/dismiss`}
+                        label="Classer sans suite"
+                        confirmLabel="Confirmer"
+                        reason="optional"
+                        reasonLabel="Note interne (facultatif)"
+                        reasonHint="Gardée sur le signalement, jamais envoyée au bailleur."
+                      />
+                    </>
+                  )}
+                  {item.kind !== "space" && item.kind !== "organization" && item.kind !== "report" && (
                     <ButtonLink href={item.href} variant="outline" size="sm">
                       Voir
                     </ButtonLink>

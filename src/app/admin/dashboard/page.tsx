@@ -83,6 +83,7 @@ export default async function AdminDashboardPage() {
                 ["verification", "dossier(s) bailleur"],
                 ["domiciliation", "domiciliation(s)"],
                 ["promotion", "promotion(s)"],
+                ["report", "signalement(s)"],
               ]
                 .map(([kind, label]) => [reviewQueue.filter((i) => i.kind === kind).length, label] as const)
                 .filter(([n]) => n > 0)

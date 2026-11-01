@@ -3,6 +3,7 @@ import { listDomiciliationRequestsForAdmin } from "@/server/domains/organization
 import { listPendingPromotionsForAdmin } from "@/server/domains/promotions/admin";
 import { prisma } from "@/server/db/prisma";
 import { SPACE_TYPE_LABELS, formatCents } from "@/lib/format";
+import { CONTENT_REPORT_REASON_LABELS } from "@/lib/validation/reports";
 
 /** PRD V1.1, R66 — a single screen aggregating everything an admin has to
  * decide on: verifications awaiting a first look or already claimed,
@@ -18,7 +19,7 @@ import { SPACE_TYPE_LABELS, formatCents } from "@/lib/format";
  */
 export const REVIEW_QUEUE_OVERDUE_HOURS = 48;
 
-export type ReviewQueueKind = "organization" | "space" | "verification" | "domiciliation" | "promotion";
+export type ReviewQueueKind = "organization" | "space" | "verification" | "domiciliation" | "promotion" | "report";
 
 export type ReviewQueueItem = {
   kind: ReviewQueueKind;
@@ -52,7 +53,7 @@ function promotionSummary(p: { discountType: "PERCENTAGE" | "FIXED_AMOUNT"; disc
 }
 
 export async function listReviewQueue(): Promise<ReviewQueueItem[]> {
-  const [verifications, domiciliations, promotions, spaces, organizations] = await Promise.all([
+  const [verifications, domiciliations, promotions, spaces, organizations, reports] = await Promise.all([
     listVerificationsForAdmin("ALL"),
     listDomiciliationRequestsForAdmin(),
     listPendingPromotionsForAdmin(),
@@ -103,6 +104,19 @@ export async function listReviewQueue(): Promise<ReviewQueueItem[]> {
         createdAt: true,
       },
     }),
+    // Notices about published listings (illegal, not authorized…): they wait
+    // here until an admin hides the space or dismisses the report.
+    prisma.contentReport.findMany({
+      where: { status: "PENDING" },
+      select: {
+        id: true,
+        reason: true,
+        message: true,
+        reporterEmail: true,
+        createdAt: true,
+        space: { select: { name: true, slug: true, organization: { select: { name: true } } } },
+      },
+    }),
   ]);
 
   const now = Date.now();
@@ -123,6 +137,23 @@ export async function listReviewQueue(): Promise<ReviewQueueItem[]> {
         { label: "Tarifs", value: `Demi-journée ${formatCents(s.halfDayPriceCents)} · Journée ${formatCents(s.dayPriceCents)}` },
         { label: "Photos", value: s._count.spacePhotos === 0 ? "Aucune photo" : `${s._count.spacePhotos} photo(s)` },
         { label: "Description", value: s.description },
+      ],
+    });
+  }
+
+  for (const r of reports) {
+    items.push({
+      kind: "report",
+      id: r.id,
+      organizationName: r.space.organization.name,
+      summary: `Signalement · ${r.space.name} · ${CONTENT_REPORT_REASON_LABELS[r.reason]}`,
+      submittedAt: r.createdAt,
+      overdue: isOverdue(r.createdAt, now),
+      href: `/spaces/${r.space.slug}`,
+      details: [
+        { label: "Motif", value: CONTENT_REPORT_REASON_LABELS[r.reason] },
+        { label: "Contact du signalant", value: r.reporterEmail ?? "Anonyme" },
+        { label: "Description", value: r.message },
       ],
     });
   }

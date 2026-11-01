@@ -133,6 +133,8 @@ model Profile {
 
   messagesSent   Message[]
   supportTickets SupportTicket[]
+  contentReportsMade    ContentReport[] @relation("ContentReportReporter")
+  contentReportsHandled ContentReport[] @relation("ContentReportHandler")
   spaceReviews   SpaceReview[]
   supportReplies SupportTicketReply[]
   notifications  Notification[]
@@ -727,6 +729,7 @@ model Space {
   spacePhotos      SpacePhoto[]
   reviews          SpaceReview[]
   promotionSpaces  PromotionSpace[]
+  reports          ContentReport[]
 
   @@unique([id, organizationId])
   @@index([organizationId])
@@ -1647,4 +1650,51 @@ model PromotionSpace {
   @@id([promotionId, spaceId])
   @@index([spaceId])
   @@map("promotion_spaces")
+}
+
+// ---------------------------------------------------------------------------
+// Content reports — the notice mechanism a hosting platform must offer: anyone
+// can report a listing they consider illegal, not authorized, inaccurate or
+// discriminatory; an admin decides (hide the space with a reason, or dismiss).
+// ---------------------------------------------------------------------------
+
+enum ContentReportReason {
+  ILLEGAL
+  NOT_AUTHORIZED
+  INACCURATE
+  DISCRIMINATORY
+  OTHER
+}
+
+enum ContentReportStatus {
+  PENDING
+  DISMISSED
+  ACTIONED
+}
+
+model ContentReport {
+  id      String @id @default(uuid()) @db.Uuid
+  spaceId String @map("space_id") @db.Uuid
+  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  reason  ContentReportReason
+  message String
+
+  /// Optional: lets the platform answer the reporter. Null when anonymous.
+  reporterEmail     String?  @map("reporter_email")
+  reporterProfileId String?  @map("reporter_profile_id") @db.Uuid
+  reporterProfile   Profile? @relation("ContentReportReporter", fields: [reporterProfileId], references: [id], onDelete: SetNull)
+
+  status          ContentReportStatus @default(PENDING)
+  handledAt       DateTime?           @map("handled_at") @db.Timestamptz(3)
+  handledByProfileId String?          @map("handled_by_profile_id") @db.Uuid
+  handledBy       Profile?            @relation("ContentReportHandler", fields: [handledByProfileId], references: [id], onDelete: SetNull)
+  /// The admin's reason (hide) or note (dismiss), kept as the decision record.
+  resolution      String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@index([spaceId])
+  @@map("content_reports")
 }
