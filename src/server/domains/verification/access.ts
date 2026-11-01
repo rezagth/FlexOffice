@@ -34,6 +34,11 @@ import { logEvent } from "@/server/lib/logger";
  * an operational or read-only role.
  */
 export async function requireVerificationOwnerAccess(verificationId: string) {
+  // Authenticate BEFORE reading anything: the id is client-supplied, so an
+  // anonymous caller must get 401 and learn nothing (no 404-vs-403 oracle on
+  // which dossier ids exist, no unauthenticated database read).
+  const caller = await requireAuth();
+
   const verification = await prisma.landlordVerification.findUnique({
     where: { id: verificationId },
     include: { organization: { select: { id: true, name: true, holderType: true } } },
@@ -43,6 +48,7 @@ export async function requireVerificationOwnerAccess(verificationId: string) {
   }
 
   const ctx = await requireOrgMembershipWithVerificationCapability(
+    caller,
     verification.organizationId
   );
 
@@ -50,10 +56,9 @@ export async function requireVerificationOwnerAccess(verificationId: string) {
 }
 
 async function requireOrgMembershipWithVerificationCapability(
+  ctx: AuthContext,
   organizationId: string
 ): Promise<AuthContext> {
-  const ctx = await requireAuth();
-
   const membership = await findActiveMembership(ctx.userId, organizationId);
   const allowed = membership
     ? capabilitiesForOrgRole(membership.orgRole).includes("landlord:manage_verification")
