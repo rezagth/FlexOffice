@@ -1514,6 +1514,11 @@ model DomiciliationRequest {
   /// text, see domiciliation.ts).
   adminNotes String? @map("admin_notes")
 
+  /// MAKOMSPACE kind: acceptance of the licensed domiciliataire's contract,
+  /// with the version of the text accepted. Null for THIRD_PARTY.
+  contractAcceptedAt DateTime? @map("contract_accepted_at") @db.Timestamptz(3)
+  contractVersion    String?   @map("contract_version")
+
   requestedByProfileId String  @map("requested_by_profile_id") @db.Uuid
   requestedBy          Profile @relation("DomiciliationRequestedBy", fields: [requestedByProfileId], references: [id])
   reviewedByProfileId  String? @map("reviewed_by_profile_id") @db.Uuid
@@ -1540,6 +1545,12 @@ model DomiciliationRequest {
 model DomiciliationSettings {
   id                 Int      @id @default(1)
   offerEnabled       Boolean  @default(false) @map("offer_enabled")
+  /// Who actually provides the domiciliation (the licensed domiciliataire) and
+  /// its prefectoral approval number. MakomSpace is only the interface: the
+  /// offer cannot be switched on while these are empty, and both are shown
+  /// to the company before it accepts the contract.
+  domiciliataireName            String? @map("domiciliataire_name")
+  domiciliataireAgrementNumber  String? @map("domiciliataire_agrement_number")
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   updatedByProfileId String?  @map("updated_by_profile_id") @db.Uuid
   updatedBy          Profile? @relation("DomiciliationSettingsUpdatedBy", fields: [updatedByProfileId], references: [id], onDelete: SetNull)

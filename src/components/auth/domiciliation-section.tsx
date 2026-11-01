@@ -37,11 +37,14 @@ export function DomiciliationSection({
   organizationId,
   canEdit,
   domiciliationOfferEnabled,
+  domiciliationProvider,
   initialRequest,
 }: {
   organizationId: string;
   canEdit: boolean;
   domiciliationOfferEnabled: boolean;
+  /** The licensed domiciliataire behind the MakomSpace offer (admin-set). */
+  domiciliationProvider: { name: string; agrementNumber: string } | null;
   initialRequest: DomiciliationRequestSummary | null;
 }) {
   const router = useRouter();
@@ -51,6 +54,7 @@ export function DomiciliationSection({
   const [domiciliationAddress, setDomiciliationAddress] = useState(initialRequest?.address ?? "");
   const [domiciliationCity, setDomiciliationCity] = useState(initialRequest?.city ?? "");
   const [domiciliationPostalCode, setDomiciliationPostalCode] = useState(initialRequest?.postalCode ?? "");
+  const [contractAccepted, setContractAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ tone: "error" | "success" | "info"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
@@ -74,12 +78,13 @@ export function DomiciliationSection({
       domiciliationAddress: domiciliationAddress.trim() || undefined,
       domiciliationCity: domiciliationCity.trim() || undefined,
       domiciliationPostalCode: domiciliationPostalCode.trim() || undefined,
+      domiciliationContractAccepted: kind === "MAKOMSPACE" ? contractAccepted : undefined,
     };
     const parsed = domiciliationRequestSchema.safeParse(payload);
     if (!parsed.success) {
       const next = fieldErrors(parsed.error);
       setErrors(next);
-      focusFirstError(next, ["domiciliationKind", "domiciliataireName", "domiciliationAddress", "domiciliationCity", "domiciliationPostalCode"]);
+      focusFirstError(next, ["domiciliationKind", "domiciliationContractAccepted", "domiciliataireName", "domiciliationAddress", "domiciliationCity", "domiciliationPostalCode"]);
       return;
     }
     setErrors({});
@@ -251,6 +256,35 @@ export function DomiciliationSection({
         )}
         {errors.domiciliationKind && <p className="text-xs text-danger">{errors.domiciliationKind}</p>}
       </fieldset>
+
+      {kind === "MAKOMSPACE" && domiciliationOfferEnabled && (
+        <div className="flex flex-col gap-3 rounded-lg border border-border p-3 text-sm">
+          {domiciliationProvider ? (
+            <p>
+              La domiciliation est assurée par <strong>{domiciliationProvider.name}</strong>, domiciliataire agréé par la
+              préfecture (agrément n° {domiciliationProvider.agrementNumber}). MakomSpace est uniquement l&apos;interface :
+              le contrat de domiciliation est conclu avec ce domiciliataire.
+            </p>
+          ) : (
+            <p className="text-muted-foreground">L&apos;offre n&apos;est pas disponible pour le moment.</p>
+          )}
+          <label className="flex items-start gap-2">
+            <input
+              id="domiciliationContractAccepted"
+              type="checkbox"
+              className="mt-0.5"
+              checked={contractAccepted}
+              onChange={(e) => setContractAccepted(e.target.checked)}
+            />
+            <span>J&apos;accepte le contrat de domiciliation de {domiciliationProvider?.name ?? "ce domiciliataire"}.</span>
+          </label>
+          {errors.domiciliationContractAccepted && (
+            <p role="alert" className="text-xs text-danger">
+              {errors.domiciliationContractAccepted}
+            </p>
+          )}
+        </div>
+      )}
 
       {(kind === "THIRD_PARTY" || !domiciliationOfferEnabled) && (
         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
