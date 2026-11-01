@@ -1,4 +1,5 @@
 import { SITE_NAME } from "@/lib/site";
+import { isProductionDeployment } from "@/server/auth/runtime-config";
 
 /**
  * Invoicing settings — every business assumption the owner has not decided
@@ -109,6 +110,48 @@ export type PlatformIdentity = {
 };
 
 export const PLATFORM_FIELD_PLACEHOLDER = "[à compléter]";
+
+/** Environment variables that make up the platform identity, in the order
+ * the invoice PDF prints them. Names only, never their values. */
+export const PLATFORM_IDENTITY_ENV_KEYS = [
+  "PLATFORM_LEGAL_NAME",
+  "PLATFORM_LEGAL_FORM",
+  "PLATFORM_SHARE_CAPITAL",
+  "PLATFORM_ADDRESS",
+  "PLATFORM_SIRET",
+  "PLATFORM_RCS",
+  "PLATFORM_VAT_NUMBER",
+  "PLATFORM_BILLING_EMAIL",
+] as const;
+
+/** The PLATFORM_* variables that are still empty. */
+export function missingPlatformIdentityKeys(): string[] {
+  return PLATFORM_IDENTITY_ENV_KEYS.filter((key) => env(key) === undefined);
+}
+
+/**
+ * True when this process moves REAL money: a production deployment, the
+ * Stripe provider, and a live secret key. A Stripe test key (`sk_test_…`)
+ * or the mock provider is never "live", so the recette on a production-built
+ * deployment keeps working with the placeholder identity.
+ */
+export function isLiveMoneyMode(): boolean {
+  return (
+    isProductionDeployment() &&
+    env("PAYMENT_PROVIDER") === "stripe" &&
+    (env("STRIPE_SECRET_KEY") ?? "").startsWith("sk_live_")
+  );
+}
+
+/**
+ * C2: an invoice number is sequential and cannot be taken back, so no
+ * numbered document is issued, and no payment is accepted, while real money
+ * is involved and the seller identity printed on the documents is still a
+ * "[à compléter]" placeholder. Test mode, demo and dev are unaffected.
+ */
+export function isPlatformIdentityBlockingIssuance(): boolean {
+  return isLiveMoneyMode() && missingPlatformIdentityKeys().length > 0;
+}
 
 export function getPlatformIdentity(): PlatformIdentity {
   const fields = {

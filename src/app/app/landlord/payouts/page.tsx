@@ -9,7 +9,7 @@ import { formatCents, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABELS = { PENDING: "En cours", PAID: "Versé", FAILED: "À relancer" } as const;
+const STATUS_LABELS = { PENDING: "En cours", PAID: "Versé", FAILED: "À relancer", REVERSED: "En cours de vérification" } as const;
 const DAY = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "Europe/Paris" });
 
 type PayoutLineView = {

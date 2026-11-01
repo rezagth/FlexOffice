@@ -1,5 +1,6 @@
 import { isDemoModeRequested, isProductionDeployment } from "@/server/auth/runtime-config";
 import { cspHeaderName, DEFAULT_POSTHOG_HOST } from "@/server/config/csp";
+import { isPlatformIdentityBlockingIssuance, missingPlatformIdentityKeys } from "@/server/domains/invoicing/config";
 
 /**
  * Production configuration checks.
@@ -63,6 +64,15 @@ function paymentProblems(): ConfigProblem[] {
     }
   }
 
+  // C2 — no real euro before the invoices can carry the platform's identity.
+  if (kind === "stripe" && isPlatformIdentityBlockingIssuance()) {
+    problems.push({
+      key: "PLATFORM_*",
+      area: "payment",
+      message: `Live Stripe keys are configured but the platform identity printed on invoices is incomplete (missing: ${missingPlatformIdentityKeys().join(", ")}). Fill these variables before accepting real payments.`,
+    });
+  }
+
   if (kind === "mock") {
     // Mock payments confirm bookings without charging anyone. Legitimate on
     // a staging environment, never on the real platform — so it takes an
@@ -111,6 +121,15 @@ function otherProblems(): ConfigProblem[] {
         message: "EMAIL_FROM must use a domain verified in Resend — the resend.dev sandbox only delivers to the account owner.",
       });
     }
+  }
+
+  if (env("PAYMENT_PROVIDER") === "stripe" && !env("STRIPE_CONNECT_WEBHOOK_SECRET")) {
+    problems.push({
+      key: "STRIPE_CONNECT_WEBHOOK_SECRET",
+      area: "other",
+      message:
+        "STRIPE_CONNECT_WEBHOOK_SECRET is not set: events on connected accounts (account.updated, payout.failed) are rejected, so landlords only become listed through the 15-minute sweep and failed bank payouts go unseen. Create the \"Connect\" webhook endpoint in Stripe.",
+    });
   }
 
   if (!env("CRON_SECRET")) {

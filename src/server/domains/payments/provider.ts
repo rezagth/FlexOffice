@@ -9,6 +9,8 @@ export type VerifiedWebhookEvent = {
   id: string;
   type: string;
   data: unknown;
+  /** Connected account the event happened on (Stripe Connect endpoint only). */
+  account?: string;
 };
 
 export type CreatePaymentIntentParams = {

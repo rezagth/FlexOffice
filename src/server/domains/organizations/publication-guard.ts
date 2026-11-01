@@ -45,6 +45,35 @@ export function canOrganizationPublish(status: OrganizationStatus): boolean {
 }
 
 /**
+ * C1 — with real payments, a listing whose landlord cannot be paid is a trap:
+ * the visitor goes through the whole funnel and is refused (409) at the
+ * very end. So it is not listed until Stripe says the landlord's Connect
+ * account can take charges AND receive payouts (cached flags, see
+ * stripe-connect.ts; the booking still re-checks Stripe live).
+ *
+ * Only enforced when PAYMENT_PROVIDER=stripe: the mock provider has no
+ * Connect account, and dev / demo / tests must keep showing every listing.
+ */
+export function isConnectReadinessRequired(): boolean {
+  return process.env.PAYMENT_PROVIDER === "stripe";
+}
+
+export type ConnectReadiness = { stripeChargesEnabled: boolean; stripePayoutsEnabled: boolean };
+
+export function isOrganizationPayable(organization: ConnectReadiness): boolean {
+  return !isConnectReadinessRequired() || (organization.stripeChargesEnabled && organization.stripePayoutsEnabled);
+}
+
+/** Prisma `where` for the organization side of "publicly visible". Rebuilt
+ * per call: Prisma's `in` filter is mutable and the env is read lazily. */
+export function publiclyVisibleOrganizationWhere() {
+  return {
+    status: { in: [...STATUSES_ALLOWED_TO_PUBLISH] },
+    ...(isConnectReadinessRequired() ? { stripeChargesEnabled: true, stripePayoutsEnabled: true } : {}),
+  };
+}
+
+/**
  * Asserts that `organizationId` may publish, and returns it.
  *
  * Call this from any handler that publishes, republishes or otherwise makes a

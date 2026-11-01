@@ -14,6 +14,12 @@ import {
   isConnectAccountEventData,
   recordConnectAccountUpdate,
 } from "@/server/domains/payments/stripe-connect";
+import {
+  isStripeBankPayoutEventData,
+  isStripeTransferEventData,
+  recordBankPayoutFailed,
+  recordTransferReversed,
+} from "@/server/domains/payouts/transfer-events";
 import { logEvent } from "@/server/lib/logger";
 import { withErrorHandling } from "@/server/lib/http";
 
@@ -67,8 +73,15 @@ export const POST = withErrorHandling(async (request: Request) => {
     await dispatchDispute(event.data);
   } else if (event.type === "refund.updated" || event.type === "refund.created") {
     await dispatchRefund(event.data);
+  } else if (event.type === "transfer.reversed") {
+    if (isStripeTransferEventData(event.data)) await recordTransferReversed(event.data);
+    else logEvent({ event: "webhook.malformed_transfer_payload" });
+  } else if (event.type === "payout.failed") {
+    if (isStripeBankPayoutEventData(event.data)) await recordBankPayoutFailed(event.data, event.account);
+    else logEvent({ event: "webhook.malformed_payout_payload" });
   } else if (event.type === "account.updated") {
-    // Connect account state, journaled only (see stripe-connect.ts).
+    // Connect account state: journaled, and the listing flags refreshed
+    // from a live read (see stripe-connect.ts).
     if (isConnectAccountEventData(event.data)) await recordConnectAccountUpdate(event.data);
     else logEvent({ event: "webhook.malformed_account_payload" });
   } else {

@@ -385,6 +385,12 @@ model Organization {
   // organization completes onboarding — payouts stay on the mock provider
   // until this is set and PAYMENT_PROVIDER=stripe.
   stripeAccountId         String?            @map("stripe_account_id")
+  /// Cached from Stripe (account.updated webhook, onboarding return, and the
+  /// maintenance sweep). It only decides whether the organization's spaces are
+  /// shown publicly (C1); the booking itself still re-reads Stripe live.
+  stripeChargesEnabled    Boolean            @default(false) @map("stripe_charges_enabled")
+  stripePayoutsEnabled    Boolean            @default(false) @map("stripe_payouts_enabled")
+  stripeStatusSyncedAt    DateTime?          @map("stripe_status_synced_at") @db.Timestamptz(3)
   // Stripe Customer id, distinct from stripeAccountId above: this org as a
   // bill-to party for monthly commission statements (Invoicing), not as a
   // Connect payee. Created lazily on first statement — see
@@ -1305,6 +1311,9 @@ enum PayoutStatus {
   /// The provider refused the transfer; the lines stay attached and the job
   /// retries it (see domains/payouts/run-payouts.ts).
   FAILED
+  /// Stripe took the transfer back (`transfer.reversed`). Never retried
+  /// automatically — paying again is an admin decision (C5).
+  REVERSED
 }
 
 enum PayoutLineKind {

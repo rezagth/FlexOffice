@@ -7,13 +7,19 @@ import { formatCents, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABELS = { PENDING: "En cours", PAID: "Versé", FAILED: "Échec — à relancer" } as const;
+const STATUS_LABELS = {
+  PENDING: "En cours",
+  PAID: "Versé",
+  FAILED: "Échec — à relancer",
+  REVERSED: "Annulé par Stripe — à traiter",
+} as const;
 const FREQUENCY_LABELS = { WEEKLY: "Chaque semaine", MONTHLY: "Chaque mois" } as const;
 
 export default async function AdminPayoutsPage() {
   await requirePageAdmin();
   const { owed, payouts } = await getAdminPayoutOverview();
   const failed = payouts.filter((payout) => payout.status === "FAILED");
+  const reversed = payouts.filter((payout) => payout.status === "REVERSED");
 
   return (
     <div className="flex flex-col gap-6">
@@ -23,6 +29,16 @@ export default async function AdminPayoutsPage() {
         une fois le séjour terminé et le délai de signalement de 24 h écoulé. Les frais d&apos;annulation dus par un
         bailleur sont déduits ; un solde négatif est reporté sur le versement suivant.
       </p>
+
+      {reversed.length > 0 && (
+        <Card className="border-danger p-4">
+          <p role="alert" className="text-sm font-medium text-danger">
+            {reversed.length} versement{reversed.length > 1 ? "s" : ""} annulé{reversed.length > 1 ? "s" : ""} par
+            Stripe : il n&apos;est pas relancé automatiquement. Vérifiez le compte du bailleur dans Stripe avant de
+            décider de le repayer.
+          </p>
+        </Card>
+      )}
 
       {failed.length > 0 && (
         <Card className="border-danger p-4">
