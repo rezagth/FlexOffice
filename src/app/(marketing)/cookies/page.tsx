@@ -107,7 +107,7 @@ export default function CookiesPage() {
       <Section title="4. Questions">
         <p>
           Pour toute question relative aux traceurs, écrivez à{" "}
-          <ToFill>adresse e-mail dédiée</ToFill>. Le traitement des données personnelles est
+          <ToFill field="legalEmail">adresse e-mail dédiée</ToFill>. Le traitement des données personnelles est
           détaillé dans la{" "}
           <Link href="/confidentialite" className="underline">
             politique de confidentialité

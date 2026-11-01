@@ -16,36 +16,35 @@ export default function MentionsLegalesPage() {
         <p>Le site et la plateforme MakomSpace sont édités par :</p>
         <ul className="list-disc pl-5">
           <li>
-            Dénomination sociale : <ToFill>raison sociale</ToFill>
+            Dénomination sociale : <ToFill field="legalName">raison sociale</ToFill>
           </li>
           <li>
-            Forme juridique : <ToFill>SAS, SARL…</ToFill>
+            Forme juridique : <ToFill field="legalForm">SAS, SARL…</ToFill>
           </li>
           <li>
-            Capital social : <ToFill>montant</ToFill>
+            Capital social : <ToFill field="shareCapital">montant</ToFill>
           </li>
           <li>
-            Siège social : <ToFill>adresse complète du siège</ToFill>
+            Siège social : <ToFill field="address">adresse complète du siège</ToFill>
           </li>
           <li>
-            Immatriculation : RCS de <ToFill>ville du greffe</ToFill> sous le numéro{" "}
-            <ToFill>numéro RCS</ToFill>
+            Immatriculation : RCS <ToFill field="rcs">ville du greffe et numéro RCS</ToFill>
           </li>
           <li>
-            Numéro de TVA intracommunautaire : <ToFill>numéro de TVA</ToFill>
+            Numéro de TVA intracommunautaire : <ToFill field="vatNumber">numéro de TVA</ToFill>
           </li>
           <li>
-            Adresse électronique : <ToFill>contact@…</ToFill>
+            Adresse électronique : <ToFill field="contactEmail">contact@…</ToFill>
           </li>
           <li>
-            Téléphone : <ToFill>numéro</ToFill>
+            Téléphone : <ToFill field="phone">numéro</ToFill>
           </li>
         </ul>
       </Section>
 
       <Section title="2. Direction de la publication">
         <p>
-          Directeur de la publication : <ToFill>nom et fonction du représentant légal</ToFill>.
+          Directeur de la publication : <ToFill field="publicationDirector">nom et fonction du représentant légal</ToFill>.
         </p>
       </Section>
 
@@ -53,7 +52,7 @@ export default function MentionsLegalesPage() {
         <p>
           Le site et l&apos;ensemble des données de la plateforme (comptes, réservations,
           fichiers, journaux) sont hébergés en France, sur un serveur dédié exploité par
-          l&apos;éditeur lui-même, <ToFill>raison sociale</ToFill>, dont les coordonnées
+          l&apos;éditeur lui-même, <ToFill field="legalName">raison sociale</ToFill>, dont les coordonnées
           figurent à l&apos;article 1. Les logiciels de base de données,
           d&apos;authentification, de stockage de fichiers, de mesure d&apos;audience et de
           suivi des erreurs sont installés et exploités par l&apos;éditeur sur ce serveur :
@@ -72,7 +71,7 @@ export default function MentionsLegalesPage() {
         <p>
           Conformément au règlement (UE) 2022/2065 sur les services numériques, le
           point de contact unique pour les autorités, les utilisateurs et les
-          signalements est : <ToFill>adresse e-mail dédiée</ToFill>. Les échanges
+          signalements est : <ToFill field="legalEmail">adresse e-mail dédiée</ToFill>. Les échanges
           peuvent avoir lieu en français ou en anglais.
         </p>
       </Section>
@@ -98,7 +97,7 @@ export default function MentionsLegalesPage() {
       <Section title="6. Signalement de contenu illicite">
         <p>
           Tout contenu manifestement illicite peut être signalé à{" "}
-          <ToFill>adresse e-mail de signalement</ToFill>. Le signalement doit préciser
+          <ToFill field="legalEmail">adresse e-mail de signalement</ToFill>. Le signalement doit préciser
           l&apos;adresse du contenu concerné, les motifs pour lesquels il est estimé
           illicite et les coordonnées de la personne à l&apos;origine du signalement.
           Chaque signalement fait l&apos;objet d&apos;un accusé de réception et
