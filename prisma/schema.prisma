@@ -399,6 +399,12 @@ model Organization {
   /// How often this landlord is paid: at the start of each week (Monday) or
   /// of each month (the 1st), Europe/Paris. See domains/payouts.
   payoutFrequency         PayoutFrequency    @default(MONTHLY) @map("payout_frequency")
+  // Legal: acceptance of the partner CGV, which carry the billing mandate
+  // (article 6), by the landlord organization. `partnerTermsVersion` is the
+  // CGV_VERSION in force when accepted; a newer version means re-acceptance.
+  partnerTermsAcceptedAt            DateTime? @map("partner_terms_accepted_at") @db.Timestamptz(3)
+  partnerTermsVersion               String?   @map("partner_terms_version")
+  partnerTermsAcceptedByProfileId   String?   @map("partner_terms_accepted_by_profile_id") @db.Uuid
   createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -707,6 +713,10 @@ model Space {
   /// promise already made.
   cancellationWindowHours Int      @default(48) @map("cancellation_window_hours")
   status             SpaceStatus    @default(DRAFT)
+  // Legal: the landlord's declaration, at each submission, that they have the
+  // right to let this place (owner, or authorized to sublet).
+  rightToLetCertifiedAt          DateTime? @map("right_to_let_certified_at") @db.Timestamptz(3)
+  rightToLetCertifiedByProfileId String?   @map("right_to_let_certified_by_profile_id") @db.Uuid
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 

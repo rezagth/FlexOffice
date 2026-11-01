@@ -6,6 +6,7 @@ import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
 import { SpaceForm, type WeekdayHours } from "@/components/dashboard/space-form";
 import { SubmitSpaceButton } from "@/components/dashboard/submit-space-button";
 import { getMissingProfileItems } from "@/server/domains/users/profile-completion-guard";
+import { organizationNeedsPartnerTerms } from "@/server/domains/organizations/submit-space";
 import { Card } from "@/components/ui/card";
 import { SPACE_STATUS_LABELS } from "@/lib/format";
 
@@ -27,6 +28,7 @@ export default async function EditSpacePage({ params }: { params: Promise<{ id: 
   if (!space) notFound();
 
   const missingProfile = await getMissingProfileItems(ctx.userId);
+  const needsPartnerTerms = await organizationNeedsPartnerTerms(ctx.activeOrgId);
 
   const initialPhotos = space.spacePhotos.map((p) => ({ ...p, url: getPublicPhotoUrl(p.storagePath) }));
 
@@ -47,7 +49,7 @@ export default async function EditSpacePage({ params }: { params: Promise<{ id: 
           </p>
         </div>
         {(space.status === "DRAFT" || space.status === "REJECTED") && (
-          <SubmitSpaceButton spaceId={space.id} missingProfileItems={missingProfile} />
+          <SubmitSpaceButton spaceId={space.id} missingProfileItems={missingProfile} needsPartnerTerms={needsPartnerTerms} />
         )}
       </div>
 

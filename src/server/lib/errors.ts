@@ -37,6 +37,14 @@ export class ProfileIncompleteError extends AppError {
   }
 }
 
+/** 409 with its own code: the landlord must tick the partner CGV (billing
+ * mandate) and/or the right-to-let declaration before submitting a space. */
+export class LegalAcceptanceRequiredError extends AppError {
+  constructor(message = "Une acceptation est requise avant de continuer.") {
+    super(message, "LEGAL_ACCEPTANCE_REQUIRED", 409);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = "Élément introuvable.") {
     super(message, "NOT_FOUND", 404);

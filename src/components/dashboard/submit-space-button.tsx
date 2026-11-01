@@ -15,25 +15,35 @@ import { Button } from "@/components/ui/button";
 export function SubmitSpaceButton({
   spaceId,
   missingProfileItems = [],
+  needsPartnerTerms = true,
 }: {
   spaceId: string;
   missingProfileItems?: string[];
+  /** True until the organization has accepted the CGV version in force. */
+  needsPartnerTerms?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileBlocked, setProfileBlocked] = useState(false);
+  const [acceptPartnerTerms, setAcceptPartnerTerms] = useState(false);
+  const [certifyRightToLet, setCertifyRightToLet] = useState(false);
 
   const completeProfileHref = `/app/complete-profile?redirectTo=${encodeURIComponent(pathname ?? "/app/landlord")}`;
   const blocked = missingProfileItems.length > 0;
+  const consentMissing = !certifyRightToLet || (needsPartnerTerms && !acceptPartnerTerms);
 
   async function submit() {
     setPending(true);
     setError(null);
     setProfileBlocked(false);
     try {
-      const response = await fetch(`/api/partner/spaces/${spaceId}/submit`, { method: "POST" });
+      const response = await fetch(`/api/partner/spaces/${spaceId}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acceptPartnerTerms: needsPartnerTerms ? acceptPartnerTerms : undefined, certifyRightToLet }),
+      });
       if (!response.ok) {
         const body = await response.json();
         setError(body?.error?.message ?? "La soumission a échoué.");
@@ -50,7 +60,37 @@ export function SubmitSpaceButton({
 
   return (
     <div className="flex max-w-sm flex-col items-end gap-2">
-      <Button onClick={submit} disabled={pending || blocked}>
+      {!blocked && (
+        <div className="flex flex-col gap-2 text-left text-xs text-foreground">
+          {needsPartnerTerms && (
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={acceptPartnerTerms}
+                onChange={(e) => setAcceptPartnerTerms(e.target.checked)}
+              />
+              <span>
+                J&apos;accepte les{" "}
+                <Link href="/cgv" target="_blank" className="font-medium underline">
+                  conditions générales de vente partenaires
+                </Link>
+                , dont le mandat de facturation (article 6).
+              </span>
+            </label>
+          )}
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={certifyRightToLet}
+              onChange={(e) => setCertifyRightToLet(e.target.checked)}
+            />
+            <span>Je certifie avoir le droit de proposer ce lieu : je suis propriétaire, ou autorisé à le sous-louer.</span>
+          </label>
+        </div>
+      )}
+      <Button onClick={submit} disabled={pending || blocked || consentMissing}>
         {pending ? "Envoi…" : "Soumettre pour validation"}
       </Button>
       {blocked && (
