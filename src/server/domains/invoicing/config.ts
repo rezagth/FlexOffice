@@ -39,6 +39,11 @@ export const VAT_EXEMPTION_MENTION = "TVA non applicable, art. 293 B du CGI";
 export const LATE_PAYMENT_MENTION =
   "En cas de retard de paiement, des pénalités calculées au taux d'intérêt appliqué par la Banque centrale européenne à son opération de refinancement la plus récente majoré de 10 points sont exigibles de plein droit, ainsi qu'une indemnité forfaitaire pour frais de recouvrement de 40 € (art. L.441-10 et D.441-5 du Code de commerce). Pas d'escompte pour paiement anticipé.";
 
+/** Mandatory since 1 Oct 2023 (CGI art. 242 nonies A): the category of the
+ * operation. Everything the platform invoices is a service. The option for
+ * VAT on debits, when a seller has taken it, is an accountant's matter (H1). */
+export const OPERATION_CATEGORY_MENTION = "Catégorie de l'opération : prestation de services.";
+
 export function billingMandateMention(landlordLegalName: string): string {
   return `Facture émise par ${PLATFORM_DISPLAY_NAME} au nom et pour le compte de ${landlordLegalName} en vertu d'un mandat de facturation.`;
 }
