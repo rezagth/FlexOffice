@@ -28,6 +28,15 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/** 403 with its own code so the UI can offer the way out (the profile
+ * completion screen) instead of a bare message. The message names exactly
+ * what is missing. */
+export class ProfileIncompleteError extends AppError {
+  constructor(message = "Complétez votre profil avant de continuer.") {
+    super(message, "PROFILE_INCOMPLETE", 403);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = "Élément introuvable.") {
     super(message, "NOT_FOUND", 404);

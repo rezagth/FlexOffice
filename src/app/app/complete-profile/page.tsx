@@ -4,7 +4,8 @@ import { Card } from "@/components/ui/card";
 import { AccountPhoneForm } from "@/components/auth/account-phone-form";
 import { CompleteProfileForm } from "@/components/auth/complete-profile-form";
 import { safeRedirectPath } from "@/lib/validation/redirect";
-import { isCompanyInfoComplete, isProfileComplete } from "@/server/domains/users/profile-completion";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
+import { getTenantOnboarding } from "@/server/domains/users/tenant-onboarding";
 import { getOwnProfile } from "@/server/domains/users/profile";
 import { prisma } from "@/server/db/prisma";
 
@@ -22,17 +23,20 @@ export default async function CompleteProfilePage({
   searchParams,
 }: PageProps<"/app/complete-profile">) {
   const ctx = await requirePageAuth({ redirectTo: "/app/complete-profile" });
-  const [profile, { redirectTo }, existingMembership] = await Promise.all([
+  const [profile, { redirectTo }, existingMembership, onboarding] = await Promise.all([
     getOwnProfile(ctx.userId),
     searchParams,
     prisma.organizationMember.findFirst({
       where: { profileId: ctx.userId, status: "ACTIVE" },
       select: { organizationId: true },
     }),
+    getTenantOnboarding(ctx.userId),
   ]);
   const backHref = typeof redirectTo === "string" ? safeRedirectPath(redirectTo, "") : "";
 
-  if (profile && isProfileComplete(profile) && (await isCompanyInfoComplete(ctx.userId))) {
+  // "Done" is the same fact the booking page and the booking API check, so
+  // this page and the funnel can never send each other in circles.
+  if (onboarding.readyToBook) {
     redirect(backHref || "/app/account");
   }
 
@@ -41,18 +45,26 @@ export default async function CompleteProfilePage({
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Complétez votre profil</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Ces informations sont nécessaires avant de réserver ou de publier un espace. Votre
-          compte reste accessible normalement en attendant.
+          {backHref
+            ? "Vous avez demandé à réserver un espace. Avant de continuer, voici ce qu'il reste à faire : "
+            : "Ces informations sont nécessaires avant de réserver ou de publier un espace. "}
+          Votre compte reste accessible normalement en attendant.
         </p>
       </div>
+      <OnboardingChecklist
+        onboarding={onboarding}
+        title="Ce qu'il reste à faire"
+        intro="Chaque étape se termine d'un clic. Dès que tout est fait, vous revenez automatiquement à votre réservation."
+      />
       <Card className="flex flex-col gap-6 p-5">
+        <div id="profil" />
         <CompleteProfileForm
           initialNeed={profile?.accountNeed ?? ""}
           initialHolderType={profile?.holderType ?? ""}
           hasOrganization={Boolean(existingMembership)}
           backHref={backHref}
         />
-        <div className="border-t border-border pt-6">
+        <div id="telephone" className="border-t border-border pt-6">
           <h2 className="mb-4 text-sm font-medium text-foreground">Téléphone</h2>
           <AccountPhoneForm
             phone={profile?.phone ?? null}

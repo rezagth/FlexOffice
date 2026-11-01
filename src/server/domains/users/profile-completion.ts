@@ -18,16 +18,42 @@ import { isPhoneVerificationRequired } from "@/server/auth/runtime-config";
  * the pre-2B behavior, kept available for a production deployment that has
  * no real SMS provider wired up yet.
  */
-export function isProfileComplete(profile: {
+type ProfileCompletionInput = {
   phone: string | null;
   phoneVerifiedAt: Date | null;
   accountNeed: AccountNeed | null;
   holderType: HolderType | null;
-}): boolean {
-  const phoneOk = isPhoneVerificationRequired()
-    ? profile.phoneVerifiedAt !== null
-    : Boolean(profile.phone?.trim());
-  return phoneOk && profile.accountNeed !== null && profile.holderType !== null;
+};
+
+/**
+ * What is still missing, in plain French, in the order the user should do it.
+ * Single source for both the rule (`isProfileComplete`) and the messages
+ * shown on the publish / book screens, so the two can never disagree.
+ */
+export function missingProfileItems(profile: ProfileCompletionInput): string[] {
+  const missing: string[] = [];
+  if (isPhoneVerificationRequired()) {
+    if (profile.phoneVerifiedAt === null) {
+      missing.push(
+        profile.phone?.trim()
+          ? "vérifier votre numéro de téléphone (code reçu par SMS)"
+          : "renseigner et vérifier votre numéro de téléphone (code reçu par SMS)"
+      );
+    }
+  } else if (!profile.phone?.trim()) {
+    missing.push("renseigner votre numéro de téléphone");
+  }
+  if (profile.accountNeed === null) {
+    missing.push("indiquer si vous cherchez ou publiez un espace");
+  }
+  if (profile.holderType === null) {
+    missing.push("indiquer si vous agissez en tant que particulier ou société");
+  }
+  return missing;
+}
+
+export function isProfileComplete(profile: ProfileCompletionInput): boolean {
+  return missingProfileItems(profile).length === 0;
 }
 
 /**
