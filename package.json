@@ -24,7 +24,8 @@
     "stripe:listen": "stripe listen --forward-to localhost:3000/api/webhooks/stripe",
     "audit:prod": "node scripts/audit-prod.mjs",
     "admin:promote": "tsx scripts/promote-admin.ts",
-    "check:legal": "tsx scripts/check-legal.ts"
+    "check:legal": "tsx scripts/check-legal.ts",
+    "cleanup:test-data": "tsx scripts/cleanup-test-data.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
