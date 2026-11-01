@@ -4,6 +4,7 @@ import { recordAudit } from "@/server/lib/audit";
 import { logError, logEvent } from "@/server/lib/logger";
 import { getPaymentProvider } from "@/server/domains/payments/get-payment-provider";
 import { sendPayoutPaid } from "@/server/domains/notifications/send-payout-emails";
+import { isTaxInfoComplete, TAX_INFO_SELECT } from "@/server/domains/organizations/tax-info";
 import { dueBoundary } from "./schedule";
 import { OPEN_DISPUTE_STATUSES, OPEN_STRIPE_DISPUTE_STATUSES, syncEarningLines } from "./lines";
 
@@ -58,7 +59,7 @@ export async function runDuePayouts(now: Date = new Date()): Promise<PayoutRunRe
   // 2. New payouts.
   const organizations = await prisma.organization.findMany({
     where: { payoutLines: { some: { payoutId: null } } },
-    select: { id: true, payoutFrequency: true, stripeAccountId: true },
+    select: { id: true, payoutFrequency: true, stripeAccountId: true, ...TAX_INFO_SELECT },
   });
 
   for (const organization of organizations) {
@@ -81,6 +82,14 @@ export async function runDuePayouts(now: Date = new Date()): Promise<PayoutRunRe
     const total = lines.reduce((sum, line) => sum + line.amountCents, 0);
     if (total <= 0) {
       result.carriedOver += 1;
+      continue;
+    }
+
+    // DAC7: no payout until the landlord's tax identity is on file. The lines
+    // stay open — nothing is lost, the landlord completes it on the payouts page.
+    if (!isTaxInfoComplete(organization)) {
+      logEvent({ event: "payout.waiting_for_tax_info", organization_id: organization.id, amount_cents: total });
+      result.waiting += 1;
       continue;
     }
 

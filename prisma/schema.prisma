@@ -404,6 +404,11 @@ model Organization {
   // Legal: acceptance of the partner CGV, which carry the billing mandate
   // (article 6), by the landlord organization. `partnerTermsVersion` is the
   // CGV_VERSION in force when accepted; a newer version means re-acceptance.
+  // DAC7 (EU reporting by platforms): tax identity of the landlord, collected
+  // before the first payout. `representativeBirthDate` only for an individual.
+  taxResidenceCountry     String?   @map("tax_residence_country")
+  taxIdentificationNumber String?   @map("tax_identification_number")
+  representativeBirthDate DateTime? @map("representative_birth_date") @db.Date
   partnerTermsAcceptedAt            DateTime? @map("partner_terms_accepted_at") @db.Timestamptz(3)
   partnerTermsVersion               String?   @map("partner_terms_version")
   partnerTermsAcceptedByProfileId   String?   @map("partner_terms_accepted_by_profile_id") @db.Uuid

@@ -130,6 +130,9 @@ export async function createTestOrganization(options: { name?: string; city?: st
       name,
       legalName: name,
       siret: uniqueSiret(),
+      // DAC7: payouts wait for the tax identity; a French company with a
+      // SIRET is complete once its country of tax residence is set.
+      taxResidenceCountry: "FR",
       email: `org-${suffix}@test.local`,
       address: "1 rue de Test",
       city: options.city ?? "Paris",
