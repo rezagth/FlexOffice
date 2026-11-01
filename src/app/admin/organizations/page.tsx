@@ -72,7 +72,11 @@ export default async function AdminOrganizationsPage({
         <Link href="/admin/verifications" className="underline hover:no-underline">
           Vérifications
         </Link>
-        . Voici les entreprises inscrites à date, avec leur statut.
+        . Voici les entreprises inscrites à date, avec leur statut. Les sociétés à valider se traitent dans{" "}
+        <Link href="/admin/review-queue" className="underline hover:no-underline">
+          À traiter
+        </Link>
+        .
       </p>
 
       <form className="flex max-w-md gap-2">

@@ -71,9 +71,26 @@ export default async function AdminDashboardPage() {
             )}
           </p>
         </div>
-        <ButtonLink href="/admin/review-queue" variant="outline" size="sm">
-          Voir la file
-        </ButtonLink>
+        <div className="flex flex-col items-end gap-1">
+          <ButtonLink href="/admin/review-queue" variant="primary" size="sm">
+            Traiter les demandes
+          </ButtonLink>
+          {reviewQueue.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {[
+                ["organization", "société(s)"],
+                ["space", "espace(s)"],
+                ["verification", "dossier(s) bailleur"],
+                ["domiciliation", "domiciliation(s)"],
+                ["promotion", "promotion(s)"],
+              ]
+                .map(([kind, label]) => [reviewQueue.filter((i) => i.kind === kind).length, label] as const)
+                .filter(([n]) => n > 0)
+                .map(([n, label]) => `${n} ${label}`)
+                .join(" · ")}
+            </p>
+          )}
+        </div>
       </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
