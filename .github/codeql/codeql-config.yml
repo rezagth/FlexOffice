@@ -1,0 +1,6 @@
+name: "Config CodeQL MakomSpace"
+
+# Les maquettes HTML de docs/ sont de la documentation statique : elles ne sont
+# ni compilées ni déployées. On analyse le code de l'application, pas les maquettes.
+paths-ignore:
+  - docs

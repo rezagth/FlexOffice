@@ -121,7 +121,7 @@ test.describe("locataire connecté", () => {
 
   test("l'espace bailleur propose de devenir bailleur (compte non bailleur)", async ({ page }) => {
     await page.goto("/app/landlord/listings");
-    await expect(page).toHaveURL(/become-landlord|\/app$/);
+    await expect(page).toHaveURL(/(?:become-landlord|\/app$)/);
   });
 
   test("les API d'administration répondent 403", async ({ request }) => {
