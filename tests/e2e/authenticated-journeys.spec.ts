@@ -37,7 +37,7 @@ async function login(page: Page, who: Account) {
   await decideCookies(page);
   await page.goto("/login");
   await page.getByLabel("Email").fill(who.email);
-  await page.getByLabel("Mot de passe").fill(who.password);
+  await page.locator("#password").fill(who.password);
   await page.getByRole("button", { name: /se connecter|connexion/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
 }
@@ -57,7 +57,7 @@ test.describe("connexion", () => {
     await decideCookies(page);
     await page.goto("/login");
     await page.getByLabel("Email").fill("inconnu@test.invalid");
-    await page.getByLabel("Mot de passe").fill("MauvaisMotDePasse!123");
+    await page.locator("#password").fill("MauvaisMotDePasse!123");
     await page.getByRole("button", { name: /se connecter|connexion/i }).click();
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByRole("alert").or(page.getByText(/incorrect|invalide|erreur/i)).first()).toBeVisible();
@@ -67,7 +67,7 @@ test.describe("connexion", () => {
     await decideCookies(page);
     await page.goto("/login");
     await page.getByLabel("Email").fill("inconnu@test.invalid");
-    await page.getByLabel("Mot de passe").fill("MauvaisMotDePasse!123");
+    await page.locator("#password").fill("MauvaisMotDePasse!123");
     await page.getByRole("button", { name: /se connecter|connexion/i }).click();
     await expect(page.locator("body")).not.toContainText(/compte (introuvable|inexistant)|utilisateur inconnu/i);
   });
@@ -78,7 +78,7 @@ test.describe("connexion", () => {
     await page.goto("/app/bookings");
     await expect(page).toHaveURL(/\/login/);
     await page.getByLabel("Email").fill(tenant!.email);
-    await page.getByLabel("Mot de passe").fill(tenant!.password);
+    await page.locator("#password").fill(tenant!.password);
     await page.getByRole("button", { name: /se connecter|connexion/i }).click();
     await page.waitForURL(/\/app\/bookings/, { timeout: 20_000 });
   });
@@ -88,7 +88,7 @@ test.describe("connexion", () => {
     await decideCookies(page);
     await page.goto("/login?redirectTo=https://evil.example/phish");
     await page.getByLabel("Email").fill(tenant!.email);
-    await page.getByLabel("Mot de passe").fill(tenant!.password);
+    await page.locator("#password").fill(tenant!.password);
     await page.getByRole("button", { name: /se connecter|connexion/i }).click();
     await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20_000 });
     expect(new URL(page.url()).hostname).not.toBe("evil.example");

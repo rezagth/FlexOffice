@@ -38,13 +38,22 @@ test.describe("parcours publics (mode démo)", () => {
     await expect(page).toHaveURL(/\/login\?redirectTo=%2Fapp/);
   });
 
-  test("inscription : validation côté client et acceptation des CGU", async ({ decidedVisitor: page }) => {
+  test("inscription : le parcours en étapes bloque une étape vide puis avance", async ({ decidedVisitor: page }) => {
     await page.goto("/register");
     await expect(page).toHaveTitle(/Inscription/);
-    await page.getByRole("button", { name: /Créer|inscri/i }).click();
-    // Empty form: errors are announced on the fields, nothing is sent.
-    await expect(page.locator('[aria-invalid="true"]').first()).toBeVisible();
-    await expect(page.getByLabel(/CGU|conditions/i).first()).toBeVisible();
+
+    // Étape 1 (« Besoin ») : rien n'est choisi, « Suivant » ne fait pas avancer.
+    await expect(page.getByText("Que souhaitez-vous faire ?")).toBeVisible();
+    await page.getByRole("button", { name: "Suivant" }).click();
+    await expect(page.getByText("Que souhaitez-vous faire ?")).toBeVisible();
+    await expect(page.getByText("Vous êtes…")).toHaveCount(0);
+
+    // Un choix fait avancer à l'étape « Profil ».
+    await page.getByRole("radio", { name: "Je cherche un espace" }).click();
+    await page.getByRole("button", { name: "Suivant" }).click();
+    await expect(page.getByText("Vous êtes…")).toBeVisible();
+    // L'acceptation des CGU est sur la dernière étape (« Compte ») ; elle est couverte
+    // par les tests unitaires du parcours d'inscription et d'intégration des CGU.
   });
 
   test("pages légales et liens du pied de page", async ({ decidedVisitor: page }) => {
