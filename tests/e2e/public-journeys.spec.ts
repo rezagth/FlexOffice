@@ -1,7 +1,7 @@
 import { test, expect } from "./fixtures";
 
 test.describe("parcours publics (mode démo)", () => {
-  test("accueil : marque, titre et recherche par ville", async ({ decidedVisitor: page, isMobile }) => {
+  test("accueil : marque, titre et recherche par ville @smoke", async ({ decidedVisitor: page, isMobile }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/MakomSpace/);
     await expect(page.getByRole("link", { name: /MakomSpace — accueil/ }).first()).toBeVisible();
@@ -38,22 +38,22 @@ test.describe("parcours publics (mode démo)", () => {
     await expect(page).toHaveURL(/\/login\?redirectTo=%2Fapp/);
   });
 
-  test("inscription : le parcours en étapes bloque une étape vide puis avance", async ({ decidedVisitor: page }) => {
+  test("inscription : le parcours en étapes bloque une étape vide puis avance @smoke", async ({ decidedVisitor: page }) => {
     await page.goto("/register");
     await expect(page).toHaveTitle(/Inscription/);
 
-    // Étape 1 (« Besoin ») : rien n'est choisi, « Suivant » ne fait pas avancer.
-    await expect(page.getByText("Que souhaitez-vous faire ?")).toBeVisible();
-    await page.getByRole("button", { name: "Suivant" }).click();
-    await expect(page.getByText("Que souhaitez-vous faire ?")).toBeVisible();
-    await expect(page.getByText("Vous êtes…")).toHaveCount(0);
+    // Étape « Besoin » : rien n'est choisi, « Suivant » ne fait pas avancer.
+    await expect(page.getByTestId("signup-step-need")).toBeVisible();
+    await page.getByTestId("signup-next").click();
+    await expect(page.getByTestId("signup-step-need")).toBeVisible();
+    await expect(page.getByTestId("signup-step-profile")).toHaveCount(0);
 
     // Un choix fait avancer à l'étape « Profil ».
-    await page.getByRole("radio", { name: "Je cherche un espace" }).click();
-    await page.getByRole("button", { name: "Suivant" }).click();
-    await expect(page.getByText("Vous êtes…")).toBeVisible();
-    // L'acceptation des CGU est sur la dernière étape (« Compte ») ; elle est couverte
-    // par les tests unitaires du parcours d'inscription et d'intégration des CGU.
+    await page.getByTestId("signup-need-search").click();
+    await page.getByTestId("signup-next").click();
+    await expect(page.getByTestId("signup-step-profile")).toBeVisible();
+    // L'acceptation des CGU (signup-accept-terms) est sur la dernière étape ; elle est
+    // vérifiée par les tests unitaires du parcours d'inscription.
   });
 
   test("pages légales et liens du pied de page", async ({ decidedVisitor: page }) => {

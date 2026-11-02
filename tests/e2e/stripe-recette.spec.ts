@@ -45,9 +45,9 @@ async function dismissConsent(page: Page) {
 
 async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.locator("#password").fill(password);
-  await page.getByRole("button", { name: /connexion|se connecter/i }).click();
+  await page.getByTestId("login-email").fill(email);
+  await page.getByTestId("login-password").fill(password);
+  await page.getByTestId("login-submit").click();
   await expect(page).toHaveURL(/\/app/);
 }
 

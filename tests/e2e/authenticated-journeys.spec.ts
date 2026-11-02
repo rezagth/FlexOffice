@@ -36,9 +36,9 @@ async function decideCookies(page: Page) {
 async function login(page: Page, who: Account) {
   await decideCookies(page);
   await page.goto("/login");
-  await page.getByLabel("Email").fill(who.email);
-  await page.locator("#password").fill(who.password);
-  await page.getByRole("button", { name: /se connecter|connexion/i }).click();
+  await page.getByTestId("login-email").fill(who.email);
+  await page.getByTestId("login-password").fill(who.password);
+  await page.getByTestId("login-submit").click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
 }
 
@@ -53,22 +53,22 @@ async function expectHealthyPage(page: Page, path: string) {
 }
 
 test.describe("connexion", () => {
-  test("un mauvais mot de passe affiche une erreur et reste sur /login", async ({ page }) => {
+  test("un mauvais mot de passe affiche une erreur et reste sur /login @smoke", async ({ page }) => {
     await decideCookies(page);
     await page.goto("/login");
-    await page.getByLabel("Email").fill("inconnu@test.invalid");
-    await page.locator("#password").fill("MauvaisMotDePasse!123");
-    await page.getByRole("button", { name: /se connecter|connexion/i }).click();
+    await page.getByTestId("login-email").fill("inconnu@test.invalid");
+    await page.getByTestId("login-password").fill("MauvaisMotDePasse!123");
+    await page.getByTestId("login-submit").click();
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByRole("alert").or(page.getByText(/incorrect|invalide|erreur/i)).first()).toBeVisible();
+    await expect(page.getByTestId("login-error")).toBeVisible();
   });
 
   test("le message d'erreur ne révèle pas si le compte existe", async ({ page }) => {
     await decideCookies(page);
     await page.goto("/login");
-    await page.getByLabel("Email").fill("inconnu@test.invalid");
-    await page.locator("#password").fill("MauvaisMotDePasse!123");
-    await page.getByRole("button", { name: /se connecter|connexion/i }).click();
+    await page.getByTestId("login-email").fill("inconnu@test.invalid");
+    await page.getByTestId("login-password").fill("MauvaisMotDePasse!123");
+    await page.getByTestId("login-submit").click();
     await expect(page.locator("body")).not.toContainText(/compte (introuvable|inexistant)|utilisateur inconnu/i);
   });
 
@@ -77,9 +77,9 @@ test.describe("connexion", () => {
     await decideCookies(page);
     await page.goto("/app/bookings");
     await expect(page).toHaveURL(/\/login/);
-    await page.getByLabel("Email").fill(tenant!.email);
-    await page.locator("#password").fill(tenant!.password);
-    await page.getByRole("button", { name: /se connecter|connexion/i }).click();
+    await page.getByTestId("login-email").fill(tenant!.email);
+    await page.getByTestId("login-password").fill(tenant!.password);
+    await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/app\/bookings/, { timeout: 20_000 });
   });
 
@@ -87,9 +87,9 @@ test.describe("connexion", () => {
     test.skip(!tenant, "E2E_TENANT_* non fournis");
     await decideCookies(page);
     await page.goto("/login?redirectTo=https://evil.example/phish");
-    await page.getByLabel("Email").fill(tenant!.email);
-    await page.locator("#password").fill(tenant!.password);
-    await page.getByRole("button", { name: /se connecter|connexion/i }).click();
+    await page.getByTestId("login-email").fill(tenant!.email);
+    await page.getByTestId("login-password").fill(tenant!.password);
+    await page.getByTestId("login-submit").click();
     await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20_000 });
     expect(new URL(page.url()).hostname).not.toBe("evil.example");
   });
