@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { SignupWizard } from "@/components/auth/signup-wizard";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { isDomiciliationOfferEnabled } from "@/server/domains/organizations/domiciliation";
 
 export const metadata = { title: "Inscription — MakomSpace" };
 export const dynamic = "force-dynamic";
 
 export default async function RegisterPage() {
-  const domiciliationOfferEnabled = await isDomiciliationOfferEnabled();
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-16">
       <Link href="/" className="mb-8 text-foreground" aria-label="MakomSpace — accueil">
@@ -18,7 +16,10 @@ export default async function RegisterPage() {
         Quelques étapes pour configurer votre compte.
       </p>
       <div className="mt-6">
-        <SignupWizard domiciliationOfferEnabled={domiciliationOfferEnabled} />
+        {/* The MakomSpace domiciliation offer is requested from "Mon compte", where the
+            licensed domiciliataire and its contract are shown and accepted; the
+            wizard only offers "déjà domicilié ailleurs". */}
+        <SignupWizard domiciliationOfferEnabled={false} />
       </div>
       <p className="mt-6 text-sm text-muted-foreground">
         Déjà un compte ?{" "}

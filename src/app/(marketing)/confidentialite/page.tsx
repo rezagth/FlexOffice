@@ -15,13 +15,13 @@ export default function ConfidentialitePage() {
     >
       <Section title="1. Responsable du traitement">
         <p>
-          Le responsable du traitement est <ToFill>raison sociale</ToFill>,{" "}
-          <ToFill>adresse du siège</ToFill>. Toute question relative aux données
-          personnelles peut être adressée à <ToFill>adresse e-mail dédiée</ToFill>.
+          Le responsable du traitement est <ToFill field="legalName">raison sociale</ToFill>,{" "}
+          <ToFill field="address">adresse du siège</ToFill>. Toute question relative aux données
+          personnelles peut être adressée à <ToFill field="legalEmail">adresse e-mail dédiée</ToFill>.
         </p>
         <p>
           Délégué à la protection des données :{" "}
-          <ToFill>coordonnées du DPO, ou « non désigné » si aucun n&apos;est requis</ToFill>.
+          <ToFill field="dpo">coordonnées du DPO, ou « non désigné » si aucun n&apos;est requis</ToFill>.
         </p>
       </Section>
 
@@ -320,7 +320,7 @@ export default function ConfidentialitePage() {
           , sans que cela affecte la licéité du traitement effectué avant ce retrait.
         </p>
         <p>
-          Pour les autres droits, écrivez à <ToFill>adresse e-mail dédiée</ToFill>. Une
+          Pour les autres droits, écrivez à <ToFill field="legalEmail">adresse e-mail dédiée</ToFill>. Une
           réponse est apportée dans un délai d&apos;un mois, prolongeable de deux mois
           en cas de complexité. Un justificatif d&apos;identité peut être demandé en cas
           de doute raisonnable sur l&apos;identité du demandeur.

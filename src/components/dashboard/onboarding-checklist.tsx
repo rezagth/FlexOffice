@@ -1,5 +1,4 @@
 import { Check, Clock } from "lucide-react";
-import type { LandlordOnboarding } from "@/server/domains/organizations/onboarding";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -9,7 +8,24 @@ import { cn } from "@/lib/utils";
  * step to do is the only one with a primary button, so the page always says
  * what to do now.
  */
-export function OnboardingChecklist({ onboarding }: { onboarding: LandlordOnboarding }) {
+type ChecklistStep = {
+  id: string;
+  title: string;
+  description: string;
+  state: "done" | "todo" | "waiting";
+  href?: string;
+  cta?: string;
+};
+
+export function OnboardingChecklist({
+  onboarding,
+  title = "Premiers pas",
+  intro = "Quelques étapes pour mettre votre premier espace en ligne et recevoir vos premières réservations.",
+}: {
+  onboarding: { steps: ChecklistStep[]; doneCount: number };
+  title?: string;
+  intro?: string;
+}) {
   const { steps, doneCount } = onboarding;
   const nextId = steps.find((s) => s.state === "todo" && s.href)?.id;
   const percent = Math.round((doneCount / steps.length) * 100);
@@ -18,10 +34,8 @@ export function OnboardingChecklist({ onboarding }: { onboarding: LandlordOnboar
     <Card className="flex flex-col gap-4 p-5 sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Premiers pas</h2>
-          <p className="text-sm text-muted-foreground">
-            Quelques étapes pour mettre votre premier espace en ligne et recevoir vos premières réservations.
-          </p>
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          <p className="text-sm text-muted-foreground">{intro}</p>
         </div>
         <p className="text-sm font-medium text-foreground">
           {doneCount} sur {steps.length} ({percent}%)

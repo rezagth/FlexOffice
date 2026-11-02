@@ -103,10 +103,18 @@ export async function registerFromWizard(
   // R15: recorded unconditionally (unlike termsAcceptedAt above, this isn't
   // a once-only fact) — the wizard is the only place a brand-new account
   // answers this, so there's never a prior value to protect here.
-  await prisma.profile.update({
+  const declared = await prisma.profile.updateMany({
     where: { id: user.id },
     data: { accountNeed: input.need, holderType: input.holderType },
   });
+  if (declared.count === 0) {
+    // No profile behind the id the auth provider returned: it was an
+    // obfuscated answer for an address that already exists (SEC-15). Same
+    // neutral outcome as a brand-new address, never a 500 that would
+    // distinguish the two.
+    logEvent({ event: "auth.register_existing_address", account_scope: await accountKey(input.email) });
+    return { status: "CONFIRMATION_REQUIRED" };
+  }
   await recordAudit({
     event: "user.registered",
     actorUserId: user.id,

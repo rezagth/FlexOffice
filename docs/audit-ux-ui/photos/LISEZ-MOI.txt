@@ -1,0 +1,7 @@
+Photos provisoires de la maquette (maquette.html)
+
+Origine : export Stitch "stitch_officeflex_marketplace" (fichiers code.html), adresses lh3.googleusercontent.com.
+Nature  : images GENEREES PAR IA (les textes alternatifs de l'export sont des instructions de generation).
+Statut  : illustration temporaire uniquement. A remplacer par de vraies photographies de bailleurs (lot 5 du plan).
+Ne pas publier en production, ne pas presenter comme des espaces reels de la plateforme.
+Definition : 512 x 279 px, donc volontairement douce en grand format.

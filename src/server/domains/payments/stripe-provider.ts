@@ -23,6 +23,9 @@ export class StripePaymentProvider implements PaymentProvider {
   readonly signatureHeaderName = "stripe-signature";
   private readonly stripe: Stripe;
   private readonly webhookSecret: string;
+  /** Signing secret of the separate "events on connected accounts" endpoint.
+   * Stripe gives each endpoint its own secret; optional until it exists. */
+  private readonly connectWebhookSecret: string | undefined;
 
   constructor() {
     const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -35,6 +38,7 @@ export class StripePaymentProvider implements PaymentProvider {
     // response behavior for this app (stripe-best-practices reference).
     this.stripe = new Stripe(secretKey, { apiVersion: "2026-08-26.dahlia" });
     this.webhookSecret = webhookSecret;
+    this.connectWebhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || undefined;
   }
 
   async createPaymentIntent(params: CreatePaymentIntentParams): Promise<CreatePaymentIntentResult> {
@@ -177,16 +181,19 @@ export class StripePaymentProvider implements PaymentProvider {
     if (!signatureHeader) {
       throw new ValidationError("Missing Stripe-Signature header");
     }
-    let event: Stripe.Event;
-    try {
-      event = this.stripe.webhooks.constructEvent(
-        rawBody,
-        signatureHeader,
-        this.webhookSecret
-      );
-    } catch {
-      throw new ValidationError("Invalid Stripe webhook signature");
+    // The platform endpoint and the Connect endpoint sign with different
+    // secrets: accept an event signed by either, nothing else.
+    const secrets = [this.webhookSecret, ...(this.connectWebhookSecret ? [this.connectWebhookSecret] : [])];
+    let event: Stripe.Event | undefined;
+    for (const secret of secrets) {
+      try {
+        event = this.stripe.webhooks.constructEvent(rawBody, signatureHeader, secret);
+        break;
+      } catch {
+        // try the next secret
+      }
     }
-    return { id: event.id, type: event.type, data: event.data.object };
+    if (!event) throw new ValidationError("Invalid Stripe webhook signature");
+    return { id: event.id, type: event.type, data: event.data.object, ...(event.account ? { account: event.account } : {}) };
   }
 }

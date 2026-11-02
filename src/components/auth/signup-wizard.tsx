@@ -416,7 +416,7 @@ export function SignupWizard({
       {formError && <FormMessage tone="error">{formError}</FormMessage>}
 
       {step === 0 && (
-        <fieldset className="flex flex-col gap-3">
+        <fieldset data-testid="signup-step-need" className="flex flex-col gap-3">
           <legend className="text-sm font-medium text-foreground">
             Que souhaitez-vous faire ?
           </legend>
@@ -429,6 +429,7 @@ export function SignupWizard({
                 key={option.value}
                 type="button"
                 role="radio"
+                data-testid={`signup-need-${option.value.toLowerCase()}`}
                 aria-checked={form.need === option.value}
                 onClick={() => update("need", option.value)}
                 className={clsx(
@@ -447,7 +448,7 @@ export function SignupWizard({
       )}
 
       {step === 1 && (
-        <div className="flex flex-col gap-5">
+        <div data-testid="signup-step-profile" className="flex flex-col gap-5">
           <fieldset className="flex flex-col gap-3">
             <legend className="text-sm font-medium text-foreground">Vous êtes…</legend>
             <div role="radiogroup" aria-label="Profil" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -459,6 +460,7 @@ export function SignupWizard({
                   key={option.value}
                   type="button"
                   role="radio"
+                  data-testid={`signup-holder-${option.value.toLowerCase()}`}
                   aria-checked={form.holderType === option.value}
                   onClick={() => update("holderType", option.value)}
                   className={clsx(
@@ -676,6 +678,7 @@ export function SignupWizard({
             <div className="flex items-start gap-3">
               <input
                 id="acceptTerms"
+                data-testid="signup-accept-terms"
                 type="checkbox"
                 required
                 checked={form.acceptTerms}
@@ -721,18 +724,18 @@ export function SignupWizard({
 
       <div className="mt-2 flex items-center justify-between gap-3">
         {step > 0 ? (
-          <Button type="button" variant="ghost" onClick={goBack} disabled={pending}>
+          <Button type="button" variant="ghost" onClick={goBack} disabled={pending} data-testid="signup-previous">
             Précédent
           </Button>
         ) : (
           <span />
         )}
         {step < stepLabels.length - 1 ? (
-          <Button type="button" onClick={goNext} disabled={pending}>
+          <Button type="button" onClick={goNext} disabled={pending} data-testid="signup-next">
             Suivant
           </Button>
         ) : (
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending} data-testid="signup-submit">
             {pending ? "Création du compte…" : "Créer mon compte"}
           </Button>
         )}

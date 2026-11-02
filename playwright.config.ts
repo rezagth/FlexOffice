@@ -49,6 +49,9 @@ export default defineConfig({
         env: {
           PORT: String(PORT),
           OFFICEFLEX_DEMO_MODE: "true",
+          // Tests hermétiques : jamais la vraie base du .env local. Sans
+          // DATABASE_URL, l'app sert ses espaces de démonstration.
+          DATABASE_URL: "",
           NEXT_TELEMETRY_DISABLED: "1",
         },
       },

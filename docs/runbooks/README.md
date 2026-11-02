@@ -10,7 +10,8 @@ Cible : serveur Proxmox (chez l'associé), Coolify, images GHCR construites par 
 | [sauvegarde-restauration.md](sauvegarde-restauration.md) | Sauvegardes, restauration, test mensuel, RPO/RTO |
 | [secrets.md](secrets.md) | Rotation des secrets |
 | [promouvoir-admin.md](promouvoir-admin.md) | Créer le premier administrateur |
-| [stripe.md](stripe.md) | Webhook Stripe, Connect, passage en live |
+| [stripe.md](stripe.md) | Modèle d'argent, deux webhooks Stripe, Connect, passage en live |
+| [recette-stripe.md](recette-stripe.md) | Recette Stripe en mode test, scénarios R1 à R14 |
 | [taches-planifiees.md](taches-planifiees.md) | Tâche de maintenance toutes les 15 min |
 | [supabase.md](supabase.md) | GoTrue (e-mails, mots de passe, liens), Kong, Storage |
 | [emails.md](emails.md) | Domaine d'envoi Resend, SPF / DKIM / DMARC |

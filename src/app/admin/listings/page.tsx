@@ -10,7 +10,7 @@ import { AdminActionButton } from "@/components/dashboard/admin-action-button";
 import { PaginationControls } from "@/components/dashboard/pagination-controls";
 import { SortLink } from "@/components/dashboard/sort-link";
 import { parsePageParam, paginationOffsets, totalPageCount } from "@/lib/pagination";
-import { SPACE_STATUS_LABELS, SPACE_TYPE_LABELS, formatDateTime } from "@/lib/format";
+import { SPACE_STATUS_LABELS, SPACE_TYPE_LABELS, formatCents, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,10 @@ export default async function AdminListingsPage({
   const [pending, others, othersCount] = await Promise.all([
     prisma.space.findMany({
       where: { status: "PENDING_REVIEW" },
-      include: { organization: { select: { name: true } } },
+      include: {
+        organization: { select: { name: true } },
+        _count: { select: { spacePhotos: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.space.findMany({
@@ -86,15 +89,52 @@ export default async function AdminListingsPage({
           <p className="text-sm text-muted-foreground">Aucune annonce à valider.</p>
         ) : (
           pending.map((space) => (
-            <Card key={space.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div>
-                <p className="font-medium">{space.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {space.organization.name} · {SPACE_TYPE_LABELS[space.type] ?? space.type} ·{" "}
-                  {space.city}
-                </p>
+            <Card key={space.id} className="flex flex-col gap-3 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{space.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {space.organization.name} · {SPACE_TYPE_LABELS[space.type] ?? space.type} ·{" "}
+                    {space.city}
+                  </p>
+                </div>
+                <SpaceModerationActions spaceId={space.id} />
               </div>
-              <SpaceModerationActions spaceId={space.id} />
+              {/* Everything the admin needs to judge the listing, without
+                  leaving the queue. */}
+              <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Adresse</dt>
+                  <dd>
+                    {space.address}, {space.postalCode} {space.city}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Capacité</dt>
+                  <dd>{space.capacity} personne{space.capacity > 1 ? "s" : ""}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Tarifs</dt>
+                  <dd>
+                    Demi-journée {formatCents(space.halfDayPriceCents)} · Journée{" "}
+                    {formatCents(space.dayPriceCents)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Photos</dt>
+                  <dd>
+                    {space._count.spacePhotos === 0 ? "Aucune photo" : `${space._count.spacePhotos} photo(s)`}
+                  </dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-muted-foreground">Description</dt>
+                  <dd className="whitespace-pre-line">{space.description}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Soumis le</dt>
+                  <dd>{formatDateTime(space.updatedAt)}</dd>
+                </div>
+              </dl>
             </Card>
           ))
         )}

@@ -65,6 +65,9 @@ export const RATE_LIMITS = {
    * any other public write; loose enough that a real visitor retrying a
    * typo'd email never hits it. */
   supportTicket: { limit: 5, windowSeconds: 3600 } satisfies RateLimitConfig,
+  /** Reporting a listing — public and unauthenticated, so it needs a limit;
+   * loose enough for a real person flagging several listings. */
+  contentReport: { limit: 5, windowSeconds: 3600 } satisfies RateLimitConfig,
   /**
    * Booking requests, per account. Each one creates a Stripe PaymentIntent
    * and locks a slot until it expires, so an unlimited loop could hold the

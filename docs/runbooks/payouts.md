@@ -10,6 +10,8 @@
 
 ## Contrôles
 - Admin → Versements : à venir, versés, échoués.
+- Un versement `REVERSED` (« Annulé par Stripe — à traiter ») : Stripe a repris le virement (`transfer.reversed`). Il n'est **jamais** relancé automatiquement : comprendre pourquoi dans Stripe, puis décider avec le bailleur de le repayer ou non.
+- Un échec de virement bancaire côté bailleur (`payout.failed`, endpoint Connect) apparaît dans le journal d'audit et déclenche une alerte : le bailleur doit corriger son IBAN dans son tableau de bord Stripe.
 - Un versement `FAILED` persistant : vérifier le solde Stripe de la plateforme et l'état `payouts_enabled` du compte connecté.
 - Réconciliation : comparer le total des `Payout` PAID du mois aux transferts Stripe (export CSV bailleur disponible).
 

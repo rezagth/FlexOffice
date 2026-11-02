@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePageAuth } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import { Card } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { RaiseDisputeButton } from "@/components/dashboard/raise-dispute-button";
 import { CancelBookingButton } from "@/components/dashboard/cancel-booking-button";
 import { BOOKING_STATUS_LABELS, formatCents, formatDateTime } from "@/lib/format";
-import { cancellationWindowLabel, clientCancellationRefund } from "@/lib/cancellation-policy";
+import { cancellationConsequence } from "@/lib/booking-cancellation-text";
 import { ReviewForm } from "@/components/reviews/review-form";
 import { StarRating } from "@/components/reviews/star-rating";
 import { reviewEligibility } from "@/server/domains/reviews/reviews";
@@ -25,31 +26,6 @@ const DISPUTE_STATUS_LABELS: Record<string, string> = {
   RESOLVED_NO_ACTION: "Litige résolu — sans action",
   ESCALATED: "Litige escaladé",
 };
-
-/** What cancelling would mean for this booking, in one sentence — the same
- * policy the server applies (src/lib/cancellation-policy.ts). */
-function cancellationConsequence(booking: {
-  status: string;
-  priceAmountCents: number;
-  commissionAmountCents: number;
-  cancellationWindowHours: number;
-  startsAt: Date;
-}): string | null {
-  if (booking.startsAt.getTime() <= Date.now()) return null;
-  if (booking.status === "AWAITING_PAYMENT" || booking.status === "PENDING") {
-    return "La demande sera annulée sans frais : rien ne vous a été débité.";
-  }
-  if (booking.status !== "CONFIRMED") return null;
-  const { tier, refundCents } = clientCancellationRefund(booking);
-  const label = cancellationWindowLabel(booking.cancellationWindowHours);
-  return `Vous serez remboursé de ${formatCents(refundCents)} (${
-    tier === "FULL"
-      ? label
-        ? `plus de ${label} avant le début`
-        : "annulation sans délai"
-      : `moins de ${label} avant le début : 50 % du prix`
-  }). Les frais de service ne sont pas remboursables.`;
-}
 
 export default async function ClientBookingsPage() {
   const ctx = await requirePageAuth();
@@ -82,7 +58,9 @@ export default async function ClientBookingsPage() {
           {bookings.map((booking) => (
             <Card key={booking.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
-                <p className="font-medium">{booking.space.name}</p>
+                <Link href={`/app/bookings/${booking.id}`} className="font-medium underline-offset-2 hover:underline">
+                  {booking.space.name}
+                </Link>
                 <p className="text-sm text-muted-foreground">
                   {formatDateTime(booking.startsAt)} → {formatDateTime(booking.endsAt)}
                 </p>
@@ -96,6 +74,9 @@ export default async function ClientBookingsPage() {
                 )}
               </div>
               <div className="flex flex-col items-end gap-2 text-right">
+                <ButtonLink href={`/app/bookings/${booking.id}`} variant="outline" size="sm">
+                  Voir le détail
+                </ButtonLink>
                 <div>
                   <p className="text-sm font-medium">{formatCents(booking.priceAmountCents)}</p>
                   <p className="text-xs text-muted-foreground">

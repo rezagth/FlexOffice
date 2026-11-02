@@ -3,15 +3,20 @@ import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatDateTime } from "@/lib/format";
+import { AdminActionButton } from "@/components/dashboard/admin-action-button";
+import { SpaceModerationActions } from "@/components/dashboard/space-moderation-actions";
 import { listReviewQueue, type ReviewQueueKind } from "@/server/domains/admin/review-queue";
 
 export const metadata = { title: "À traiter — Admin MakomSpace" };
 export const dynamic = "force-dynamic";
 
 const KIND_LABELS: Record<ReviewQueueKind, string> = {
+  organization: "Société à valider",
+  space: "Espace à valider",
   verification: "Vérification",
   domiciliation: "Domiciliation",
   promotion: "Promotion",
+  report: "Signalement",
 };
 
 /**
@@ -29,7 +34,7 @@ export default async function AdminReviewQueuePage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold text-foreground">À traiter</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Vérifications, domiciliations et promotions en attente d&apos;une décision, de la plus
+          Sociétés et espaces à valider, vérifications, domiciliations et promotions en attente d&apos;une décision, de la plus
           ancienne à la plus récente.
         </p>
       </div>
@@ -39,23 +44,76 @@ export default async function AdminReviewQueuePage() {
       ) : (
         <div className="flex flex-col gap-3">
           {items.map((item) => (
-            <Card key={`${item.kind}-${item.id}`} className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div>
-                <p className="font-medium text-foreground">{item.organizationName}</p>
-                <p className="text-sm text-muted-foreground">
-                  {KIND_LABELS[item.kind]} ({item.summary}) · {formatDateTime(item.submittedAt)}
-                </p>
+            <Card key={`${item.kind}-${item.id}`} className="flex flex-col gap-3 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-foreground">{item.organizationName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {KIND_LABELS[item.kind]} ({item.summary}) · {formatDateTime(item.submittedAt)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {item.overdue && (
+                    <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
+                      En attente depuis plus de 48 h
+                    </span>
+                  )}
+                  {/* Decided right here when the decision is a single action;
+                      the other kinds need their own screen (documents to read,
+                      a form to answer) and open it. */}
+                  {item.kind === "space" && <SpaceModerationActions spaceId={item.id} />}
+                  {item.kind === "organization" && (
+                    <AdminActionButton
+                      url={`/api/admin/organizations/${item.id}/verify`}
+                      label="Valider la société"
+                      confirmLabel="Confirmer la validation"
+                      variant="primary"
+                      reason="optional"
+                      reasonLabel="Note interne (facultatif)"
+                      reasonHint="Gardée dans le journal d'audit, jamais envoyée à la société."
+                      warning="Elle pourra réserver tout de suite."
+                    />
+                  )}
+                  {item.kind === "report" && (
+                    <>
+                      <ButtonLink href={item.href} variant="outline" size="sm">
+                        Voir l&apos;espace
+                      </ButtonLink>
+                      <AdminActionButton
+                        url={`/api/admin/reports/${item.id}/unpublish`}
+                        label="Masquer l'espace"
+                        confirmLabel="Confirmer le masquage"
+                        variant="outline"
+                        reason="required"
+                        warning="L'espace sort du catalogue. Les réservations déjà faites ne sont pas annulées."
+                      />
+                      <AdminActionButton
+                        url={`/api/admin/reports/${item.id}/dismiss`}
+                        label="Classer sans suite"
+                        confirmLabel="Confirmer"
+                        reason="optional"
+                        reasonLabel="Note interne (facultatif)"
+                        reasonHint="Gardée sur le signalement, jamais envoyée au bailleur."
+                      />
+                    </>
+                  )}
+                  {item.kind !== "space" && item.kind !== "organization" && item.kind !== "report" && (
+                    <ButtonLink href={item.href} variant="outline" size="sm">
+                      Voir
+                    </ButtonLink>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {item.overdue && (
-                  <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
-                    En attente depuis plus de 48 h
-                  </span>
-                )}
-                <ButtonLink href={item.href} variant="outline" size="sm">
-                  Voir
-                </ButtonLink>
-              </div>
+              {item.details && (
+                <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                  {item.details.map((d) => (
+                    <div key={d.label} className={d.label === "Description" ? "sm:col-span-2" : undefined}>
+                      <dt className="text-muted-foreground">{d.label}</dt>
+                      <dd className="whitespace-pre-line">{d.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </Card>
           ))}
         </div>

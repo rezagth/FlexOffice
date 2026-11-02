@@ -34,8 +34,17 @@ export const domiciliationRequestSchema = z
   .object({
     domiciliationKind: domiciliationKindSchema,
     ...domiciliataireFields,
+    /** MAKOMSPACE only: acceptance of the licensed domiciliataire's contract. */
+    domiciliationContractAccepted: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.domiciliationKind === "MAKOMSPACE" && data.domiciliationContractAccepted !== true) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["domiciliationContractAccepted"],
+        message: "Vous devez accepter le contrat de domiciliation.",
+      });
+    }
     if (data.domiciliationKind !== "THIRD_PARTY") return;
     const required: [keyof typeof data, string][] = [
       ["domiciliataireName", "Nom du domiciliataire requis."],
@@ -59,4 +68,9 @@ export type DomiciliationStatusChangeInput = z.infer<typeof domiciliationStatusC
 
 export const domiciliationOfferSettingSchema = z.object({
   offerEnabled: z.boolean(),
+});
+
+export const domiciliationProviderSchema = z.object({
+  name: z.string({ error: "Indiquez le nom du domiciliataire." }).trim().min(2).max(200),
+  agrementNumber: z.string({ error: "Indiquez le numéro d'agrément." }).trim().min(2).max(100),
 });

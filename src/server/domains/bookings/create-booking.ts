@@ -92,7 +92,7 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
   await assertCompanyInfoIsComplete(clientUserId);
 
   const daySlots = await computeDaySlots(input.spaceId, input.date);
-  if (!daySlots) throw new ConflictError("This space is closed on the requested date");
+  if (!daySlots) throw new ConflictError("Cet espace est fermé à la date demandée.");
 
   const slot =
     input.slot === "MORNING"
@@ -100,11 +100,11 @@ export async function createBooking(clientUserId: string, input: CreateBookingIn
       : input.slot === "AFTERNOON"
         ? daySlots.afternoon
         : daySlots.fullDay;
-  if (!slot) throw new ConflictError("This slot does not exist on the requested date");
-  if (slot.startsAt.getTime() < Date.now()) throw new ConflictError("This slot is in the past");
+  if (!slot) throw new ConflictError("Ce créneau n'existe pas à la date demandée.");
+  if (slot.startsAt.getTime() < Date.now()) throw new ConflictError("Ce créneau est déjà passé. Choisissez une date ou un créneau à venir.");
   // A best-effort UX check only — two concurrent requests can both read
   // `available: true`. The EXCLUDE constraint below is the real guarantee.
-  if (!slot.available) throw new ConflictError("This slot is no longer available");
+  if (!slot.available) throw new ConflictError("Ce créneau n'est plus disponible.");
 
   const priceAmountCents = slot.priceCents;
   const originalPriceAmountCents = slot.originalPriceCents;

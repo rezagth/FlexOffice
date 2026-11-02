@@ -28,6 +28,26 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/** 403 with its own code so the UI can offer the way out (the profile
+ * completion screen) instead of a bare message. The message names exactly
+ * what is missing. */
+export class ProfileIncompleteError extends ForbiddenError {
+  constructor(message = "Complétez votre profil avant de continuer.") {
+    super(message);
+    // Still a ForbiddenError (every `instanceof ForbiddenError` check keeps
+    // matching), with its own code for the UI.
+    (this as { code: string }).code = "PROFILE_INCOMPLETE";
+  }
+}
+
+/** 409 with its own code: the landlord must tick the partner CGV (billing
+ * mandate) and/or the right-to-let declaration before submitting a space. */
+export class LegalAcceptanceRequiredError extends AppError {
+  constructor(message = "Une acceptation est requise avant de continuer.") {
+    super(message, "LEGAL_ACCEPTANCE_REQUIRED", 409);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = "Élément introuvable.") {
     super(message, "NOT_FOUND", 404);

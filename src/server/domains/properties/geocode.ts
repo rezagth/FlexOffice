@@ -46,6 +46,9 @@ export async function geocodeAddress(address: {
     const first = results[0];
     if (!first) return null;
 
+    // Number("") and Number("  ") are 0: an empty field must not become the
+    // coordinate (0, 0) in the Gulf of Guinea.
+    if (!String(first.lat ?? "").trim() || !String(first.lon ?? "").trim()) return null;
     const latitude = Number(first.lat);
     const longitude = Number(first.lon);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;

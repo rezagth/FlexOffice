@@ -94,3 +94,36 @@ describe("isCompanyInfoComplete", () => {
     );
   });
 });
+
+describe("missingProfileItems", () => {
+  const complete = { phone: "0600000000", phoneVerifiedAt: new Date(), accountNeed: "PUBLISH" as const, holderType: "COMPANY" as const };
+
+  it("is empty for a complete profile", async () => {
+    const { missingProfileItems } = await import("@/server/domains/users/profile-completion");
+    expect(missingProfileItems(complete)).toEqual([]);
+  });
+
+  it("names the phone verification when a number is filled but not verified", async () => {
+    const { missingProfileItems } = await import("@/server/domains/users/profile-completion");
+    const items = missingProfileItems({ ...complete, phoneVerifiedAt: null });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatch(/vérifier votre numéro/);
+  });
+
+  it("asks to fill AND verify the phone when there is none", async () => {
+    const { missingProfileItems } = await import("@/server/domains/users/profile-completion");
+    expect(missingProfileItems({ ...complete, phone: null, phoneVerifiedAt: null })[0]).toMatch(/renseigner et vérifier/);
+  });
+
+  it("only asks for a filled phone when verification is switched off", async () => {
+    vi.stubEnv("PHONE_VERIFICATION_REQUIRED", "false");
+    const { missingProfileItems } = await import("@/server/domains/users/profile-completion");
+    expect(missingProfileItems({ ...complete, phone: "0600000000", phoneVerifiedAt: null })).toEqual([]);
+    expect(missingProfileItems({ ...complete, phone: null, phoneVerifiedAt: null })).toEqual(["renseigner votre numéro de téléphone"]);
+  });
+
+  it("lists every unanswered item, phone first", async () => {
+    const { missingProfileItems } = await import("@/server/domains/users/profile-completion");
+    expect(missingProfileItems({ phone: null, phoneVerifiedAt: null, accountNeed: null, holderType: null })).toHaveLength(3);
+  });
+});

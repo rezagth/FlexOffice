@@ -45,7 +45,15 @@ export function FormField({
 }
 
 /** Form-level message (server error, success). */
-export function FormMessage({ tone, children }: { tone: "error" | "success" | "info"; children: ReactNode }) {
+export function FormMessage({
+  tone,
+  children,
+  testId,
+}: {
+  tone: "error" | "success" | "info";
+  children: ReactNode;
+  testId?: string;
+}) {
   const styles =
     tone === "error"
       ? "bg-danger/10 text-danger"
@@ -53,7 +61,11 @@ export function FormMessage({ tone, children }: { tone: "error" | "success" | "i
         ? "bg-primary/10 text-foreground"
         : "bg-muted text-foreground";
   return (
-    <p role={tone === "error" ? "alert" : "status"} className={`rounded-lg px-3 py-2 text-sm ${styles}`}>
+    <p
+      role={tone === "error" ? "alert" : "status"}
+      data-testid={testId}
+      className={`rounded-lg px-3 py-2 text-sm ${styles}`}
+    >
       {children}
     </p>
   );

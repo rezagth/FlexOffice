@@ -13,6 +13,7 @@ import { FormMessage } from "@/components/auth/form-field";
 import { VERIFICATION_STATUS_LABELS } from "@/lib/format";
 import { listOrganizationIdentitiesForProfile } from "@/server/domains/organizations/get-organization-identity";
 import {
+  getDomiciliationProvider,
   getLatestDomiciliationRequest,
   isDomiciliationOfferEnabled,
 } from "@/server/domains/organizations/domiciliation";
@@ -43,13 +44,14 @@ const ORG_ROLES_ALLOWED_TO_EDIT_IDENTITY = new Set(["OWNER", "ADMIN"]);
  */
 export default async function AccountPage({ searchParams }: PageProps<"/app/account">) {
   const ctx = await requirePageAuth({ redirectTo: "/app/account" });
-  const [memberships, organizations, profile, { email: emailFlag }, domiciliationOfferEnabled] =
+  const [memberships, organizations, profile, { email: emailFlag }, domiciliationOfferEnabled, domiciliationProvider] =
     await Promise.all([
       ctx.isLandlord ? listActiveMemberships(ctx.userId) : Promise.resolve([]),
       listOrganizationIdentitiesForProfile(ctx.userId),
       getOwnProfile(ctx.userId),
       searchParams,
       isDomiciliationOfferEnabled(),
+      getDomiciliationProvider(),
     ]);
   const domiciliationRequests = Object.fromEntries(
     await Promise.all(
@@ -185,6 +187,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/app/acco
                     organizationId={organization.id}
                     canEdit={ORG_ROLES_ALLOWED_TO_EDIT_IDENTITY.has(organization.orgRole)}
                     domiciliationOfferEnabled={domiciliationOfferEnabled}
+                    domiciliationProvider={domiciliationProvider}
                     initialRequest={domiciliationRequests[organization.id] ?? null}
                   />
                 </div>

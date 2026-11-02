@@ -2,7 +2,7 @@ import { Prisma, type Invoice } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { logError, logEvent } from "@/server/lib/logger";
 import { CAPTURED_PAYMENT_STATUSES } from "@/server/domains/payments/settled-amounts";
-import { getInvoicingConfig } from "./config";
+import { getInvoicingConfig, isPlatformIdentityBlockingIssuance, missingPlatformIdentityKeys } from "./config";
 import { allocateInvoiceNumber, InvoiceYearRolloverError, landlordSeries, type InvoiceSeries } from "./numbering";
 import { parseParty, type InvoiceLine, type PartySnapshot } from "./types";
 import { exemptAmount, rentalVat, splitGross, type VatBreakdown } from "./vat";
@@ -115,10 +115,28 @@ const paymentForInvoice = {
   },
 } satisfies Prisma.PaymentDefaultArgs;
 
+/** Reports (at error level, so the alerting sees it) that issuance is held
+ * back because the platform identity is incomplete in live mode. */
+function reportIssuanceBlocked(context: Record<string, string>) {
+  logError({
+    event: "invoicing.blocked_platform_identity_incomplete",
+    error: new Error("Invoice issuance refused: PLATFORM_* identity is incomplete while running with live Stripe keys."),
+    missing_keys: missingPlatformIdentityKeys(),
+    ...context,
+  });
+}
+
 /** The booking invoice of a captured payment — issued on first call. */
 export async function issueBookingInvoice(paymentId: string): Promise<Invoice | null> {
   const existing = await prisma.invoice.findUnique({ where: { paymentId } });
   if (existing) return existing;
+
+  // C2 — never burn a sequential number on a document whose issuer identity
+  // is a placeholder. The maintenance sweep issues it once PLATFORM_* is set.
+  if (isPlatformIdentityBlockingIssuance()) {
+    reportIssuanceBlocked({ payment_id: paymentId });
+    return null;
+  }
 
   const payment = await prisma.payment.findUnique({ where: { id: paymentId }, ...paymentForInvoice });
   if (!payment || !(CAPTURED_PAYMENT_STATUSES as readonly string[]).includes(payment.status)) return null;
@@ -180,6 +198,11 @@ export async function issueBookingInvoice(paymentId: string): Promise<Invoice | 
 export async function issueCreditNote(refundId: string): Promise<Invoice | null> {
   const existing = await prisma.invoice.findUnique({ where: { refundId } });
   if (existing) return existing;
+
+  if (isPlatformIdentityBlockingIssuance()) {
+    reportIssuanceBlocked({ refund_id: refundId });
+    return null;
+  }
 
   const refund = await prisma.refund.findUnique({
     where: { id: refundId },
@@ -269,6 +292,11 @@ export async function issueInvoiceDocumentsSafely(paymentId: string) {
  * follow the order of the underlying events as closely as possible.
  */
 export async function issueMissingInvoiceDocuments(limit = 200) {
+  // One alert per sweep instead of one per payment.
+  if (isPlatformIdentityBlockingIssuance()) {
+    reportIssuanceBlocked({ scope: "sweep" });
+    return { payments: 0, failed: 0 };
+  }
   const payments = await prisma.payment.findMany({
     where: { status: { in: [...CAPTURED_PAYMENT_STATUSES] }, invoice: null },
     orderBy: [{ capturedAt: { sort: "asc", nulls: "first" } }, { createdAt: "asc" }],

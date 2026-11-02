@@ -281,7 +281,7 @@ export default function CgvPage() {
         <p>
           Les présentes conditions sont soumises au droit français. Tout litige relève
           de la compétence exclusive des tribunaux du ressort de{" "}
-          <ToFill>ville du siège</ToFill>.
+          <ToFill field="courtCity">ville du siège</ToFill>.
         </p>
       </Section>
     </LegalPage>
