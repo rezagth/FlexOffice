@@ -2,7 +2,8 @@ import type { OrganizationStatus, SpaceAmenity, SpaceType } from "@/generated/pr
 import { prisma } from "@/server/db/prisma";
 import {
   canOrganizationPublish,
-  STATUSES_ALLOWED_TO_PUBLISH,
+  isOrganizationPayable,
+  publiclyVisibleOrganizationWhere,
 } from "@/server/domains/organizations/publication-guard";
 import { recordSearchEvent } from "@/server/domains/analytics/search-events";
 import { getPublicPhotoUrl } from "@/server/domains/media/photo-storage";
@@ -115,10 +116,9 @@ const servesNothing = noDatabase && isProductionDeployment();
  * threshold is what it is today.
  */
 function publiclyVisibleOrganization() {
-  // Rebuilt per call, and the readonly policy list copied into a mutable
-  // array: Prisma's generated `in` filter type is mutable, and a shared
-  // object literal would be reused across concurrent queries.
-  return { status: { in: [...STATUSES_ALLOWED_TO_PUBLISH] } };
+  // Status AND (with real payments) Stripe Connect readiness — C1. Built per
+  // call by publication-guard.ts, see there.
+  return publiclyVisibleOrganizationWhere();
 }
 
 /** Great-circle distance in kilometres — Haversine. Fine at this dataset's
@@ -404,7 +404,9 @@ export async function listFavoriteSpaces(userId: string) {
       space: {
         select: {
           ...publicSpaceScalars(),
-          organization: { select: { name: true, status: true } },
+          organization: {
+            select: { name: true, status: true, stripeChargesEnabled: true, stripePayoutsEnabled: true },
+          },
           spacePhotos: spacePhotosInclude(),
         },
       },
@@ -418,9 +420,13 @@ export async function listFavoriteSpaces(userId: string) {
     )
     .map(({ space: { spacePhotos, status, organization, ...space } }) => ({
       ...space,
-      organization,
+      // Only name and status leave the server (the Connect flags are internal).
+      organization: { name: organization.name, status: organization.status },
       photos: resolvePhotoUrls(space.photos, spacePhotos),
       favorited: true as const,
-      available: status === "PUBLISHED" && canOrganizationPublish(organization.status as OrganizationStatus),
+      available:
+        status === "PUBLISHED" &&
+        canOrganizationPublish(organization.status as OrganizationStatus) &&
+        isOrganizationPayable(organization),
     }));
 }

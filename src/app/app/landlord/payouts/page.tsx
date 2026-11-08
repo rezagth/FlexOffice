@@ -5,11 +5,14 @@ import { ButtonLink } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/dashboard/states";
 import { PayoutFrequencyForm } from "@/components/dashboard/payout-frequency-form";
+import { TaxInfoForm } from "@/components/dashboard/tax-info-form";
+import { prisma } from "@/server/db/prisma";
+import { missingTaxInfo, TAX_INFO_SELECT } from "@/server/domains/organizations/tax-info";
 import { formatCents, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABELS = { PENDING: "En cours", PAID: "Versé", FAILED: "À relancer" } as const;
+const STATUS_LABELS = { PENDING: "En cours", PAID: "Versé", FAILED: "À relancer", REVERSED: "En cours de vérification" } as const;
 const DAY = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "Europe/Paris" });
 
 type PayoutLineView = {
@@ -47,6 +50,11 @@ function LinesTable({ lines }: { lines: PayoutLineView[] }) {
 export default async function LandlordPayoutsPage() {
   const ctx = await requirePageLandlordOrg("landlord:view_revenue");
   const overview = await getLandlordPayoutOverview(ctx.activeOrgId);
+  const organization = await prisma.organization.findUniqueOrThrow({
+    where: { id: ctx.activeOrgId },
+    select: TAX_INFO_SELECT,
+  });
+  const missingTax = missingTaxInfo(organization);
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,6 +90,33 @@ export default async function LandlordPayoutsPage() {
           />
         </Card>
       </div>
+
+      <section aria-labelledby="tax-info-title" className="flex flex-col gap-3">
+        <h2 id="tax-info-title" className="text-lg font-medium">
+          Identité fiscale
+        </h2>
+        {missingTax.length > 0 ? (
+          <div role="note" className="rounded-lg border border-border bg-muted p-3 text-sm text-foreground">
+            <p className="font-medium">Vos versements sont en attente tant que ces informations manquent.</p>
+            <p className="mt-1 text-muted-foreground">
+              La réglementation européenne (DAC7) impose aux plateformes de déclarer chaque année les sommes versées aux
+              loueurs. Il vous reste à renseigner : {missingTax.join(" ; ")}. Aucun argent n&apos;est perdu : il est versé
+              dès que c&apos;est complet.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Informations fiscales enregistrées.</p>
+        )}
+        <TaxInfoForm
+          holderType={organization.holderType}
+          initial={{
+            taxResidenceCountry: organization.taxResidenceCountry ?? "FR",
+            taxIdentificationNumber: organization.taxIdentificationNumber ?? "",
+            representativeBirthDate: organization.representativeBirthDate?.toISOString().slice(0, 10) ?? "",
+          }}
+          canEdit={ctx.capabilities.has("landlord:manage_organization")}
+        />
+      </section>
 
       {overview.openLines.length > 0 && (
         <section className="flex flex-col gap-2">

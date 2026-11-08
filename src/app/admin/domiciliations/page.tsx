@@ -1,11 +1,13 @@
 import { requirePageAdmin } from "@/server/auth/page-guards";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/states";
+import { DomiciliationProviderForm } from "@/components/dashboard/domiciliation-provider-form";
 import { DomiciliationOfferToggle } from "@/components/dashboard/domiciliation-offer-toggle";
 import { DomiciliationReviewActions } from "@/components/dashboard/domiciliation-review-actions";
 import { DomiciliationAttestationViewer } from "@/components/dashboard/domiciliation-attestation-viewer";
 import { formatDateTime } from "@/lib/format";
 import {
+  getDomiciliationProvider,
   isDomiciliationOfferEnabled,
   listDomiciliationRequestsForAdmin,
 } from "@/server/domains/organizations/domiciliation";
@@ -34,8 +36,9 @@ const STATUS_LABELS: Record<string, string> = {
  */
 export default async function AdminDomiciliationsPage() {
   await requirePageAdmin();
-  const [offerEnabled, requests] = await Promise.all([
+  const [offerEnabled, provider, requests] = await Promise.all([
     isDomiciliationOfferEnabled(),
+    getDomiciliationProvider(),
     listDomiciliationRequestsForAdmin(),
   ]);
 
@@ -45,6 +48,13 @@ export default async function AdminDomiciliationsPage() {
 
       <Card className="max-w-2xl p-5">
         <DomiciliationOfferToggle initialEnabled={offerEnabled} />
+      </Card>
+
+      <Card className="max-w-2xl p-5">
+        <DomiciliationProviderForm
+          initialName={provider?.name ?? ""}
+          initialAgrementNumber={provider?.agrementNumber ?? ""}
+        />
       </Card>
 
       <section className="flex flex-col gap-3">
@@ -82,6 +92,14 @@ export default async function AdminDomiciliationsPage() {
                     </dd>
                   </div>
                 </dl>
+              )}
+
+              {request.kind === "MAKOMSPACE" && (
+                <p className="text-xs text-muted-foreground">
+                  {request.contractAcceptedAt
+                    ? `Contrat accepté le ${formatDateTime(request.contractAcceptedAt)} (version ${request.contractVersion ?? "?"}).`
+                    : "Contrat non accepté (demande antérieure à l'enregistrement des acceptations)."}
+                </p>
               )}
 
               {request.attestationStoragePath && <DomiciliationAttestationViewer requestId={request.id} />}

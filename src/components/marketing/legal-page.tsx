@@ -2,6 +2,7 @@ import { isValidElement, type ReactNode } from "react";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { Card } from "@/components/ui/card";
+import { legalFieldValue, type LegalField } from "@/lib/legal-identity";
 
 /** Date the legal texts were last edited. Update it whenever any of them
  * changes: users must be able to tell which version they agreed to. */
@@ -81,7 +82,11 @@ export function LegalPage({
 
 /** A fact only the company can supply (legal form, capital, insurer…).
  * Rendered visibly so it cannot be published unnoticed. */
-export function ToFill({ children }: { children: ReactNode }) {
+export function ToFill({ children, field }: { children: ReactNode; field?: LegalField }) {
+  // Filled from the environment when the fact is configured (legal-identity.ts):
+  // printed as plain text. Otherwise shown highlighted so it cannot go unnoticed.
+  const value = field ? legalFieldValue(field) : undefined;
+  if (value) return <>{value}</>;
   return (
     <mark className="rounded bg-[color-mix(in_srgb,#A5680A_18%,transparent)] px-1 py-0.5 text-foreground">
       [{children}]

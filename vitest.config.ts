@@ -15,6 +15,16 @@ export default defineConfig({
     // jsdom cost globally.
     environment: "node",
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    // Working localStorage under jsdom on Node 25+ (no-op on Node 22).
+    setupFiles: ["tests/setup/jsdom-storage.ts"],
+    // `pnpm test:coverage` (nécessite : pnpm add -D @vitest/coverage-v8).
+    coverage: {
+      provider: "v8",
+      include: ["src/server/**/*.ts", "src/lib/**/*.ts", "src/components/**/*.tsx"],
+      exclude: ["src/generated/**", "**/*.d.ts", "src/server/domains/spaces/mock-data.ts"],
+      reporter: ["text-summary", "html", "json-summary"],
+      reportsDirectory: "coverage",
+    },
   },
   resolve: {
     alias: {

@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/states";
 import { formatCents, formatDateTime } from "@/lib/format";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
+import { getTenantOnboarding } from "@/server/domains/users/tenant-onboarding";
 
 /**
  * Tenant home, rendered by `/app` when the active mode is TENANT.
@@ -15,7 +17,8 @@ import { formatCents, formatDateTime } from "@/lib/format";
  * `ctx.userId` from the verified session.
  */
 export async function TenantHome({ ctx }: { ctx: AuthContext }) {
-  const [nextBooking, totalBookings, spend, favoritesCount] = await Promise.all([
+  const [onboarding, nextBooking, totalBookings, spend, favoritesCount] = await Promise.all([
+    getTenantOnboarding(ctx.userId),
     prisma.booking.findFirst({
       where: {
         clientUserId: ctx.userId,
@@ -43,6 +46,14 @@ export async function TenantHome({ ctx }: { ctx: AuthContext }) {
           Voici un aperçu de votre activité sur MakomSpace.
         </p>
       </div>
+
+      {!onboarding.readyToBook && (
+        <OnboardingChecklist
+          onboarding={onboarding}
+          title="Premiers pas"
+          intro="Voici ce qu'il reste à faire avant votre première réservation, dans l'ordre."
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="p-5">

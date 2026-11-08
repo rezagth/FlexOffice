@@ -71,12 +71,17 @@ export function LoginForm({ redirectTo, notice }: { redirectTo?: string; notice?
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} noValidate data-testid="login-form" className="flex flex-col gap-4">
       {notice && !formError && <FormMessage tone="info">{notice}</FormMessage>}
-      {formError && <FormMessage tone="error">{formError}</FormMessage>}
+      {formError && (
+        <FormMessage tone="error" testId="login-error">
+          {formError}
+        </FormMessage>
+      )}
       <FormField id="email" label="Email" error={errors.email}>
         <Input
           id="email"
+          data-testid="login-email"
           type="email"
           autoComplete="email"
           required
@@ -89,6 +94,7 @@ export function LoginForm({ redirectTo, notice }: { redirectTo?: string; notice?
       <FormField id="password" label="Mot de passe" error={errors.password}>
         <PasswordInput
           id="password"
+          data-testid="login-password"
           autoComplete="current-password"
           required
           aria-invalid={errors.password ? true : undefined}
@@ -103,7 +109,7 @@ export function LoginForm({ redirectTo, notice }: { redirectTo?: string; notice?
       >
         Mot de passe oublié ?
       </Link>
-      <Button type="submit" disabled={pending} className="mt-2">
+      <Button type="submit" disabled={pending} data-testid="login-submit" className="mt-2">
         {pending ? "Connexion…" : "Se connecter"}
       </Button>
     </form>

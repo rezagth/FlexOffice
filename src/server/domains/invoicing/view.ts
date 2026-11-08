@@ -3,6 +3,7 @@ import { formatCents } from "@/lib/format";
 import {
   getPlatformIdentity,
   LATE_PAYMENT_MENTION,
+  OPERATION_CATEGORY_MENTION,
   PLATFORM_DISPLAY_NAME,
   VAT_EXEMPTION_MENTION,
   billingMandateMention,
@@ -122,6 +123,7 @@ export function buildInvoiceView(invoice: InvoiceForView): InvoiceView {
 
   const legalMentions = [
     ...(invoice.vatExempt ? [VAT_EXEMPTION_MENTION] : []),
+    OPERATION_CATEGORY_MENTION,
     LATE_PAYMENT_MENTION,
   ];
 

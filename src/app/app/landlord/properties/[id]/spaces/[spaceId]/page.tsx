@@ -6,6 +6,8 @@ import { countUpcomingBookings, getSpaceForProperty, getUpcomingBookingsForSpace
 import { organizationManagesProperty } from "@/server/domains/properties/access";
 import { SpaceForm, type WeekdayHours } from "@/components/dashboard/space-form";
 import { SubmitSpaceButton } from "@/components/dashboard/submit-space-button";
+import { getMissingProfileItems } from "@/server/domains/users/profile-completion-guard";
+import { organizationNeedsPartnerTerms } from "@/server/domains/organizations/submit-space";
 import { ArchiveSpaceButton } from "@/components/dashboard/archive-space-button";
 import { ClosureForm } from "@/components/dashboard/closure-form";
 import { DeleteClosureButton } from "@/components/dashboard/delete-closure-button";
@@ -43,6 +45,8 @@ export default async function PropertySpaceDetailPage({
   const space = await getSpaceForProperty(propertyId, spaceId).catch(() => null);
   if (!space) notFound();
 
+  const missingProfile = await getMissingProfileItems(ctx.userId);
+  const needsPartnerTerms = await organizationNeedsPartnerTerms(ctx.activeOrgId);
   const isArchived = space.status === "ARCHIVED";
   const [upcomingBookingsCount, upcomingBookings] = await Promise.all([
     isArchived ? 0 : countUpcomingBookings(space.id),
@@ -72,7 +76,7 @@ export default async function PropertySpaceDetailPage({
         </div>
         <div className="flex gap-2">
           {(space.status === "DRAFT" || space.status === "REJECTED") && (
-            <SubmitSpaceButton spaceId={space.id} />
+            <SubmitSpaceButton spaceId={space.id} missingProfileItems={missingProfile} needsPartnerTerms={needsPartnerTerms} />
           )}
           {space.status !== "ARCHIVED" && (
             <ArchiveSpaceButton

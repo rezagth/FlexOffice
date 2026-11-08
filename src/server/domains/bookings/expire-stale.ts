@@ -8,6 +8,7 @@ import { retryUnconfirmedRefunds } from "@/server/domains/payments/refunds";
 import { purgeExpiredPersonalData } from "@/server/domains/users/retention";
 import { sendDueBookingReminders } from "@/server/domains/notifications/booking-reminders";
 import { issueMissingInvoiceDocuments } from "@/server/domains/invoicing/issue";
+import { refreshPendingConnectAccounts } from "@/server/domains/payments/stripe-connect";
 import { sendReviewInvitations } from "@/server/domains/reviews/reviews";
 import { runMonthlyCommissionStatements } from "@/server/domains/invoicing/monthly-statements";
 import { runDuePayouts } from "@/server/domains/payouts/run-payouts";
@@ -131,6 +132,12 @@ export async function runBookingMaintenance() {
     logError({ event: "booking.maintenance_invoices_failed", error });
     return null;
   });
+  // C1 safety net: landlords whose Stripe onboarding finished but whose
+  // account.updated event never arrived are re-read here, a few per run.
+  const connect = await refreshPendingConnectAccounts().catch((error) => {
+    logError({ event: "booking.maintenance_connect_sweep_failed", error });
+    return null;
+  });
   // FCT-17: no-op except on the 1st of the month from 02:00 Europe/Paris.
   const commissionStatements = await runMonthlyCommissionStatements().catch((error) => {
     logError({ event: "booking.maintenance_commission_statements_failed", error });
@@ -143,5 +150,5 @@ export async function runBookingMaintenance() {
     return null;
   });
   await purgeExpiredPersonalData(); // GDPR retention (SEC-10) — never throws, logs its own result.
-  return { holds, requests, completed, refunds, reminders, reviewInvitations, invoices, commissionStatements, payouts };
+  return { holds, requests, completed, refunds, reminders, reviewInvitations, invoices, connect, commissionStatements, payouts };
 }

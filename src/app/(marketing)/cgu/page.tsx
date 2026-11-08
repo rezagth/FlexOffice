@@ -262,7 +262,7 @@ export default function CguPage() {
         <Sub title="12.1 Traitement interne des réclamations">
           <p>
             Toute réclamation peut être adressée à{" "}
-            <ToFill>adresse e-mail de réclamation</ToFill>. MakomSpace accuse réception
+            <ToFill field="legalEmail">adresse e-mail de réclamation</ToFill>. MakomSpace accuse réception
             sous cinq jours ouvrés et apporte une réponse motivée dans un délai
             raisonnable, conformément à l&apos;article 11 du règlement (UE) 2019/1150.
           </p>
@@ -270,7 +270,7 @@ export default function CguPage() {
         <Sub title="12.2 Médiation">
           <p>
             À défaut d&apos;accord, les Partenaires peuvent recourir au médiateur
-            suivant : <ToFill>médiateur désigné</ToFill>. Les entreprises peuvent
+            suivant : <ToFill field="mediator">médiateur désigné</ToFill>. Les entreprises peuvent
             également saisir le médiateur des entreprises. Le recours à la médiation
             est facultatif et sans préjudice de toute action judiciaire.
           </p>
@@ -279,7 +279,7 @@ export default function CguPage() {
           <p>
             Les présentes conditions sont soumises au droit français. À défaut de
             résolution amiable, tout litige relève de la compétence exclusive des
-            tribunaux du ressort de <ToFill>ville du siège</ToFill>, y compris en cas
+            tribunaux du ressort de <ToFill field="courtCity">ville du siège</ToFill>, y compris en cas
             de pluralité de défendeurs ou d&apos;appel en garantie.
           </p>
         </Sub>

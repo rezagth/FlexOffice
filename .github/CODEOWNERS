@@ -1,0 +1,3 @@
+# Toute modification doit être relue par le propriétaire du dépôt avant fusion
+# (à activer avec la règle « Require review from Code Owners » sur main et develop).
+* @rezagth

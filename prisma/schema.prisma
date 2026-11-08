@@ -133,6 +133,8 @@ model Profile {
 
   messagesSent   Message[]
   supportTickets SupportTicket[]
+  contentReportsMade    ContentReport[] @relation("ContentReportReporter")
+  contentReportsHandled ContentReport[] @relation("ContentReportHandler")
   spaceReviews   SpaceReview[]
   supportReplies SupportTicketReply[]
   notifications  Notification[]
@@ -385,6 +387,12 @@ model Organization {
   // organization completes onboarding — payouts stay on the mock provider
   // until this is set and PAYMENT_PROVIDER=stripe.
   stripeAccountId         String?            @map("stripe_account_id")
+  /// Cached from Stripe (account.updated webhook, onboarding return, and the
+  /// maintenance sweep). It only decides whether the organization's spaces are
+  /// shown publicly (C1); the booking itself still re-reads Stripe live.
+  stripeChargesEnabled    Boolean            @default(false) @map("stripe_charges_enabled")
+  stripePayoutsEnabled    Boolean            @default(false) @map("stripe_payouts_enabled")
+  stripeStatusSyncedAt    DateTime?          @map("stripe_status_synced_at") @db.Timestamptz(3)
   // Stripe Customer id, distinct from stripeAccountId above: this org as a
   // bill-to party for monthly commission statements (Invoicing), not as a
   // Connect payee. Created lazily on first statement — see
@@ -393,6 +401,17 @@ model Organization {
   /// How often this landlord is paid: at the start of each week (Monday) or
   /// of each month (the 1st), Europe/Paris. See domains/payouts.
   payoutFrequency         PayoutFrequency    @default(MONTHLY) @map("payout_frequency")
+  // Legal: acceptance of the partner CGV, which carry the billing mandate
+  // (article 6), by the landlord organization. `partnerTermsVersion` is the
+  // CGV_VERSION in force when accepted; a newer version means re-acceptance.
+  // DAC7 (EU reporting by platforms): tax identity of the landlord, collected
+  // before the first payout. `representativeBirthDate` only for an individual.
+  taxResidenceCountry     String?   @map("tax_residence_country")
+  taxIdentificationNumber String?   @map("tax_identification_number")
+  representativeBirthDate DateTime? @map("representative_birth_date") @db.Date
+  partnerTermsAcceptedAt            DateTime? @map("partner_terms_accepted_at") @db.Timestamptz(3)
+  partnerTermsVersion               String?   @map("partner_terms_version")
+  partnerTermsAcceptedByProfileId   String?   @map("partner_terms_accepted_by_profile_id") @db.Uuid
   createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -701,6 +720,10 @@ model Space {
   /// promise already made.
   cancellationWindowHours Int      @default(48) @map("cancellation_window_hours")
   status             SpaceStatus    @default(DRAFT)
+  // Legal: the landlord's declaration, at each submission, that they have the
+  // right to let this place (owner, or authorized to sublet).
+  rightToLetCertifiedAt          DateTime? @map("right_to_let_certified_at") @db.Timestamptz(3)
+  rightToLetCertifiedByProfileId String?   @map("right_to_let_certified_by_profile_id") @db.Uuid
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -711,6 +734,7 @@ model Space {
   spacePhotos      SpacePhoto[]
   reviews          SpaceReview[]
   promotionSpaces  PromotionSpace[]
+  reports          ContentReport[]
 
   @@unique([id, organizationId])
   @@index([organizationId])
@@ -1305,6 +1329,9 @@ enum PayoutStatus {
   /// The provider refused the transfer; the lines stay attached and the job
   /// retries it (see domains/payouts/run-payouts.ts).
   FAILED
+  /// Stripe took the transfer back (`transfer.reversed`). Never retried
+  /// automatically — paying again is an admin decision (C5).
+  REVERSED
 }
 
 enum PayoutLineKind {
@@ -1487,6 +1514,11 @@ model DomiciliationRequest {
   /// text, see domiciliation.ts).
   adminNotes String? @map("admin_notes")
 
+  /// MAKOMSPACE kind: acceptance of the licensed domiciliataire's contract,
+  /// with the version of the text accepted. Null for THIRD_PARTY.
+  contractAcceptedAt DateTime? @map("contract_accepted_at") @db.Timestamptz(3)
+  contractVersion    String?   @map("contract_version")
+
   requestedByProfileId String  @map("requested_by_profile_id") @db.Uuid
   requestedBy          Profile @relation("DomiciliationRequestedBy", fields: [requestedByProfileId], references: [id])
   reviewedByProfileId  String? @map("reviewed_by_profile_id") @db.Uuid
@@ -1513,6 +1545,12 @@ model DomiciliationRequest {
 model DomiciliationSettings {
   id                 Int      @id @default(1)
   offerEnabled       Boolean  @default(false) @map("offer_enabled")
+  /// Who actually provides the domiciliation (the licensed domiciliataire) and
+  /// its prefectoral approval number. MakomSpace is only the interface: the
+  /// offer cannot be switched on while these are empty, and both are shown
+  /// to the company before it accepts the contract.
+  domiciliataireName            String? @map("domiciliataire_name")
+  domiciliataireAgrementNumber  String? @map("domiciliataire_agrement_number")
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   updatedByProfileId String?  @map("updated_by_profile_id") @db.Uuid
   updatedBy          Profile? @relation("DomiciliationSettingsUpdatedBy", fields: [updatedByProfileId], references: [id], onDelete: SetNull)
@@ -1628,4 +1666,51 @@ model PromotionSpace {
   @@id([promotionId, spaceId])
   @@index([spaceId])
   @@map("promotion_spaces")
+}
+
+// ---------------------------------------------------------------------------
+// Content reports — the notice mechanism a hosting platform must offer: anyone
+// can report a listing they consider illegal, not authorized, inaccurate or
+// discriminatory; an admin decides (hide the space with a reason, or dismiss).
+// ---------------------------------------------------------------------------
+
+enum ContentReportReason {
+  ILLEGAL
+  NOT_AUTHORIZED
+  INACCURATE
+  DISCRIMINATORY
+  OTHER
+}
+
+enum ContentReportStatus {
+  PENDING
+  DISMISSED
+  ACTIONED
+}
+
+model ContentReport {
+  id      String @id @default(uuid()) @db.Uuid
+  spaceId String @map("space_id") @db.Uuid
+  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  reason  ContentReportReason
+  message String
+
+  /// Optional: lets the platform answer the reporter. Null when anonymous.
+  reporterEmail     String?  @map("reporter_email")
+  reporterProfileId String?  @map("reporter_profile_id") @db.Uuid
+  reporterProfile   Profile? @relation("ContentReportReporter", fields: [reporterProfileId], references: [id], onDelete: SetNull)
+
+  status          ContentReportStatus @default(PENDING)
+  handledAt       DateTime?           @map("handled_at") @db.Timestamptz(3)
+  handledByProfileId String?          @map("handled_by_profile_id") @db.Uuid
+  handledBy       Profile?            @relation("ContentReportHandler", fields: [handledByProfileId], references: [id], onDelete: SetNull)
+  /// The admin's reason (hide) or note (dismiss), kept as the decision record.
+  resolution      String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@index([spaceId])
+  @@map("content_reports")
 }

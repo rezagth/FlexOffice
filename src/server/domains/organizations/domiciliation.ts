@@ -4,6 +4,7 @@ import { recordAudit } from "@/server/lib/audit";
 import { ConflictError, ValidationError } from "@/server/lib/errors";
 import { logError } from "@/server/lib/logger";
 import { createInAppNotification } from "@/server/domains/notifications/in-app";
+import { DOMICILIATION_CONTRACT_VERSION } from "@/lib/legal-versions";
 import {
   buildAttestationStoragePath,
   DOMICILIATION_BUCKET,
@@ -33,6 +34,18 @@ export async function isDomiciliationOfferEnabled(): Promise<boolean> {
  * of either way. See DomiciliationSettings's own doc comment.
  */
 export async function setDomiciliationOfferEnabled(actorUserId: string, enabled: boolean): Promise<void> {
+  // Acting as domiciliataire is regulated: the offer is provided by a licensed
+  // domiciliataire (MakomSpace is the interface). It cannot be switched on
+  // before that provider and its approval number are on file, since the
+  // customer is shown both before accepting the contract.
+  if (enabled) {
+    const provider = await getDomiciliationProvider();
+    if (!provider) {
+      throw new ValidationError(
+        "Renseignez d'abord le domiciliataire agréé (nom et numéro d'agrément) avant d'activer l'offre."
+      );
+    }
+  }
   await prisma.domiciliationSettings.update({
     where: { id: SETTINGS_ID },
     data: { offerEnabled: enabled, updatedByProfileId: actorUserId },
@@ -42,6 +55,39 @@ export async function setDomiciliationOfferEnabled(actorUserId: string, enabled:
     actorUserId,
     organizationId: null,
     metadata: { offerEnabled: enabled },
+  });
+}
+
+/** The licensed domiciliataire behind the offer, or null while not filled in. */
+export async function getDomiciliationProvider(): Promise<{ name: string; agrementNumber: string } | null> {
+  const settings = await prisma.domiciliationSettings.findUnique({
+    where: { id: SETTINGS_ID },
+    select: { domiciliataireName: true, domiciliataireAgrementNumber: true },
+  });
+  const name = settings?.domiciliataireName?.trim();
+  const agrementNumber = settings?.domiciliataireAgrementNumber?.trim();
+  return name && agrementNumber ? { name, agrementNumber } : null;
+}
+
+/** Admin-only (enforced by the caller route). Clearing a field switches the
+ * offer off: it must never stay visible with a missing provider. */
+export async function updateDomiciliationProvider(
+  actorUserId: string,
+  provider: { name: string; agrementNumber: string }
+): Promise<void> {
+  await prisma.domiciliationSettings.update({
+    where: { id: SETTINGS_ID },
+    data: {
+      domiciliataireName: provider.name.trim(),
+      domiciliataireAgrementNumber: provider.agrementNumber.trim(),
+      updatedByProfileId: actorUserId,
+    },
+  });
+  await recordAudit({
+    event: "domiciliation.provider_updated",
+    actorUserId,
+    organizationId: null,
+    metadata: { providerName: provider.name.trim() },
   });
 }
 
@@ -80,11 +126,18 @@ export async function createDomiciliationRequest(params: {
   domiciliationAddress?: string;
   domiciliationCity?: string;
   domiciliationPostalCode?: string;
+  /** MAKOMSPACE only: the company accepted the domiciliataire's contract. */
+  contractAccepted?: boolean;
 }) {
   if (params.kind === "MAKOMSPACE" && !(await isDomiciliationOfferEnabled())) {
     throw new ValidationError(
       "L'offre de domiciliation MakomSpace n'est pas disponible pour le moment."
     );
+  }
+  // The contract is between the company and the licensed domiciliataire:
+  // acceptance is required, and recorded with the version of the text.
+  if (params.kind === "MAKOMSPACE" && params.contractAccepted !== true) {
+    throw new ValidationError("Vous devez accepter le contrat de domiciliation pour envoyer la demande.");
   }
 
   const request = await prisma.domiciliationRequest.create({
@@ -99,6 +152,8 @@ export async function createDomiciliationRequest(params: {
       city: params.kind === "THIRD_PARTY" ? params.domiciliationCity : null,
       postalCode: params.kind === "THIRD_PARTY" ? params.domiciliationPostalCode : null,
       requestedByProfileId: params.actorUserId,
+      contractAcceptedAt: params.kind === "MAKOMSPACE" ? new Date() : null,
+      contractVersion: params.kind === "MAKOMSPACE" ? DOMICILIATION_CONTRACT_VERSION : null,
     },
   });
 

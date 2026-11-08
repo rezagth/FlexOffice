@@ -101,6 +101,14 @@ describe.skipIf(!hasDatabase)("payouts", () => {
     await prisma.booking.deleteMany({ where: { organizationId: orgId } });
   }
 
+  // The payout run is global (every organization in the database), and this
+  // suite shares the database with the other suites and with real test data:
+  // so the assertions look at THIS organization's payouts, never at the
+  // run-wide counters.
+  const paidCount = () => prisma.payout.count({ where: { organizationId: orgId, status: "PAID" } });
+  const notPaidTo = () =>
+    expect(provider.createTransfer).not.toHaveBeenCalledWith(expect.objectContaining({ connectedAccountId: "acct_payout" }));
+
   beforeAll(async () => {
     ({ prisma } = await import("@/server/db/prisma"));
     ({ runDuePayouts } = await import("@/server/domains/payouts/run-payouts"));
@@ -141,8 +149,8 @@ describe.skipIf(!hasDatabase)("payouts", () => {
 
   it("pays the landlord's share of a finished booking at the monthly boundary, once", async () => {
     const booking = await insertBooking({ status: "COMPLETED", endedHoursAgo: 200 });
-    const result = await runDuePayouts(NOW);
-    expect(result).toMatchObject({ earningsCreated: 1, created: 1, paid: 1 });
+    await runDuePayouts(NOW);
+    expect(await paidCount()).toBe(1);
 
     const payout = await prisma.payout.findFirstOrThrow({ where: { organizationId: orgId }, include: { lines: true } });
     expect(payout).toMatchObject({ amountCents: 8500, status: "PAID" });
@@ -156,33 +164,33 @@ describe.skipIf(!hasDatabase)("payouts", () => {
 
     // A second run pays nothing more.
     provider.createTransfer.mockClear();
-    expect(await runDuePayouts(NOW)).toMatchObject({ created: 0, paid: 0 });
-    expect(provider.createTransfer).not.toHaveBeenCalled();
+    await runDuePayouts(NOW);
+    notPaidTo();
     expect(await prisma.payout.count({ where: { organizationId: orgId } })).toBe(1);
   });
 
   it("keeps the money while the stay is not over, and during the 24 h dispute window", async () => {
     await insertBooking({ status: "COMPLETED", endedHoursAgo: 2 });
-    const result = await runDuePayouts(NOW);
+    await runDuePayouts(NOW);
     // The earning exists but is not payable yet: nothing goes out, and it is
     // not eligible at the boundary either.
-    expect(result.paid).toBe(0);
-    expect(provider.createTransfer).not.toHaveBeenCalled();
+    expect(await paidCount()).toBe(0);
+    notPaidTo();
   });
 
   it("a booking that ended after the boundary waits for the next one", async () => {
     // Ended 30 h ago: payable, but after the 1 March boundary -> next month.
     await insertBooking({ status: "COMPLETED", endedHoursAgo: 30 });
-    const result = await runDuePayouts(NOW);
-    expect(result.paid).toBe(0);
+    await runDuePayouts(NOW);
+    expect(await paidCount()).toBe(0);
     expect(await prisma.payoutLine.count({ where: { organizationId: orgId, payoutId: null } })).toBe(1);
   });
 
   it("a weekly landlord is paid at the Monday boundary", async () => {
     await prisma.organization.update({ where: { id: orgId }, data: { payoutFrequency: "WEEKLY" } });
     await insertBooking({ status: "COMPLETED", endedHoursAgo: 72 });
-    const result = await runDuePayouts(NOW); // Monday 10:00 Paris, boundary = 4 March 00:00 Paris
-    expect(result.paid).toBe(1);
+    await runDuePayouts(NOW); // Monday 10:00 Paris, boundary = 4 March 00:00 Paris
+    expect(await paidCount()).toBe(1);
     const payout = await prisma.payout.findFirstOrThrow({ where: { organizationId: orgId } });
     expect(payout.scheduledFor.toISOString()).toBe("2030-03-03T23:00:00.000Z");
   });
@@ -208,8 +216,8 @@ describe.skipIf(!hasDatabase)("payouts", () => {
     await prisma.payoutLine.create({
       data: { organizationId: orgId, bookingId: cancelled.id, kind: "CANCELLATION_PENALTY", amountCents: -1500, eligibleAt: hoursBefore(100) },
     });
-    const result = await runDuePayouts(NOW);
-    expect(result).toMatchObject({ created: 0, paid: 0, carriedOver: 1 });
+    await runDuePayouts(NOW);
+    expect(await prisma.payout.count({ where: { organizationId: orgId } })).toBe(0);
     expect(await prisma.payoutLine.count({ where: { organizationId: orgId, payoutId: null } })).toBe(1);
   });
 
@@ -256,34 +264,38 @@ describe.skipIf(!hasDatabase)("payouts", () => {
     const booking = await insertBooking({ status: "COMPLETED", endedHoursAgo: 200 });
     expect((await syncEarningLines(NOW)).created).toBe(1);
     const dispute = await prisma.dispute.create({ data: { bookingId: booking.id, raisedByUserId: clientId, description: "Non conforme" } });
-    expect((await runDuePayouts(NOW)).paid).toBe(0);
-    expect(provider.createTransfer).not.toHaveBeenCalled();
+    await runDuePayouts(NOW);
+    expect(await paidCount()).toBe(0);
+    notPaidTo();
 
     await prisma.dispute.update({ where: { id: dispute.id }, data: { status: "RESOLVED_NO_ACTION" } });
-    expect((await runDuePayouts(NOW)).paid).toBe(1);
+    await runDuePayouts(NOW);
+    expect(await paidCount()).toBe(1);
   });
 
   it("waits for a landlord whose payout account is not ready, without losing anything", async () => {
     state.accountReady = false;
     await insertBooking({ status: "COMPLETED", endedHoursAgo: 200 });
-    const result = await runDuePayouts(NOW);
-    expect(result).toMatchObject({ created: 0, paid: 0, waiting: 1 });
+    await runDuePayouts(NOW);
+    expect(await prisma.payout.count({ where: { organizationId: orgId } })).toBe(0);
     expect(await prisma.payoutLine.count({ where: { organizationId: orgId, payoutId: null } })).toBe(1);
 
     state.accountReady = true;
-    expect((await runDuePayouts(NOW)).paid).toBe(1);
+    await runDuePayouts(NOW);
+    expect(await paidCount()).toBe(1);
   });
 
   it("a failed transfer is retried with the same key and never paid twice", async () => {
     await insertBooking({ status: "COMPLETED", endedHoursAgo: 200 });
     state.transferFails = true;
-    expect(await runDuePayouts(NOW)).toMatchObject({ created: 1, failed: 1, paid: 0 });
+    await runDuePayouts(NOW);
+    expect(await paidCount()).toBe(0);
     const failed = await prisma.payout.findFirstOrThrow({ where: { organizationId: orgId } });
     expect(failed).toMatchObject({ status: "FAILED", amountCents: 8500 });
 
     state.transferFails = false;
     await prisma.payout.update({ where: { id: failed.id }, data: { updatedAt: hoursBefore(1) } });
-    expect(await runDuePayouts(NOW)).toMatchObject({ created: 0, paid: 1 });
+    await runDuePayouts(NOW);
     const retried = await prisma.payout.findUniqueOrThrow({ where: { id: failed.id } });
     expect(retried.status).toBe("PAID");
     expect(provider.createTransfer).toHaveBeenLastCalledWith(expect.objectContaining({ idempotencyKey: failed.id }));

@@ -87,7 +87,11 @@ export function CollapsibleSidebar({ brand, children }: { brand: ReactNode; chil
   }
 
   return (
-    <aside className="flex w-full shrink-0 flex-col border-b border-sidebar-border bg-sidebar md:min-h-screen md:w-64 md:border-b-0 md:border-r">
+    // On desktop the sidebar stays put while the page scrolls: it is as tall as
+    // the screen, pinned to the top, and scrolls inside itself only when its own
+    // content (a long menu, a small window) does not fit. On a phone it is the
+    // header band above the content, as before.
+    <aside className="flex w-full shrink-0 flex-col border-b border-sidebar-border bg-sidebar md:sticky md:top-0 md:h-screen md:w-64 md:self-start md:overflow-y-auto md:border-b-0 md:border-r">
       <div className="flex items-center justify-between gap-4 px-6 py-4 md:py-6">
         {brand}
         <button

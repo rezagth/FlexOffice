@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePageLandlordOrg } from "@/server/auth/page-guards";
 import { prisma } from "@/server/db/prisma";
 import type { BookingStatus } from "@/generated/prisma/client";
@@ -23,6 +24,11 @@ const DISPUTE_STATUS_LABELS: Record<string, string> = {
 };
 
 /** A confirmed booking whose slot has not started can still be cancelled. */
+/** A slot that has begun is no longer "à venir". */
+function hasStarted(startsAt: Date): boolean {
+  return startsAt.getTime() <= Date.now();
+}
+
 function canLandlordCancel(booking: { status: string; startsAt: Date }): boolean {
   return booking.status === "CONFIRMED" && booking.startsAt.getTime() > Date.now();
 }
@@ -38,7 +44,13 @@ export default async function PartnerRequestsPage() {
     prisma.booking.findMany({
       // CANCELLED shown too (not disputable): a landlord must see that a
       // confirmed booking was cancelled by the client.
-      where: { organizationId: ctx.activeOrgId, status: { in: [...DISPUTABLE_STATUSES, "CANCELLED"] }, NOT: { cancelledBy: "SYSTEM" } },
+      // `cancelledBy` is NULL on every booking that was never cancelled: the
+      // NULL case is spelled out rather than left to how a bare NOT treats it.
+      where: {
+        organizationId: ctx.activeOrgId,
+        status: { in: [...DISPUTABLE_STATUSES, "CANCELLED"] },
+        OR: [{ cancelledBy: null }, { cancelledBy: { not: "SYSTEM" } }],
+      },
       include: {
         space: true,
         clientUser: { select: { name: true } },
@@ -49,51 +61,17 @@ export default async function PartnerRequestsPage() {
     }),
   ]);
 
-  return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-6">
-        <h1 className="text-2xl font-semibold text-foreground">Demandes de réservation</h1>
+  const upcoming = handled
+    .filter((b) => b.status === "CONFIRMED" && !hasStarted(b.startsAt))
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  const history = handled.filter((b) => !upcoming.includes(b));
 
-        {requests.length === 0 ? (
-          <EmptyState
-            title="Aucune demande en attente"
-            description="Les nouvelles demandes de réservation de vos espaces apparaîtront ici."
-          />
-        ) : (
-          <div className="flex flex-col gap-3">
-            {requests.map((booking) => (
+  const renderBooking = (booking: (typeof handled)[number]) => (
               <Card key={booking.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
-                  <p className="font-medium">
+                  <Link href={`/app/landlord/bookings/${booking.id}`} className="font-medium underline-offset-2 hover:underline">
                     {booking.clientUser.name} — {booking.space.name}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDateTime(booking.startsAt)} → {formatDateTime(booking.endsAt)} ·{" "}
-                    {booking.participantsCount} pers. · {formatCents(booking.priceAmountCents)}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">{booking.purpose}</p>
-                </div>
-                <BookingRequestActions bookingId={booking.id} />
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Réservations passées</h2>
-        {handled.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Les réservations acceptées, refusées ou terminées apparaîtront ici.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {handled.map((booking) => (
-              <Card key={booking.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="font-medium">
-                    {booking.clientUser.name} — {booking.space.name}
-                  </p>
+                  </Link>
                   <p className="text-sm text-muted-foreground">
                     {formatDateTime(booking.startsAt)} → {formatDateTime(booking.endsAt)} ·{" "}
                     {formatCents(booking.priceAmountCents)} ·{" "}
@@ -118,8 +96,57 @@ export default async function PartnerRequestsPage() {
                 )}
                 </div>
               </Card>
+            
+  );
+
+  return (
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
+        <h1 className="text-2xl font-semibold text-foreground">Demandes de réservation</h1>
+
+        {requests.length === 0 ? (
+          <EmptyState
+            title="Aucune demande en attente"
+            description="Les nouvelles demandes de réservation de vos espaces apparaîtront ici."
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {requests.map((booking) => (
+              <Card key={booking.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div>
+                  <Link href={`/app/landlord/bookings/${booking.id}`} className="font-medium underline-offset-2 hover:underline">
+                    {booking.clientUser.name} — {booking.space.name}
+                  </Link>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDateTime(booking.startsAt)} → {formatDateTime(booking.endsAt)} ·{" "}
+                    {booking.participantsCount} pers. · {formatCents(booking.priceAmountCents)}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">{booking.purpose}</p>
+                </div>
+                <BookingRequestActions bookingId={booking.id} />
+              </Card>
             ))}
           </div>
+        )}
+      </div>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-medium">Réservations à venir</h2>
+        {upcoming.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Les réservations confirmées à venir apparaîtront ici.</p>
+        ) : (
+          <div className="flex flex-col gap-3">{upcoming.map(renderBooking)}</div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-medium">Historique</h2>
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Les réservations terminées, refusées ou annulées apparaîtront ici.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">{history.map(renderBooking)}</div>
         )}
       </section>
     </div>

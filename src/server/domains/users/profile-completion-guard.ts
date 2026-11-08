@@ -1,6 +1,6 @@
 import { prisma } from "@/server/db/prisma";
-import { ForbiddenError } from "@/server/lib/errors";
-import { isCompanyInfoComplete, isProfileComplete } from "./profile-completion";
+import { ForbiddenError, ProfileIncompleteError } from "@/server/lib/errors";
+import { isCompanyInfoComplete, missingProfileItems } from "./profile-completion";
 
 /**
  * PRD V1.1, R62 — "réservation et publication bloquées tant que [le profil]
@@ -13,13 +13,23 @@ export async function assertProfileIsComplete(
   userId: string,
   action: "réserver un espace" | "publier un espace"
 ): Promise<void> {
+  const missing = await getMissingProfileItems(userId);
+  if (missing.length > 0) {
+    throw new ProfileIncompleteError(
+      `Pour ${action}, il vous reste à : ${missing.join(" ; ")}.`
+    );
+  }
+}
+
+/** What the account still has to do before it can book or publish (empty =
+ * complete). Used by pages to explain a disabled action up front, and by
+ * `assertProfileIsComplete` for the server-side refusal. */
+export async function getMissingProfileItems(userId: string): Promise<string[]> {
   const profile = await prisma.profile.findUniqueOrThrow({
     where: { id: userId },
     select: { phone: true, phoneVerifiedAt: true, accountNeed: true, holderType: true },
   });
-  if (!isProfileComplete(profile)) {
-    throw new ForbiddenError(`Complétez votre profil avant de ${action}.`);
-  }
+  return missingProfileItems(profile);
 }
 
 /**

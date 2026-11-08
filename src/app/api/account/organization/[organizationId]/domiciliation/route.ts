@@ -24,6 +24,7 @@ export const POST = withErrorHandling(async (request: Request, { params }: Ctx) 
     domiciliationAddress: input.domiciliationAddress,
     domiciliationCity: input.domiciliationCity,
     domiciliationPostalCode: input.domiciliationPostalCode,
+    contractAccepted: input.domiciliationContractAccepted,
   });
   return NextResponse.json(created, { status: 201 });
 });

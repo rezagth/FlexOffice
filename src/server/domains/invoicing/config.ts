@@ -1,4 +1,5 @@
 import { SITE_NAME } from "@/lib/site";
+import { isProductionDeployment } from "@/server/auth/runtime-config";
 
 /**
  * Invoicing settings — every business assumption the owner has not decided
@@ -37,6 +38,11 @@ export const VAT_EXEMPTION_MENTION = "TVA non applicable, art. 293 B du CGI";
  * captured, hence "acquittée", but the mentions stay mandatory. */
 export const LATE_PAYMENT_MENTION =
   "En cas de retard de paiement, des pénalités calculées au taux d'intérêt appliqué par la Banque centrale européenne à son opération de refinancement la plus récente majoré de 10 points sont exigibles de plein droit, ainsi qu'une indemnité forfaitaire pour frais de recouvrement de 40 € (art. L.441-10 et D.441-5 du Code de commerce). Pas d'escompte pour paiement anticipé.";
+
+/** Mandatory since 1 Oct 2023 (CGI art. 242 nonies A): the category of the
+ * operation. Everything the platform invoices is a service. The option for
+ * VAT on debits, when a seller has taken it, is an accountant's matter (H1). */
+export const OPERATION_CATEGORY_MENTION = "Catégorie de l'opération : prestation de services.";
 
 export function billingMandateMention(landlordLegalName: string): string {
   return `Facture émise par ${PLATFORM_DISPLAY_NAME} au nom et pour le compte de ${landlordLegalName} en vertu d'un mandat de facturation.`;
@@ -109,6 +115,48 @@ export type PlatformIdentity = {
 };
 
 export const PLATFORM_FIELD_PLACEHOLDER = "[à compléter]";
+
+/** Environment variables that make up the platform identity, in the order
+ * the invoice PDF prints them. Names only, never their values. */
+export const PLATFORM_IDENTITY_ENV_KEYS = [
+  "PLATFORM_LEGAL_NAME",
+  "PLATFORM_LEGAL_FORM",
+  "PLATFORM_SHARE_CAPITAL",
+  "PLATFORM_ADDRESS",
+  "PLATFORM_SIRET",
+  "PLATFORM_RCS",
+  "PLATFORM_VAT_NUMBER",
+  "PLATFORM_BILLING_EMAIL",
+] as const;
+
+/** The PLATFORM_* variables that are still empty. */
+export function missingPlatformIdentityKeys(): string[] {
+  return PLATFORM_IDENTITY_ENV_KEYS.filter((key) => env(key) === undefined);
+}
+
+/**
+ * True when this process moves REAL money: a production deployment, the
+ * Stripe provider, and a live secret key. A Stripe test key (`sk_test_…`)
+ * or the mock provider is never "live", so the recette on a production-built
+ * deployment keeps working with the placeholder identity.
+ */
+export function isLiveMoneyMode(): boolean {
+  return (
+    isProductionDeployment() &&
+    env("PAYMENT_PROVIDER") === "stripe" &&
+    (env("STRIPE_SECRET_KEY") ?? "").startsWith("sk_live_")
+  );
+}
+
+/**
+ * C2: an invoice number is sequential and cannot be taken back, so no
+ * numbered document is issued, and no payment is accepted, while real money
+ * is involved and the seller identity printed on the documents is still a
+ * "[à compléter]" placeholder. Test mode, demo and dev are unaffected.
+ */
+export function isPlatformIdentityBlockingIssuance(): boolean {
+  return isLiveMoneyMode() && missingPlatformIdentityKeys().length > 0;
+}
 
 export function getPlatformIdentity(): PlatformIdentity {
   const fields = {
