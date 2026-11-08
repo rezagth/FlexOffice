@@ -93,6 +93,13 @@ ENV NODE_ENV=production \
 WORKDIR /app
 RUN groupadd --system --gid 10001 app \
  && useradd --system --uid 10001 --gid app --no-create-home app
+# The standalone server only needs the `node` binary. The npm, corepack and
+# yarn tooling shipped with the base image is never used at runtime, and its
+# bundled dependencies (pacote, picomatch, sigstore…) are what Trivy flags.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+           /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-v* \
+ && node --version
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
 COPY --from=build --chown=app:app /app/public ./public
