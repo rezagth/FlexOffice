@@ -160,12 +160,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.target.outputs.sha }}
-      - name: Enable corepack
-        run: corepack enable
+      # The self-hosted runner VM has no Node of its own: setup-node installs
+      # one in the runner's writable tool cache, and corepack (bundled with
+      # Node 22) is enabled from there, without root. No `cache: pnpm`: that
+      # option needs pnpm to exist BEFORE setup-node runs.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+      - name: Enable corepack
+        run: corepack enable
       - run: pnpm install --frozen-lockfile
       # `migrate deploy` only applies committed migrations, in order, and
       # fails on drift. Migrations are expand-only by convention, so the
@@ -179,7 +182,10 @@ jobs:
   deploy:
     name: Deploy with Coolify and smoke-test
     needs: [target, build, migrate]
-    runs-on: ubuntu-latest
+    # Coolify lives on the server's private network (reachable only through
+    # an SSH tunnel from outside): the webhook is called from the
+    # self-hosted runner, which sits inside that network.
+    runs-on: [self-hosted, officeflex]
     environment: ${{ needs.target.outputs.environment }}
     timeout-minutes: 15
     steps:
