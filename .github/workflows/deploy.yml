@@ -197,7 +197,8 @@ jobs:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
-          response=$(curl -fsS -X GET "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN")
+          # Coolify 4.6 answers 405 "This endpoint has changed to a POST request" to GET.
+          response=$(curl -fsS -X POST "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN")
           deployment=$(echo "$response" | jq -r '.deployments[0].deployment_uuid // empty')
           if [ -z "$deployment" ]; then
             echo "::warning::Coolify returned no deployment id; waiting 90 s instead"
