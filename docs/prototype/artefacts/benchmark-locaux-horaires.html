@@ -1,0 +1,373 @@
+<title>Benchmark locaux à l'heure</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bandeau de synthèse, grille horaire comparée, puis tableau filtrable en lignes à 3 colonnes (Airbnb / Booking / Local pro). */
+:root{
+  --bg:#F3F6F5; --surface:#FFFFFF; --ink:#14211F; --muted:#55655F; --line:#D5DDDA;
+  --accent:#0B6B63; --reuse:#2E7D4F; --adapt:#A8691A; --new:#B8432F;
+  --f-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1514; --surface:#151F1D; --ink:#E6EEEC; --muted:#93A39E; --line:#27342F;
+  --accent:#4FC3B5; --reuse:#5DBB84; --adapt:#E0A84A; --new:#EE8A70; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1514; --surface:#151F1D; --ink:#E6EEEC; --muted:#93A39E; --line:#27342F;
+  --accent:#4FC3B5; --reuse:#5DBB84; --adapt:#E0A84A; --new:#EE8A70; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);padding-block:32px 64px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(28px,4.4vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:22px;font-weight:700}
+h3{font-size:16px;font-weight:700}
+p{margin:0}
+.eyebrow{font:500 12px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.lead{font-size:17px;max-width:68ch;color:var(--ink)}
+.muted{color:var(--muted)}
+header{display:flex;flex-direction:column;gap:14px}
+.verdict{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:20px;display:grid;gap:20px;grid-template-columns:1fr 1fr}
+.verdict>div{min-width:0}
+.verdict h3{margin-bottom:10px}
+.nights,.hours{display:grid;gap:4px}
+.nights{grid-template-columns:repeat(7,1fr)}
+.hours{grid-template-columns:repeat(12,1fr)}
+.cell{height:34px;border-radius:3px;background:color-mix(in srgb,var(--muted) 18%,transparent);font:500 10px/34px var(--f-mono);text-align:center;color:var(--muted)}
+.cell.on{background:var(--accent);color:var(--surface)}
+.cell.buf{background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--adapt) 55%,transparent) 0 3px,transparent 3px 6px);color:var(--ink)}
+.cell.off{opacity:.45}
+.cap{font:400 12px var(--f-mono);color:var(--muted);margin-top:8px}
+.stats{display:grid;gap:12px;grid-template-columns:repeat(4,1fr)}
+.stat{border-top:3px solid var(--line);padding-top:10px;min-width:0}
+.stat b{display:block;font:700 34px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.stat.reuse{border-color:var(--reuse)}.stat.adapt{border-color:var(--adapt)}.stat.new{border-color:var(--new)}
+.gaps{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
+.gap{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.gap p{font-size:14px;color:var(--muted)}
+.tag{display:inline-block;font:500 11px var(--f-mono);padding:2px 7px;border-radius:3px;letter-spacing:.03em;white-space:nowrap}
+.t-reuse{color:var(--reuse);background:color-mix(in srgb,var(--reuse) 14%,transparent)}
+.t-adapt{color:var(--adapt);background:color-mix(in srgb,var(--adapt) 15%,transparent)}
+.t-new{color:var(--new);background:color-mix(in srgb,var(--new) 14%,transparent)}
+.t-p{color:var(--ink);background:color-mix(in srgb,var(--muted) 16%,transparent)}
+.tools{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding:10px 0;z-index:5;border-bottom:1px solid var(--line)}
+.grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.grp>span{font:500 11px var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-right:2px}
+button.chip{font:500 13px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 12px;cursor:pointer}
+button.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+button.chip:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=search]{font:400 14px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px;min-width:0;width:220px;max-width:100%}
+.colhead,.row{display:grid;grid-template-columns:1.1fr 1.3fr 1.3fr 1.7fr;gap:16px}
+.colhead{font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 4px 6px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin-bottom:8px;align-items:start}
+.row>div{min-width:0;font-size:14px}
+.row .lbl{display:none;font:500 11px var(--f-mono);text-transform:uppercase;color:var(--muted);letter-spacing:.06em;margin-bottom:2px}
+.row .feat{font-weight:600;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.row .cat{font:400 11px var(--f-mono);color:var(--muted)}
+.row .loc{border-left:3px solid var(--line);padding-left:12px}
+.row.reuse .loc{border-color:var(--reuse)}.row.adapt .loc{border-color:var(--adapt)}.row.new .loc{border-color:var(--new)}
+.src{font:400 11px var(--f-mono);color:var(--muted)}
+.cols2{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px;min-width:0}
+.box h3{margin-bottom:10px}
+.box ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.road{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
+.road ol{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:14px}
+footer{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:8px}
+@media(max-width:860px){
+  .verdict,.cols2,.road,.gaps{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .colhead{display:none}
+  .row{grid-template-columns:1fr;gap:10px}
+  .row .lbl{display:block}
+  .tools{position:static}
+}
+@media(prefers-reduced-motion:no-preference){button.chip{transition:background .15s}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Benchmark · Airbnb × Booking.com × locaux pro à l'heure · 29 oct. 2026</div>
+  <h1>Ce qu'il manque pour louer un local commercial à l'heure comme on réserve une nuit sur Airbnb</h1>
+  <p class="lead">Airbnb et Booking réservent à la <b>nuit</b>. Leur vitrine, leur extranet, leurs paiements et leur système de confiance se reprennent en grande partie. Le moteur de calendrier, la conformité d'un local recevant du public, la facturation B2B et l'accès au lieu sont à construire.</p>
+</header>
+
+<section class="verdict" aria-label="Granularité du calendrier">
+  <div>
+    <h3>Airbnb et Booking : l'unité est la nuit</h3>
+    <div class="nights" id="nights"></div>
+    <p class="cap">Séjour min/max en nuits, prix par nuit, préparation en jours. Seules les heures d'arrivée/départ et quelques délais (préavis, annulation) sont horaires.</p>
+  </div>
+  <div>
+    <h3>Local pro : l'unité est le créneau</h3>
+    <div class="hours" id="hours"></div>
+    <p class="cap">Exemple : jeudi, ouverture 8h–20h, pas de 1h. Réservé 10h–13h, 30 min de remise en état (hachuré) avant le client suivant.</p>
+  </div>
+</section>
+
+<section class="stats" id="stats" aria-label="Synthèse"></section>
+
+<section>
+  <h2 style="margin-bottom:6px">Relevé réel de vos deux extranets</h2>
+  <p class="muted" style="margin-bottom:16px">Parcours en lecture seule le 29 oct. 2026, sur l'appartement de Bischheim (Booking et Airbnb). Rien n'a été modifié ni enregistré.</p>
+  <div class="cols2">
+    <div class="box"><h3>Booking.com, extranet</h3>
+      <ul>
+        <li><b>Structure</b> : 10 rubriques (Accueil, Calendrier et tarifs, Promotions, Réservations, Établissement, Boostez votre performance, Boîte de réception, Commentaires, Comptabilité, Analyse). Une vue groupe liste vos 3 hébergements avec statut ouvert/fermé, arrivées, départs et messages.</li>
+        <li><b>Calendrier</b> : vues mois, liste, année sur 30 mois. Par jour : ouvrir/fermer, disponibilité, tarif par plan, restrictions. Un repère « airbnb.com » apparaît sur les dates prises via la synchronisation.</li>
+        <li><b>Plans tarifaires</b> : Standard, Non remboursable (−10 % du Standard), À la semaine (−15 %). Les plans dérivés sont des pourcentages du plan de base.</li>
+        <li><b>Conditions de réservation</b> : « Flexible – 1 jour » et « Non remboursable », avec par condition les nuitées, le revenu et le taux d'annulation.</li>
+        <li><b>Conformité</b> : un bandeau bloquant « Connaître son partenaire » renvoie au Centre de conformité, et les coordonnées bancaires sont exigées pour les versements.</li>
+        <li><b>Pilotage</b> : 8 tâches de configuration, score de page, score de commentaires, rapport prévisionnel, comparaison avec un groupe de concurrents, Centre Opportunités (26 actions), offres Black Friday et fin d'année.</li>
+        <li><b>Finances</b> : une facture de commission par mois (numérotée, PDF, relevé détaillé, statut payée), onglets « Paiements à Booking.com » et « Paiements de Booking.com », factures établies à la date de fin de séjour.</li>
+        <li><b>Analyse</b> : rapports sur 365 jours comparés à l'année dernière, aux concurrents ou au marché ; fenêtre de réservation, durée de séjour, appareil, pays et type de voyageur (loisirs ou affaires). Le profil « affaires » existe déjà dans leurs données.</li>
+        <li><b>Seule granularité horaire visible</b> : heures d'arrivée (15h à 18h) et de départ (8h à 11h) sur la fiche publique.</li>
+      </ul></div>
+    <div class="box"><h3>Airbnb, extranet hôte</h3>
+      <ul>
+        <li><b>Structure</b> : 4 onglets seulement (Aujourd'hui, Calendrier, Annonces, Messages). Plus léger que Booking.</li>
+        <li><b>Éditeur d'annonce</b> : tarification (190 € par nuit), réductions semaine 10 % et mois 29 %, séjours de 1 à 365 nuits, préavis « le jour même », voyageurs maximum, co-hôtes, sécurité (détecteurs), lien personnalisé, visite photo par pièce.</li>
+        <li><b>Réservation</b> : toutes les demandes sont sur approbation ; l'écran suggère l'activation de la réservation instantanée.</li>
+        <li><b>Outils pour professionnels</b> : multicalendrier, équipes et tableau de performances sont derrière une activation séparée dès que l'on gère plusieurs annonces.</li>
+        <li><b>Messagerie</b> : programme « Ambassadeur Superhôte », un hôte expérimenté assigné gratuitement pendant 2 mois pour guider le nouvel hôte (démarches, photos, conseils). Fonction d'accompagnement humain absente de Booking.</li>
+        <li><b>Gains</b> : l'écran est protégé par une double authentification SMS ou appel. Je ne l'ai pas franchie.</li>
+        <li><b>Vitrine</b> : fiche publique avec dates d'arrivée et de départ, voyageurs, « Vérifier la disponibilité » ; le prix n'apparaît qu'une fois les dates saisies.</li>
+      </ul></div>
+  </div>
+  <div class="box" style="margin-top:14px"><h3>Ce que ça change pour le projet</h3>
+    <ul>
+      <li>Booking applique déjà un contrôle d'entreprise bloquant (formulaire « Connaître son partenaire »). Cela confirme que la vérification KYB doit être au premier lot.</li>
+      <li>Les plans dérivés en pourcentage (−10 %, −15 %) donnent le bon modèle pour des forfaits demi-journée et journée calculés depuis le tarif horaire.</li>
+      <li>Le repère d'origine d'une réservation sur le calendrier (ici « airbnb.com ») est à reprendre : il rend la synchronisation lisible pour l'hôte.</li>
+      <li>La structure à 4 onglets d'Airbnb suffit pour un lancement. La structure à 10 rubriques de Booking sert de liste de ce qui viendra ensuite.</li>
+      <li>Un accompagnement humain à l'onboarding (type Ambassadeur) aide un nouvel hôte à publier un local conforme.</li>
+    </ul></div>
+</section>
+
+<section>
+  <h2 style="margin-bottom:6px">Votre vitrine MakomSpace face aux deux géants</h2>
+  <p class="muted" style="margin-bottom:16px">Lu sur flexoffice-dusky.vercel.app sans connexion : accueil, recherche, fiche d'un espace, page « Proposer un espace », aide. L'extranet (administrateur, bailleur, locataire) n'est pas encore relevé : il demande une connexion de votre part.</p>
+  <div class="cols2">
+    <div class="box"><h3><span class="tag t-reuse">Déjà en place</span></h3>
+      <ul>
+        <li>Recherche par ville, date et capacité, filtres par type, prix maximum par jour et 11 équipements, carte et « Autour de moi ».</li>
+        <li>Entreprise vérifiée (SIRET, e-mail professionnel, adresse) avant publication, avec badge sur les cartes.</li>
+        <li>Horaires d'ouverture par jour affichés en heure locale Europe/Paris, avec fermeture le dimanche.</li>
+        <li>Tarifs à la demi-journée et à la journée sur la fiche.</li>
+        <li>Réservation sur demande : paiement autorisé, débité seulement après acceptation par l'entreprise.</li>
+        <li>Annulation par paliers (plus de 2 jours : remboursé, moins de 2 jours : 50 %), frais de service non remboursables sauf annulation par l'entreprise.</li>
+        <li>Instructions d'accès envoyées après confirmation, avis réservés aux clients après réservation, aide en 3 rubriques, réponse sous 24 h ouvrées.</li>
+        <li>Parcours d'inscription entreprise en 4 étapes, versement automatique commission déduite.</li>
+      </ul></div>
+    <div class="box"><h3><span class="tag t-adapt">Partiel ou à corriger</span></h3>
+      <ul>
+        <li><b>Unité de temps</b> : demi-journée et journée seulement. Les horaires d'ouverture existent déjà, donc le créneau à l'heure se bâtit sur la même base.</li>
+        <li><b>Types d'espace</b> : bureau, salle de réunion, espace de formation. Boutique éphémère, rendez-vous pro et tournage n'existent pas.</li>
+        <li><b>Recherche</b> : une seule date, sans plage horaire ni durée.</li>
+        <li><b>Fiche</b> : pas de surface, de plan, de jauge légale ni de type d'ERP ; « Photo à venir » sur les deux espaces ; prix sans mention HT ou TTC.</li>
+        <li><b>Avis</b> : le mécanisme est annoncé, aucun avis n'est encore publié.</li>
+        <li><b>À vérifier</b> : l'ouverture directe de l'adresse d'une fiche a d'abord affiché la page de recherche, puis la fiche au clic. Cela peut gêner le partage de liens.</li>
+      </ul></div>
+  </div>
+  <div class="box" style="margin-top:14px"><h3><span class="tag t-new">Absent de la vitrine</span></h3>
+    <ul>
+      <li>Réservation immédiate en option, durée minimale, préavis et temps de remise en état visibles pour le client.</li>
+      <li>Caution, état des lieux, assurance responsabilité civile exigée, contrat signé en ligne.</li>
+      <li>Accès connecté (code ou serrure valable sur le créneau).</li>
+      <li>Messagerie avant réservation, favoris et comparaison, pages locales pour le référencement, visite virtuelle.</li>
+    </ul></div>
+</section>
+
+<section>
+  <h2 style="margin-bottom:6px">Six chantiers sans équivalent chez Airbnb ou Booking</h2>
+  <p class="muted" style="margin-bottom:16px">Ce sont les écarts qui bloquent une mise en service réelle.</p>
+  <div class="gaps">
+    <div class="gap"><span class="tag t-new">Moteur</span><h3>Calendrier à l'heure</h3><p>Horaires d'ouverture hebdomadaires et exceptions, pas de 15/30/60 min, durée min/max, buffer avant/après, blocage provisoire pendant le paiement, anti double réservation, fuseau du lieu et changement d'heure.</p></div>
+    <div class="gap"><span class="tag t-new">Conformité</span><h3>Local recevant du public</h3><p>Un local qui accueille des clients ou invités est un ERP : type (L, M, N, T, W), catégorie, jauge maximale, registre de sécurité, accessibilité. La plateforme doit plafonner le nombre de personnes à l'effectif autorisé.</p></div>
+    <div class="gap"><span class="tag t-new">Contrat</span><h3>Mise à disposition, pas bail</h3><p>Contrat de courte durée signé en ligne, rédigé pour éviter la requalification en bail commercial. Si l'hôte est locataire, attestation d'autorisation de sous-louer (art. L145-31 du code de commerce, à faire valider).</p></div>
+    <div class="gap"><span class="tag t-new">Argent</span><h3>Paiement et facture B2B</h3><p>Paiement partagé hôte/plateforme, caution par pré-autorisation, TVA 20 % ou exonération selon l'hôte, facture de l'hôte et facture de commission séparées, e-facturation à prévoir sur 2026-2027.</p></div>
+    <div class="gap"><span class="tag t-new">Confiance</span><h3>Vérifier des entreprises</h3><p>Airbnb vérifie des particuliers. Ici il faut un contrôle Kbis/SIRET (annuaire des entreprises), une pièce d'identité du dirigeant, une attestation de responsabilité civile, et la collecte DAC7 (identité, NIF, SIRET) des hôtes.</p></div>
+    <div class="gap"><span class="tag t-new">Terrain</span><h3>Accès et état des lieux</h3><p>Personne n'accueille chaque client pour une heure. Code ou lien d'accès valable uniquement sur le créneau (serrure connectée), journal des accès, photos horodatées d'entrée et de sortie, mode dégradé avec boîte à clé.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2 style="margin-bottom:6px">Comparatif fonction par fonction</h2>
+  <p class="muted">Colonne de droite : ce que ça devient pour un local pro. Couleur : <span class="tag t-reuse">réutiliser</span> tel quel, <span class="tag t-adapt">adapter</span> au modèle horaire, <span class="tag t-new">créer</span>. Priorité P0 = indispensable pour ouvrir, P1 = juste après, P2 = confort.</p>
+  <div class="tools" role="group" aria-label="Filtres">
+    <div class="grp" id="fcat"><span>Zone</span></div>
+    <div class="grp" id="fst"><span>Statut</span></div>
+    <div class="grp" id="fpr"><span>Priorité</span></div>
+    <input type="search" id="q" placeholder="Rechercher (ex. caution, ERP, iCal)" aria-label="Rechercher">
+  </div>
+  <div class="colhead"><div>Fonction</div><div>Airbnb</div><div>Booking.com</div><div>Pour un local pro à l'heure</div></div>
+  <div id="rows"></div>
+  <p class="muted" id="empty" hidden>Aucune fonction ne correspond à ces filtres.</p>
+</section>
+
+<section>
+  <h2 style="margin-bottom:12px">Ordre de construction proposé</h2>
+  <div class="road" id="road"></div>
+</section>
+
+<section>
+  <h2 style="margin-bottom:12px">Marché : qui fait déjà quoi</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Acteur</th><th>Ce qui est observé</th><th>Lecture pour ce projet</th></tr></thead>
+    <tbody>
+      <tr><td><b>Peerspace</b></td><td>Plus de 40 000 espaces, présent à Paris. Réunion, shooting, tournage, événement, pop-up. Promesse « pay by the hour ».</td><td>Référence directe du modèle horaire. Commission, assurance et instant book non relevés.</td></tr>
+      <tr><td><b>Appear Here</b></td><td>Plus de 15 000 espaces à Paris, Londres, New York. Du jour à plusieurs mois, contrats standardisés, paiement en ligne, tableau de bord propriétaire.</td><td>Référence pour le pop-up. Pas d'horaire. Frais non relevés.</td></tr>
+      <tr><td><b>Spacebring</b></td><td>Logiciel de gestion de coworking : salles, bureaux, contrats, facturation, contrôle d'accès SALTO KS, Stripe, API.</td><td>Brique ou modèle fonctionnel, pas une place de marché.</td></tr>
+      <tr><td><b>Regus, Deskeo, Wojo</b></td><td>Salles de réunion à l'heure ou à la journée, opérateurs intégrés (de mémoire, non vérifié).</td><td>Concurrents sur la réunion, pas sur la place de marché.</td></tr>
+      <tr><td><b>Swimply, Splacer</b></td><td>Modèle horaire pour particuliers et tournages (de mémoire, non vérifié).</td><td>Bon modèle d'UX horaire à tester soi-même.</td></tr>
+    </tbody></table></div>
+  <p class="muted" style="margin-top:10px">Aucune place de marché française généraliste combinant locaux pro variés, réservation à l'heure, facture B2B et accès connecté n'a été identifiée. C'est une hypothèse à confirmer par un test manuel de chaque concurrent (commission, caution, buffer, annulation, assurance).</p>
+</section>
+
+<section class="cols2">
+  <div class="box"><h3>Cadre légal à faire valider</h3>
+    <ul>
+      <li><b>Qualification</b> : bail commercial (9 ans), bail dérogatoire (3 ans max) et convention d'occupation précaire ne conviennent pas à l'heure. Piste : prestation de services ou licence d'occupation temporaire.</li>
+      <li><b>ERP</b> : tout local accueillant du public, gratuit ou payant. Salle de réunion type L, magasin M, exposition T, bureaux W. Source vérifiée : service-public F32351.</li>
+      <li><b>TVA</b> : location de locaux nus exonérée avec option possible, locaux aménagés ou services à 20 %. Exigible à l'encaissement des acomptes (service-public F31412, vérifié).</li>
+      <li><b>Plateforme</b> : DAC7, loyauté (L111-7 code de la consommation), DSA, RGPD sur Kbis et pièces d'identité.</li>
+      <li><b>Locataire</b> : vente de produits, alcool et copropriété relèvent de règles propres. Les afficher dans les règles d'usage du local.</li>
+    </ul></div>
+  <div class="box"><h3>Limites de ce benchmark</h3>
+    <ul>
+      <li>Les pages d'aide Airbnb et Booking sont rendues en JavaScript : seuls certains articles ont pu être lus. La colonne « source » signale le niveau de vérification.</li>
+      <li>Aucun produit « day use » Booking n'a pu être confirmé. À vérifier dans un compte extranet de test.</li>
+      <li>Les articles de loi autres que ceux cités avec leur fiche service-public sont de mémoire, non relus sur Légifrance.</li>
+      <li>Les taux de commission des concurrents et de Booking ne sont pas publiés sur les pages lues.</li>
+      <li>Airbnb annonce une mise à jour d'automne 2026 (prix dynamique par fourchette, calendrier multi-annonces) qui change son extranet.</li>
+    </ul></div>
+</section>
+
+<footer>
+  <p>Relevé de vos extranets : admin.booking.com (accueil groupe, accueil établissement, calendrier, plans tarifaires, conditions de réservation, menus), fiche publique Booking de l'établissement, airbnb.fr/hosting (aujourd'hui, annonces, calendrier, messages, éditeur d'annonce) et fiche publique Airbnb.</p>
+  <p>Sources lues : Help Center Airbnb (articles 99, 425, 475, 484, 880, 1857, 2923, topics 1444, 1486, 1489, 1493), news.airbnb.com (release été et mise à jour automne 2026), booking.com/content (about, how_we_work, faq), join.booking.com, developers.booking.com/connectivity, peerspace.com, appearhere.fr, spacebring.com, entreprendre.service-public.gouv.fr.</p>
+  <p>Ce document est un benchmark produit, pas un avis juridique ni fiscal.</p>
+</footer>
+</div>
+
+<script>
+// src: V = lu sur la page officielle, P = partiellement lu, N = connaissance générale, à confirmer
+const ROWS=[
+// ---------- VITRINE
+{c:'Vitrine',f:'Recherche',a:'Destination, dates d\'arrivée et de départ, voyageurs.',b:'Dates d\'arrivée/départ ; prix affiché pour toute la durée du séjour.',l:'Ville ou quartier + date + plage horaire (début, fin) + nombre de personnes + usage (pop-up, réunion, RDV, shooting).',s:'adapt',p:'P0',v:'P'},
+{c:'Vitrine',f:'Entrée par usage',a:'Onglets Homes, Experiences, Services.',b:'Pages par type d\'hébergement (hôtels, appartements, villas).',l:'Entrées « boutique éphémère », « salle de réunion », « RDV pro », « shooting » avec filtres et tarifs propres à chacune.',s:'new',p:'P0',v:'V'},
+{c:'Vitrine',f:'Filtres',a:'Équipements filtrables.',b:'Tris : prix, Genius, mieux notés, étoiles.',l:'Type de local, surface, jauge, équipements pro (wifi, projecteur, vitrine, électricité, point d\'eau), accessibilité PMR, type ERP, emplacement et passage.',s:'new',p:'P0',v:'V'},
+{c:'Vitrine',f:'Carte et quartier',a:'Localisation approximative, adresse exacte après confirmation ; pages quartier (Paris en premier).',b:'Pages SEO pays, régions, villes, quartiers, aéroports.',l:'Adresse exacte visible (un local commercial vit de son emplacement). Carte avec flux piéton, transports, commerces voisins.',s:'adapt',p:'P1',v:'V'},
+{c:'Vitrine',f:'Fiche annonce',a:'Photos, équipements, règles, quartier, scan 3D du plan, avis.',b:'Fiche établissement, types de chambres, plans tarifaires.',l:'Plan coté, surface, jauge légale, horaires d\'ouverture, tarif horaire / demi-journée / journée, règles d\'usage (bruit, alcool, vente), matériel inclus, visite virtuelle.',s:'adapt',p:'P0',v:'V'},
+{c:'Vitrine',f:'Prix affiché',a:'Sous-total + frais de service voyageur 14,1 à 16,5 % (split) ; taxes en sus.',b:'Prix chambre sur la durée ; taxes incluses ou non selon le pays ; « no booking fees ».',l:'Prix HT et TTC pour la plage choisie, détail nettoyage, caution et TVA. Le client est souvent une entreprise : le HT compte.',s:'adapt',p:'P0',v:'V'},
+{c:'Vitrine',f:'Réservation immédiate ou sur demande',a:'Instant Book ou demande à accepter (24 h conseillé).',b:'Instant Booking ou Request to Book.',l:'Conserver les deux. Ajouter une validation préalable (Kbis, assurance) pour les usages à risque : vente, événement, alcool.',s:'reuse',p:'P0',v:'V'},
+{c:'Vitrine',f:'Annulation affichée',a:'Flexible, Moderate, Limited, Firm ; délais en heures, fuseau du logement.',b:'Annulation gratuite jusqu\'à une date/heure, ou non remboursable.',l:'Paliers en heures (ex. gratuit jusqu\'à 48 h avant, 50 % jusqu\'à 24 h). Remboursement au prorata, report de créneau.',s:'adapt',p:'P0',v:'V'},
+{c:'Vitrine',f:'Messagerie',a:'Fil de messages, offres spéciales, pré-approbations.',b:'Alias par réservation, pièces jointes 15 Mo, assistant de réservation.',l:'Même principe, avec échange de pièces (Kbis, attestation d\'assurance), devis et demande de visite avant réservation.',s:'reuse',p:'P1',v:'V'},
+{c:'Vitrine',f:'Avis',a:'Avis voyageur/hôte, résumés IA.',b:'Avis vérifiés après séjour, 3 mois pour répondre, affichés 36 mois, réponse du partenaire.',l:'Avis bilatéraux après le créneau, avec critères pro : conformité à l\'annonce, propreté, accueil, respect des règles.',s:'reuse',p:'P1',v:'V'},
+{c:'Vitrine',f:'Favoris et comparaison',a:'Wishlists, comparateur IA côte à côte.',b:'Non vérifié.',l:'Comparer des locaux et partager une présélection avec son équipe.',s:'reuse',p:'P2',v:'P'},
+{c:'Vitrine',f:'Pages SEO locales',a:'Non vérifié.',b:'Pages pays, villes, quartiers, types d\'hébergement.',l:'« Salle de réunion à l\'heure à Lyon », « boutique éphémère Paris 11e » : levier d\'acquisition principal.',s:'reuse',p:'P1',v:'P'},
+// ---------- EXTRANET
+{c:'Extranet',f:'Création de l\'annonce',a:'Assistant guidé, photos triées par IA, shooting pro, infos entreprise vérifiées.',b:'Compte, fiche, calendrier et prix ; vérification d\'emplacement possible.',l:'Même parcours + justificatif de propriété ou de bail, autorisation de sous-louer, type d\'ERP, jauge, attestations de sécurité et d\'accessibilité, assurance.',s:'adapt',p:'P0',v:'V'},
+{c:'Extranet',f:'Granularité du calendrier',a:'Nuit. Blocage par nuit, restrictions en nuits.',b:'Date. BookingLimit par type de chambre et par jour.',l:'Grille horaire : pas 15/30/60 min, horaires d\'ouverture par jour de semaine, exceptions (jours fermés, nocturnes).',s:'new',p:'P0',v:'V'},
+{c:'Extranet',f:'Durée min et max',a:'Séjour min/max en nuits, règle par jour d\'arrivée.',b:'Min/Max LOS, Fixed LOS en nuits.',l:'Durée en heures : minimum 1 h ou 2 h, maximum journée, forfaits demi-journée et journée.',s:'new',p:'P0',v:'V'},
+{c:'Extranet',f:'Temps de préparation',a:'Temps de préparation entre réservations (ex. 48 h), nuits bloquées automatiquement.',b:'Non vérifié.',l:'Buffer en minutes avant/après : installation, nettoyage, démontage. Il agrandit la plage bloquée.',s:'adapt',p:'P0',v:'P'},
+{c:'Extranet',f:'Préavis et fenêtre de réservation',a:'Même jour avec heure limite, 1 à 7 jours ; fenêtre jusqu\'à 24 mois.',b:'MinAdvancedBookingOffset en heures ou jours, maximum 360 jours.',l:'Préavis en heures (ex. 2 h) et fenêtre de réservation (ex. 90 jours). C\'est la seule notion horaire native chez Booking.',s:'adapt',p:'P0',v:'V'},
+{c:'Extranet',f:'Restrictions d\'arrivée/départ',a:'Seule la règle min-nuits par jour d\'arrivée est confirmée.',b:'Fermé à l\'arrivée ou au départ, fermeture d\'une date.',l:'Créneaux de début imposés (ex. début à l\'heure pile), jours ou plages fermés.',s:'adapt',p:'P2',v:'V'},
+{c:'Extranet',f:'Tarification',a:'Prix de base, Smart Pricing, week-end, réductions semaine/mois, promotions, frais (ménage, personne en plus).',b:'Plans tarifaires, prix standard, par occupation, par durée ; promotions, Genius.',l:'Tarif horaire, dégressif, forfaits, heures pleines/creuses, week-end, supplément nettoyage, tarif par nombre de personnes.',s:'adapt',p:'P0',v:'V'},
+{c:'Extranet',f:'Formules et offres',a:'Option non remboursable à prix réduit.',b:'Types de chambre > plans tarifaires > combinaisons ; value adds.',l:'Formules du même local : nu, avec matériel, avec personnel d\'accueil.',s:'adapt',p:'P1',v:'V'},
+{c:'Extranet',f:'Services additionnels',a:'Airbnb Services (ménage, repas, etc.).',b:'Extras et value adds via API catalogue.',l:'Mobilier, écran, signalétique, nettoyage, traiteur, personnel, vendus en options à la réservation.',s:'adapt',p:'P1',v:'V'},
+{c:'Extranet',f:'Synchronisation de calendrier',a:'iCal import/export, mise à jour toutes les 3 h, granularité nuit ; PMS et channel managers connectés.',b:'API Connectivity (OTA, JSON), disponibilités et tarifs, limites d\'appels.',l:'Synchronisation avec Google et Outlook dans les deux sens, avec heures. Le format iCal sait porter des heures ; chez Airbnb il sert à la nuit. API publique en phase 2.',s:'adapt',p:'P1',v:'V'},
+{c:'Extranet',f:'Équipe, co-hôtes, mandataire',a:'Co-hôtes avec partage de versements.',b:'Non vérifié.',l:'Très pertinent pour une agence : gérer les locaux de propriétaires mandants, avec droits et reversements par propriétaire.',s:'reuse',p:'P1',v:'P'},
+{c:'Extranet',f:'Plusieurs locaux',a:'Multi-calendrier, règles de prix et de disponibilité en masse, tâches.',b:'Gestion multi-propriétés (détail non vérifié).',l:'Portefeuille de locaux d\'une agence ou d\'un réseau, avec modifications en masse.',s:'reuse',p:'P1',v:'P'},
+{c:'Extranet',f:'Statistiques',a:'Nuits réservées, conversion, revenu moyen, insights marché.',b:'Performance et analytics (détail non vérifié).',l:'Taux d\'occupation par heure et par jour, heures creuses, revenu au m², origine des demandes.',s:'adapt',p:'P2',v:'P'},
+{c:'Extranet',f:'Application mobile hôte',a:'Application Airbnb.',b:'Pulse (iOS et Android).',l:'Application ou PWA : accepter une demande, ouvrir à distance, recevoir l\'alerte de fin de créneau.',s:'reuse',p:'P2',v:'V'},
+// ---------- ARGENT
+{c:'Argent',f:'Encaissement',a:'La plateforme encaisse puis reverse.',b:'Trois modes : sur place, prépayé au partenaire, ou Payments by Booking.com.',l:'Paiement en ligne à la réservation (total ou acompte), carte pro, virement pour les comptes entreprise.',s:'adapt',p:'P0',v:'V'},
+{c:'Argent',f:'Versement à l\'hôte',a:'Banque, PayPal, Payoneer, Fast Pay ; 3 à 5 jours pour un compte bancaire ; revue antifraude possible.',b:'Versements quotidiens à l\'arrivée du client, carte virtuelle ou virement.',l:'Reversement à J+1 après la fin du créneau, paiement partagé hôte/plateforme, KYC de l\'hôte.',s:'adapt',p:'P0',v:'V'},
+{c:'Argent',f:'Commission',a:'Frais unique 15,5 % côté hôte, ou 3 % hôte + 14,1 à 16,5 % voyageur. Services 15 %.',b:'Pourcentage affiché à l\'étape d\'accord ; non publié. Facture mensuelle.',l:'À décider : commission côté hôte, côté client, ou mixte. Aucun taux concurrent n\'est vérifié.',s:'new',p:'P0',v:'V'},
+{c:'Argent',f:'Facturation et TVA',a:'TVA incluse sur les frais selon la juridiction.',b:'Facture fournie uniquement par le partenaire.',l:'Facture de l\'hôte (HT, TVA 20 % ou exonération) via mandat de facturation, facture de commission, e-facturation 2026-2027.',s:'new',p:'P0',v:'V'},
+{c:'Argent',f:'Caution',a:'Protection dommages AirCover (pas une caution).',b:'Dépôt de garantie dommages, signalement.',l:'Pré-autorisation de carte bancaire, libérée après l\'état des lieux de sortie.',s:'adapt',p:'P0',v:'V'},
+// ---------- CONFIANCE ET LÉGAL
+{c:'Confiance',f:'Vérification de l\'identité',a:'Nom, adresse, pièce d\'identité des voyageurs.',b:'Vérification de l\'emplacement ; avis réservés aux clients réels.',l:'Contrôle d\'entreprise : Kbis/SIRET (annuaire-entreprises.data.gouv.fr), pièce d\'identité du dirigeant, pour l\'hôte et le locataire.',s:'new',p:'P0',v:'V'},
+{c:'Confiance',f:'Assurance',a:'AirCover : dommages jusqu\'à 3 M USD (1 M selon une autre page), responsabilité 1 M USD.',b:'Responsabilité partenaire 1 M ; dommages 1 M USD pour locations US.',l:'Responsabilité civile du locataire exigée à la réservation, attestation de l\'assureur de l\'hôte, option assurance événementielle. Les multirisques classiques excluent souvent la mise à disposition.',s:'new',p:'P0',v:'V'},
+{c:'Confiance',f:'Contrat',a:'Conditions générales de la plateforme.',b:'Conditions et politique du partenaire.',l:'Contrat de mise à disposition signé électroniquement, avec horodatage et preuve d\'acceptation, rédigé pour éviter la requalification en bail.',s:'new',p:'P0',v:'P'},
+{c:'Confiance',f:'Capacité et ERP',a:'Aucun équivalent.',b:'Aucun équivalent.',l:'Jauge légale affichée et plafonnée, type et catégorie d\'ERP, registre de sécurité, attestations. Un bureau ouvert à des clients peut devenir ERP.',s:'new',p:'P0',v:'V'},
+{c:'Confiance',f:'Autorisation de sous-louer',a:'Aucun équivalent pour des locaux pro.',b:'Aucun équivalent.',l:'Si l\'hôte est locataire : accord écrit du bailleur. Case à cocher et pièce téléversée à l\'inscription du local.',s:'new',p:'P0',v:'N'},
+{c:'Confiance',f:'Règles locales',a:'Numéros d\'enregistrement et pages de règles par ville.',b:'Labels hôte privé (UE, UK, CH).',l:'Copropriété, destination de l\'immeuble, horaires et bruit, usage du local. À afficher et à faire accepter.',s:'adapt',p:'P1',v:'P'},
+{c:'Confiance',f:'Obligations de plateforme',a:'Vérification des hôtes, Digital Services Act.',b:'DSA, DMA, procédure de litige partenaire.',l:'DAC7 (identité, NIF, SIRET, revenus), traçabilité des professionnels, signalement de contenus, RGPD sur les pièces collectées.',s:'new',p:'P0',v:'P'},
+{c:'Confiance',f:'Support et litiges',a:'Support 24/7 en 11 langues (50 annoncées), ligne de sécurité 24 h.',b:'Support 24/7 en 41 langues, procédure de litige.',l:'Support en français sur heures ouvrées, procédure de litige dommages avec photos.',s:'reuse',p:'P1',v:'V'},
+// ---------- TERRAIN
+{c:'Terrain',f:'Accès au local',a:'Instructions et horaires d\'arrivée et de départ.',b:'Horaires d\'arrivée en demande spéciale.',l:'Code ou lien valable sur le créneau, activé quelques minutes avant, expiré après. Serrure connectée, journal d\'accès, boîte à clé en secours.',s:'new',p:'P1',v:'V'},
+{c:'Terrain',f:'État des lieux',a:'Non vérifié.',b:'Non vérifié.',l:'Photos horodatées à l\'entrée et à la sortie dans l\'application, rapprochées de la caution.',s:'new',p:'P1',v:'N'},
+{c:'Terrain',f:'Remise en état',a:'Frais de ménage, temps de préparation.',b:'Non vérifié.',l:'Tâche créée automatiquement à la fin de chaque créneau, assignée à un prestataire, avec le buffer correspondant.',s:'adapt',p:'P1',v:'P'},
+{c:'Terrain',f:'Notifications et rappels',a:'E-mail, push, SMS (non vérifié).',b:'Messagerie et assistant.',l:'Rappel 24 h avant, avis de fin de créneau 15 min avant, alerte de dépassement à l\'hôte.',s:'reuse',p:'P1',v:'N'}
+];
+const ST={reuse:'Réutiliser',adapt:'Adapter',new:'Créer'};
+const SRC={V:'source lue',P:'source partielle',N:'à confirmer'};
+const $=id=>document.getElementById(id);
+const state={c:'Toutes',s:'Tous',p:'Toutes',q:''};
+
+// grille de granularité
+$('nights').innerHTML=['L','M','M','J','V','S','D'].map((d,i)=>'<div class="cell'+(i>=3&&i<=4?' on':'')+'">'+d+'</div>').join('');
+$('hours').innerHTML=Array.from({length:12},(_,i)=>{const h=8+i;let k='';if(h>=10&&h<13)k=' on';else if(h===13)k=' buf';return '<div class="cell'+k+'">'+h+'h</div>'}).join('');
+
+// statistiques
+function stats(){
+  const n=ROWS.length,c=k=>ROWS.filter(r=>r.s===k).length,p0=ROWS.filter(r=>r.p==='P0').length;
+  $('stats').innerHTML='<div class="stat"><b>'+n+'</b><span>fonctions comparées</span></div>'
+   +'<div class="stat reuse"><b>'+c('reuse')+'</b><span>à réutiliser tel quel</span></div>'
+   +'<div class="stat adapt"><b>'+c('adapt')+'</b><span>à adapter à l\'heure</span></div>'
+   +'<div class="stat new"><b>'+c('new')+'</b><span>à créer, dont '+ROWS.filter(r=>r.s==='new'&&r.p==='P0').length+' indispensables · '+p0+' P0 au total</span></div>';
+}
+
+// filtres
+function chips(id,list,key){
+  const box=$(id);
+  list.forEach(v=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=v;
+    b.setAttribute('aria-pressed',state[key]===v);
+    b.onclick=()=>{state[key]=v;box.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));render()};
+    box.appendChild(b)});
+}
+chips('fcat',['Toutes','Vitrine','Extranet','Argent','Confiance','Terrain'],'c');
+chips('fst',['Tous','Réutiliser','Adapter','Créer'],'s');
+chips('fpr',['Toutes','P0','P1','P2'],'p');
+$('q').addEventListener('input',e=>{state.q=e.target.value.trim().toLowerCase();render()});
+
+const stKey={'Réutiliser':'reuse','Adapter':'adapt','Créer':'new'};
+function render(){
+  const list=ROWS.filter(r=>
+    (state.c==='Toutes'||r.c===state.c)&&
+    (state.s==='Tous'||r.s===stKey[state.s])&&
+    (state.p==='Toutes'||r.p===state.p)&&
+    (!state.q||(r.f+' '+r.a+' '+r.b+' '+r.l).toLowerCase().includes(state.q)));
+  $('rows').innerHTML=list.map(r=>
+   '<div class="row '+r.s+'">'
+   +'<div class="feat"><span>'+r.f+'</span><span class="cat">'+r.c+'</span><span><span class="tag t-'+r.s+'">'+ST[r.s]+'</span> <span class="tag t-p">'+r.p+'</span></span></div>'
+   +'<div><div class="lbl">Airbnb</div>'+r.a+'</div>'
+   +'<div><div class="lbl">Booking.com</div>'+r.b+'</div>'
+   +'<div class="loc"><div class="lbl">Local pro à l\'heure</div>'+r.l+'<div class="src">'+SRC[r.v]+'</div></div>'
+   +'</div>').join('');
+  $('empty').hidden=list.length>0;
+}
+
+// feuille de route à partir des priorités
+function road(){
+  const t={P0:['P0 · Ouvrir',"Sans ces éléments, aucune réservation réelle n'est possible ou légale."],
+           P1:['P1 · Fiabiliser','Réduit le travail manuel et le risque, ouvre aux agences et aux réseaux.'],
+           P2:['P2 · Confort','Améliore la rétention et le pilotage.']};
+  $('road').innerHTML=['P0','P1','P2'].map(k=>{
+    const items=ROWS.filter(r=>r.p===k&&r.s!=='reuse').map(r=>'<li>'+r.f+' <span class="tag t-'+r.s+'">'+ST[r.s]+'</span></li>').join('');
+    const re=ROWS.filter(r=>r.p===k&&r.s==='reuse').map(r=>r.f).join(', ');
+    return '<div class="box"><h3>'+t[k][0]+'</h3><p class="muted" style="font-size:13.5px">'+t[k][1]+'</p><ol>'+items+'</ol>'
+      +(re?'<p class="muted" style="font-size:13px;margin-top:10px">Repris tel quel : '+re+'.</p>':'')+'</div>';
+  }).join('');
+}
+stats();render();road();
+</script>
